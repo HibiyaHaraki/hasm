@@ -1,0 +1,29 @@
+//! # lib.rs
+//! Hibiya Haraki (August, 2026)
+//! ## Purpose
+//! Library script for HASM Tauri app.
+
+mod hasm;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    // Step 1. Build Tauri app container.
+    tauri::Builder::default()
+        // Step 2. Register plugins used by desktop runtime.
+        .plugin(tauri_plugin_opener::init())
+        // Step 3. Register frontend-invokable command handlers.
+        .invoke_handler(tauri::generate_handler![
+            hasm::commands::open_hasm_model,
+            hasm::commands::get_person_detail,
+            hasm::commands::get_experience_detail,
+            hasm::commands::get_fact_detail,
+            hasm::commands::get_link_detail,
+            hasm::commands::save_person_detail,
+            hasm::commands::save_experience_detail,
+            hasm::commands::save_fact_detail,
+            hasm::commands::save_link_detail
+        ])
+        // Step 4. Launch application context.
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
