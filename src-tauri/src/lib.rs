@@ -14,10 +14,12 @@ pub fn run() {
         // Step 3. Register frontend-invokable command handlers.
         .invoke_handler(tauri::generate_handler![
             hasm::commands::open_hasm_model,
+            hasm::commands::read_model_database,
             hasm::commands::get_person_detail,
             hasm::commands::get_experience_detail,
             hasm::commands::get_fact_detail,
             hasm::commands::get_link_detail,
+            hasm::commands::save_model_database,
             hasm::commands::save_person_detail,
             hasm::commands::save_experience_detail,
             hasm::commands::save_fact_detail,

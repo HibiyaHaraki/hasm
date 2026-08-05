@@ -1,67 +1,62 @@
-# Visualize HASM Model (3D Git-like Graph)
+# Frontend HASM Model Page Transfer Architecture
 
-This draft describes a visualization concept similar to a 3D Git commit graph.
-In this view, `EXPERIENCE` behaves like branches, `FACT` behaves like commits, and `LINK` behaves like cross-entity relationship edges.
+This document describes frontend page transfer flow for HASM model operations.
+It focuses on how users navigate between bootstrap, model selection, model home visualization, and each entity detail page.
 
-## Visualization Pipeline
+## Page Transfer Flow
 
 ```mermaid
 flowchart TD
-	A([Boot HASM]) --> B{HASM model folder is selected or not?}
-	B --Yes--> C[Visualize HASM Model]
-	B --NO--> D[Open HASM Model]
-	D --> E([Select HASM Model])
+	A([Boot HASM]) --> B{Model folder selected?}
+	B -- Yes --> C[Open Model Home Page]
+	B -- No --> D[Open Model Selector Page]
+	D --> E([Select HASM Model Folder])
 	E --> C
 
-	C --> P1([Select PERSON])
-	P1 --> P2[PERSON detail]
-	C --> E1([Select EXPERIENCE])
-	E1 --> E2[EXPERIENCE detail]
-	C --> F1([Select FACT])
-	F1 --> F2[FACT detail]
-	C --> L1([Select LINK])
-	L1 --> L2[LINK detail]
+	C --> C1([Visualize PERSON / EXPERIENCE / FACT / LINK])
+	C1 --> P2[PERSON Detail Page]
+	C1 --> E2[EXPERIENCE Detail Page]
+	C1 --> F2[FACT Detail Page]
+	C1 --> L2[LINK Detail Page]
 
-	subgraph "PERSON Detail"
-		P2 --> P3([Edit PERSON Information])
-		P3 --> P4([Save PERSON Information])
+	subgraph "PERSON Detail Page"
+		P2 --> P3([Edit PERSON Form])
+		P3 --> P4([Save PERSON])
 		P4 --> P2
 	end
 
-	subgraph "EXPERIENCE Detail"
-		E2 --> E3([Edit EXPERIENCE Information])
-		E3 --> E4([Save EXPERIENCE Information])
+	subgraph "EXPERIENCE Detail Page"
+		E2 --> E3([Edit EXPERIENCE Form])
+		E3 --> E4([Save EXPERIENCE])
 		E4 --> E2
 	end
 
-	subgraph "FACFT Detail"
-		F2 --> F3([Edit FACT Information])
-		F3 --> F4([Save FACT Information])
+	subgraph "FACT Detail Page"
+		F2 --> F3([Edit FACT Form])
+		F3 --> F4([Save FACT])
 		F4 --> F2
 	end
 
-	subgraph "LINK Detail"
-		L2 --> L3([Edit LINK Information])
-		L3 --> L4([Save LINK Information])
+	subgraph "LINK Detail Page"
+		L2 --> L3([Edit LINK Form])
+		L3 --> L4([Save LINK])
 		L4 --> L2
 	end
 
-	P2 --> P5([Back])
+	P2 --> P5([Back to Model Home])
 	P5 --> C
-	E2 --> E5([Back])
+	E2 --> E5([Back to Model Home])
 	E5 --> C
-	F2 --> F5([Back])
+	F2 --> F5([Back to Model Home])
 	F5 --> C
-	L2 --> L5([Back])
+	L2 --> L5([Back to Model Home])
 	L5 --> C
 
 ```
 
 ## Notes
 
-- Mermaid is 2D, so this is a conceptual draft for a future 3D implementation.
-- Suggested 3D mapping:
-  - X-axis: timeline/order of FACTs
-  - Y-axis: EXPERIENCE branch separation
-  - Z-axis: entity type layers (PERSON, EXPERIENCE, FACT, LINK)
-- Dashed edges represent non-branch references (PERSON/LINK relations).
+- This flow is focused on page navigation and transfer between frontend pages.
+- Model Home includes visualization for PERSON, EXPERIENCE, FACT, and LINK, and users open details directly from that visualization.
+- Entity detail pages provide see, edit, and save operations in-page, then users can navigate back to Model Home.
+- The architecture can be mapped to router paths such as `/`, `/open`, `/entity/:type/:id`, and `/visualize` if visualization is later reintroduced.

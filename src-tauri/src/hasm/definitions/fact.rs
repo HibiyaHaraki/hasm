@@ -1,29 +1,30 @@
 //! # fact.rs
 //! Hibiya Haraki (August, 2026)
 //! ## Purpose
-//! Data structure for FACT detail records.
+//! Data structure for FACT records.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FactDetail {
-    pub fact_id: String,
+pub struct Fact {
+    pub fact_id: Uuid,
     pub fact_description_path: String,
-    pub branch_experience_ids: Vec<String>,
-    pub person_ids: Vec<String>,
-    pub link_ids: Vec<String>,
+    pub branch_experience_ids: Vec<Uuid>,
+    pub person_ids: Vec<Uuid>,
+    pub link_ids: Vec<Uuid>,
     pub markdown: String,
     pub markdown_path: String,
 }
 
-impl FactDetail {
-    pub fn default_markdown_path(entity_id: &str) -> String {
+impl Fact {
+    pub fn default_markdown_path(entity_id: &Uuid) -> String {
         format!("FACT/{entity_id}/main.md")
     }
 
     pub fn title(&self) -> String {
-        self.fact_id.clone()
+        self.fact_id.to_string()
     }
 
     pub fn subtitle(&self) -> String {
