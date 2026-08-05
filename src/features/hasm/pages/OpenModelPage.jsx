@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import { openHasmModel } from "../api";
+import { errorLog, infoLog } from "../../../hasm_logger/src/react/logger.js";
 
 function OpenModelPage({ initialPath, statusMessage, errorMessage, onBack, onOpenSuccess, onOpenFailure }) {
   // Step 1. Initialize open-target path and opening state.
@@ -26,8 +27,11 @@ function OpenModelPage({ initialPath, statusMessage, errorMessage, onBack, onOpe
     setOpening(true);
     try {
       const workspace = await openHasmModel(path.trim());
+      infoLog("OpenModelPage opened model", path.trim());
       onOpenSuccess(workspace);
     } catch (error) {
+      // Log backend open errors before forwarding them to page-level UI state.
+      errorLog("OpenModelPage failed to open model", path.trim(), error);
       onOpenFailure(String(error));
     } finally {
       setOpening(false);

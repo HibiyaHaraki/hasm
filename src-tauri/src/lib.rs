@@ -4,9 +4,15 @@
 //! Library script for HASM Tauri app.
 
 mod hasm;
+#[allow(unused_imports)]
+#[path = "hasm_logger/src/tauri/logger.rs"]
+mod logger;
+
+use crate::logger::init_logger;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    init_logger();
     // Step 1. Build Tauri app container.
     tauri::Builder::default()
         // Step 2. Register plugins used by desktop runtime.
