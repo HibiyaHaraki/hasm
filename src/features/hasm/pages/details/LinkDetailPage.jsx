@@ -9,6 +9,7 @@
 
 import EntityField from "../../components/EntityField";
 import useEntityDetailForm from "../../hooks/useEntityDetailForm";
+import { errorLog, infoLog } from "../../../../hasm_logger/src/react/logger.js";
 
 function LinkDetailPage({ modelRoot, entityId, onBack, onSaveSuccess, onSaveFailure }) {
   const { definition, detail, draft, loading, saving, updateDraft, saveDraft } = useEntityDetailForm({
@@ -21,8 +22,11 @@ function LinkDetailPage({ modelRoot, entityId, onBack, onSaveSuccess, onSaveFail
   async function handleSave() {
     try {
       const message = await saveDraft();
+      infoLog("Saved LINK detail", entityId);
       await onSaveSuccess(message || "Saved LINK");
     } catch (error) {
+      // Keep detailed save failure trace for LINK updates.
+      errorLog("Failed to save LINK detail", entityId, error);
       onSaveFailure(String(error));
     }
   }

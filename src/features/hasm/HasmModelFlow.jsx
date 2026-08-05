@@ -20,6 +20,7 @@ import {
   DEFAULT_COLOR_PATTERN,
   getThemeVariables,
 } from "../../hasm_color_patterns/src/index.js";
+import { errorLog, infoLog } from "../../hasm_logger/src/react/logger.js";
 
 const EMPTY_WORKSPACE = {
   modelRoot: "",
@@ -130,12 +131,15 @@ function HasmModelFlow() {
             errorMessage={errorMessage}
             onBack={() => setPage("boot")}
             onOpenSuccess={(nextWorkspace) => {
+              infoLog("Model opened successfully", nextWorkspace.modelRoot);
               setWorkspace(nextWorkspace);
               setStatusMessage("Model opened successfully.");
               setErrorMessage("");
               setPage("visualize");
             }}
             onOpenFailure={(nextError) => {
+              // Keep error state synchronized with UI feedback and logs.
+              errorLog("Failed to open model", nextError);
               setErrorMessage(nextError);
               setStatusMessage("");
             }}
@@ -151,9 +155,12 @@ function HasmModelFlow() {
             onRefresh={async () => {
               try {
                 await refreshWorkspace();
+                infoLog("Model refreshed", workspace.modelRoot);
                 setStatusMessage("Model refreshed.");
                 setErrorMessage("");
               } catch (error) {
+                // Capture refresh failures for troubleshooting while surfacing UI error.
+                errorLog("Failed to refresh model", error);
                 setErrorMessage(String(error));
               }
             }}
@@ -169,11 +176,14 @@ function HasmModelFlow() {
             entityId={selectedEntityId}
             onBack={() => setPage("visualize")}
             onSaveSuccess={async (message) => {
+              infoLog("Entity save succeeded", selectedEntityType, selectedEntityId, message);
               setStatusMessage(message);
               setErrorMessage("");
               await refreshWorkspace();
             }}
             onSaveFailure={(message) => {
+              // Persist save failures in state and log to aid post-mortem debugging.
+              errorLog("Entity save failed", selectedEntityType, selectedEntityId, message);
               setErrorMessage(message);
             }}
           />

@@ -5,6 +5,8 @@
 
 use crate::hasm::definitions::{Experience, Fact, Link, Person};
 use crate::hasm::types::{EntitySummary, ModelDatabase, ModelWorkspace, SaveResult};
+use crate::logger::init_logger;
+use log::{debug, error, info, warn};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::BTreeMap;
 use std::fs;
@@ -16,6 +18,9 @@ const MAIN_DB_FILENAME: &str = "main.db";
 const LEGACY_DB_FILENAME: &str = "hasm.db";
 
 pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
+    init_logger();
+    info!("open_hasm_model start: model_root={}", model_root);
+
     // Step 1. Validate model root and open DB connection.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -44,6 +49,14 @@ pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
     }
 
     // Step 6. Return normalized model workspace snapshot.
+    info!(
+        "open_hasm_model success: root={}, PERSON={}, EXPERIENCE={}, FACT={}, LINK={}",
+        root.display(),
+        counts.get("PERSON").copied().unwrap_or(0),
+        counts.get("EXPERIENCE").copied().unwrap_or(0),
+        counts.get("FACT").copied().unwrap_or(0),
+        counts.get("LINK").copied().unwrap_or(0)
+    );
     Ok(ModelWorkspace {
         model_root: root.to_string_lossy().to_string(),
         sections,
@@ -52,19 +65,43 @@ pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
 }
 
 pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
+    init_logger();
+    info!("read_model_database start: model_root={}", model_root);
+
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
     sync_directories_to_db(&connection, &root)?;
 
-    Ok(ModelDatabase {
+    let model = ModelDatabase {
         people: load_people(&connection, &root)?,
         experiences: load_experiences(&connection, &root)?,
         facts: load_facts(&connection, &root)?,
         links: load_links(&connection, &root)?,
-    })
+    };
+
+    info!(
+        "read_model_database success: root={}, PERSON={}, EXPERIENCE={}, FACT={}, LINK={}",
+        root.display(),
+        model.people.len(),
+        model.experiences.len(),
+        model.facts.len(),
+        model.links.len()
+    );
+
+    Ok(model)
 }
 
 pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<SaveResult, String> {
+    init_logger();
+    info!(
+        "save_model_database start: model_root={}, PERSON={}, EXPERIENCE={}, FACT={}, LINK={}",
+        model_root,
+        model.people.len(),
+        model.experiences.len(),
+        model.facts.len(),
+        model.links.len()
+    );
+
     let root = validate_model_root(model_root)?;
     let mut connection = open_connection(&root)?;
     sync_directories_to_db(&connection, &root)?;
@@ -86,6 +123,7 @@ pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<Sa
 
     transaction.commit().map_err(|error| error.to_string())?;
 
+    info!("save_model_database success: root={}", root.display());
     Ok(SaveResult {
         message: format!(
             "Saved main.db (PERSON={}, EXPERIENCE={}, FACT={}, LINK={})",
@@ -98,6 +136,9 @@ pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<Sa
 }
 
 pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, String> {
+    init_logger();
+    info!("get_person_detail start: model_root={}, entity_id={}", model_root, entity_id);
+
     // Step 1. Validate/open/sync before detail lookup.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -125,6 +166,7 @@ pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, St
         .map_err(|error| error.to_string())?;
 
     if let Some((person_id, person_name, description_path, birthday, die, link_ids)) = row {
+        info!("get_person_detail success: entity_id={}", entity_id);
         return Ok(Person {
             person_id: parse_uuid_or_nil(&person_id)?,
             person_name,
@@ -139,10 +181,18 @@ pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, St
         });
     }
 
+    warn!("get_person_detail not found: entity_id={}", entity_id);
     Err(format!("PERSON not found: {entity_id}"))
 }
 
 pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experience, String> {
+    init_logger();
+    info!(
+        "get_experience_detail start: model_root={}, entity_id={}",
+        model_root,
+        entity_id
+    );
+
     // Step 1. Validate/open/sync before detail lookup.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -179,6 +229,7 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
         link_ids,
     )) = row
     {
+        info!("get_experience_detail success: entity_id={}", entity_id);
         return Ok(Experience {
             experience_id: parse_uuid_or_nil(&experience_id)?,
             person_id: parse_uuid_or_nil(&person_id)?,
@@ -193,10 +244,14 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
         });
     }
 
+    warn!("get_experience_detail not found: entity_id={}", entity_id);
     Err(format!("EXPERIENCE not found: {entity_id}"))
 }
 
 pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String> {
+    init_logger();
+    info!("get_fact_detail start: model_root={}, entity_id={}", model_root, entity_id);
+
     // Step 1. Validate/open/sync before detail lookup.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -223,6 +278,7 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
         .map_err(|error| error.to_string())?;
 
     if let Some((fact_id, description_path, branch_experience_ids, person_ids, link_ids)) = row {
+        info!("get_fact_detail success: entity_id={}", entity_id);
         return Ok(Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_description_path: description_path.clone(),
@@ -236,10 +292,14 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
         });
     }
 
+    warn!("get_fact_detail not found: entity_id={}", entity_id);
     Err(format!("FACT not found: {entity_id}"))
 }
 
 pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String> {
+    init_logger();
+    info!("get_link_detail start: model_root={}, entity_id={}", model_root, entity_id);
+
     // Step 1. Validate/open/sync before detail lookup.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -266,6 +326,7 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
         .map_err(|error| error.to_string())?;
 
     if let Some((link_id, link_name, link_type, description_path, related_ids)) = row {
+        info!("get_link_detail success: entity_id={}", entity_id);
         return Ok(Link {
             link_id: parse_uuid_or_nil(&link_id)?,
             link_name,
@@ -279,10 +340,18 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
         });
     }
 
+    warn!("get_link_detail not found: entity_id={}", entity_id);
     Err(format!("LINK not found: {entity_id}"))
 }
 
 pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResult, String> {
+    init_logger();
+    info!(
+        "save_person_detail start: model_root={}, person_id={}",
+        model_root,
+        detail.person_id
+    );
+
     // Step 1. Validate/open/sync before persistence.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -292,12 +361,20 @@ pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResul
     save_person_row(&connection, &root, detail)?;
 
     // Step 3. Return save result message.
+    info!("save_person_detail success: person_id={}", detail.person_id);
     Ok(SaveResult {
         message: format!("Saved PERSON {}", detail.person_id),
     })
 }
 
 pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<SaveResult, String> {
+    init_logger();
+    info!(
+        "save_experience_detail start: model_root={}, experience_id={}",
+        model_root,
+        detail.experience_id
+    );
+
     // Step 1. Validate/open/sync before persistence.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -307,12 +384,20 @@ pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<S
     save_experience_row(&connection, &root, detail)?;
 
     // Step 3. Return save result message.
+    info!("save_experience_detail success: experience_id={}", detail.experience_id);
     Ok(SaveResult {
         message: format!("Saved EXPERIENCE {}", detail.experience_id),
     })
 }
 
 pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, String> {
+    init_logger();
+    info!(
+        "save_fact_detail start: model_root={}, fact_id={}",
+        model_root,
+        detail.fact_id
+    );
+
     // Step 1. Validate/open/sync before persistence.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -322,12 +407,20 @@ pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, S
     save_fact_row(&connection, &root, detail)?;
 
     // Step 3. Return save result message.
+    info!("save_fact_detail success: fact_id={}", detail.fact_id);
     Ok(SaveResult {
         message: format!("Saved FACT {}", detail.fact_id),
     })
 }
 
 pub fn save_link_detail(model_root: &str, detail: &Link) -> Result<SaveResult, String> {
+    init_logger();
+    info!(
+        "save_link_detail start: model_root={}, link_id={}",
+        model_root,
+        detail.link_id
+    );
+
     // Step 1. Validate/open/sync before persistence.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
@@ -337,18 +430,24 @@ pub fn save_link_detail(model_root: &str, detail: &Link) -> Result<SaveResult, S
     save_link_row(&connection, &root, detail)?;
 
     // Step 3. Return save result message.
+    info!("save_link_detail success: link_id={}", detail.link_id);
     Ok(SaveResult {
         message: format!("Saved LINK {}", detail.link_id),
     })
 }
 
 fn validate_model_root(model_root: &str) -> Result<PathBuf, String> {
+    init_logger();
+    debug!("validate_model_root: {}", model_root);
+
     // Step 1. Validate root existence and directory type.
     let root = PathBuf::from(model_root);
     if !root.exists() {
+        error!("Model root does not exist: {}", model_root);
         return Err(format!("Model root does not exist: {model_root}"));
     }
     if !root.is_dir() {
+        error!("Model root is not a directory: {}", model_root);
         return Err(format!("Model root is not a directory: {model_root}"));
     }
 
@@ -356,19 +455,29 @@ fn validate_model_root(model_root: &str) -> Result<PathBuf, String> {
     for entity_type in ENTITY_TYPES {
         let path = root.join(entity_type);
         if !path.exists() {
+            error!("Missing required folder: {}", path.display());
             return Err(format!("Missing required folder: {}", path.to_string_lossy()));
         }
     }
 
+    debug!("validate_model_root success: {}", root.display());
     Ok(root)
 }
 
 fn open_connection(model_root: &Path) -> Result<Connection, String> {
+    init_logger();
+    debug!("open_connection start: {}", model_root.display());
+
     // Step 1. Ensure target main.db exists, optionally bootstrapped from legacy hasm.db.
     let main_db_path = model_root.join(MAIN_DB_FILENAME);
     if !main_db_path.exists() {
         let legacy_db_path = model_root.join(LEGACY_DB_FILENAME);
         if legacy_db_path.exists() {
+            info!(
+                "main.db missing; copying legacy DB from {} to {}",
+                legacy_db_path.display(),
+                main_db_path.display()
+            );
             fs::copy(&legacy_db_path, &main_db_path).map_err(|error| {
                 format!(
                     "Failed to copy {} to {}: {error}",
@@ -384,6 +493,7 @@ fn open_connection(model_root: &Path) -> Result<Connection, String> {
 
     // Step 3. Ensure required schema exists.
     ensure_schema(&connection)?;
+    debug!("open_connection success: {}", main_db_path.display());
     Ok(connection)
 }
 
@@ -426,8 +536,12 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
 }
 
 fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<(), String> {
+    init_logger();
+    debug!("sync_directories_to_db start: {}", model_root.display());
+
     // Step 1. Sync PERSON folders into DB rows when missing.
-    for entity_id in read_entity_directories(model_root, "PERSON")? {
+    let person_ids = read_entity_directories(model_root, "PERSON")?;
+    for entity_id in &person_ids {
         let description_path = Person::default_markdown_path(&entity_id);
         connection
             .execute(
@@ -439,7 +553,8 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
     }
 
     // Step 2. Sync EXPERIENCE folders into DB rows when missing.
-    for entity_id in read_entity_directories(model_root, "EXPERIENCE")? {
+    let experience_ids = read_entity_directories(model_root, "EXPERIENCE")?;
+    for entity_id in &experience_ids {
         let description_path = Experience::default_markdown_path(&entity_id);
         connection
             .execute(
@@ -451,7 +566,8 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
     }
 
     // Step 3. Sync FACT folders into DB rows when missing.
-    for entity_id in read_entity_directories(model_root, "FACT")? {
+    let fact_ids = read_entity_directories(model_root, "FACT")?;
+    for entity_id in &fact_ids {
         let description_path = Fact::default_markdown_path(&entity_id);
         connection
             .execute(
@@ -463,7 +579,8 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
     }
 
     // Step 4. Sync LINK folders into DB rows when missing.
-    for entity_id in read_entity_directories(model_root, "LINK")? {
+    let link_ids = read_entity_directories(model_root, "LINK")?;
+    for entity_id in &link_ids {
         let description_path = Link::default_markdown_path(&entity_id);
         connection
             .execute(
@@ -474,10 +591,18 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
             .map_err(|error| error.to_string())?;
     }
 
+    debug!(
+        "sync_directories_to_db success: PERSON={}, EXPERIENCE={}, FACT={}, LINK={}",
+        person_ids.len(),
+        experience_ids.len(),
+        fact_ids.len(),
+        link_ids.len()
+    );
     Ok(())
 }
 
 fn save_person_row(connection: &Connection, model_root: &Path, detail: &Person) -> Result<(), String> {
+    debug!("save_person_row: person_id={}", detail.person_id);
     let description_path = sanitize_relative_path(
         &detail.person_description_path,
         Person::default_markdown_path(&detail.person_id),
@@ -513,6 +638,7 @@ fn save_experience_row(
     model_root: &Path,
     detail: &Experience,
 ) -> Result<(), String> {
+    debug!("save_experience_row: experience_id={}", detail.experience_id);
     let description_path = sanitize_relative_path(
         &detail.experience_description_path,
         Experience::default_markdown_path(&detail.experience_id),
@@ -545,6 +671,7 @@ fn save_experience_row(
 }
 
 fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> Result<(), String> {
+    debug!("save_fact_row: fact_id={}", detail.fact_id);
     let description_path = sanitize_relative_path(
         &detail.fact_description_path,
         Fact::default_markdown_path(&detail.fact_id),
@@ -574,6 +701,7 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
 }
 
 fn save_link_row(connection: &Connection, model_root: &Path, detail: &Link) -> Result<(), String> {
+    debug!("save_link_row: link_id={}", detail.link_id);
     let description_path = sanitize_relative_path(
         &detail.link_description_path,
         Link::default_markdown_path(&detail.link_id),
@@ -941,6 +1069,12 @@ fn load_links(connection: &Connection, model_root: &Path) -> Result<Vec<Link>, S
 }
 
 fn read_entity_directories(model_root: &Path, entity_type: &str) -> Result<Vec<Uuid>, String> {
+    debug!(
+        "read_entity_directories start: root={}, entity_type={}",
+        model_root.display(),
+        entity_type
+    );
+
     // Step 1. Walk the target entity directory.
     let entity_path = model_root.join(entity_type);
     let mut entity_ids = Vec::new();
@@ -959,6 +1093,11 @@ fn read_entity_directories(model_root: &Path, entity_type: &str) -> Result<Vec<U
 
     // Step 3. Sort and return deterministic entity ID list.
     entity_ids.sort_by_key(|id| id.to_string());
+    debug!(
+        "read_entity_directories success: entity_type={}, count={}",
+        entity_type,
+        entity_ids.len()
+    );
     Ok(entity_ids)
 }
 
@@ -968,6 +1107,12 @@ fn read_markdown(model_root: &Path, relative_path: &str) -> String {
 }
 
 fn write_markdown(model_root: &Path, relative_path: &str, markdown: &str) -> Result<(), String> {
+    debug!(
+        "write_markdown start: root={}, relative_path={}",
+        model_root.display(),
+        relative_path
+    );
+
     let path = resolve_markdown_path(model_root, relative_path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
@@ -977,7 +1122,13 @@ fn write_markdown(model_root: &Path, relative_path: &str, markdown: &str) -> Res
             )
         })?;
     }
-    fs::write(&path, markdown).map_err(|error| format!("Failed to write {}: {error}", path.display()))
+    fs::write(&path, markdown).map_err(|error| {
+        error!("write_markdown failed: path={}, error={}", path.display(), error);
+        format!("Failed to write {}: {error}", path.display())
+    })?;
+
+    debug!("write_markdown success: {}", path.display());
+    Ok(())
 }
 
 fn resolve_markdown_path(model_root: &Path, relative_path: &str) -> PathBuf {
@@ -999,7 +1150,10 @@ fn sanitize_relative_path(value: &str, fallback: String) -> String {
 }
 
 fn parse_uuid(value: &str) -> Result<Uuid, String> {
-    Uuid::parse_str(value.trim()).map_err(|error| format!("Invalid UUID '{value}': {error}"))
+    Uuid::parse_str(value.trim()).map_err(|error| {
+        error!("Invalid UUID '{}': {}", value, error);
+        format!("Invalid UUID '{value}': {error}")
+    })
 }
 
 fn parse_uuid_or_nil(value: &str) -> Result<Uuid, String> {

@@ -9,6 +9,7 @@
 
 import EntityField from "../../components/EntityField";
 import useEntityDetailForm from "../../hooks/useEntityDetailForm";
+import { errorLog, infoLog } from "../../../../hasm_logger/src/react/logger.js";
 
 function ExperienceDetailPage({ modelRoot, entityId, onBack, onSaveSuccess, onSaveFailure }) {
   const { definition, detail, draft, loading, saving, updateDraft, saveDraft } = useEntityDetailForm({
@@ -21,8 +22,11 @@ function ExperienceDetailPage({ modelRoot, entityId, onBack, onSaveSuccess, onSa
   async function handleSave() {
     try {
       const message = await saveDraft();
+      infoLog("Saved EXPERIENCE detail", entityId);
       await onSaveSuccess(message || "Saved EXPERIENCE");
     } catch (error) {
+      // Keep detailed save failure trace for EXPERIENCE updates.
+      errorLog("Failed to save EXPERIENCE detail", entityId, error);
       onSaveFailure(String(error));
     }
   }

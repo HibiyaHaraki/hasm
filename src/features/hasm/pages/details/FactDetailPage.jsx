@@ -9,6 +9,7 @@
 
 import EntityField from "../../components/EntityField";
 import useEntityDetailForm from "../../hooks/useEntityDetailForm";
+import { errorLog, infoLog } from "../../../../hasm_logger/src/react/logger.js";
 
 function FactDetailPage({ modelRoot, entityId, onBack, onSaveSuccess, onSaveFailure }) {
   const { definition, detail, draft, loading, saving, updateDraft, saveDraft } = useEntityDetailForm({
@@ -21,8 +22,11 @@ function FactDetailPage({ modelRoot, entityId, onBack, onSaveSuccess, onSaveFail
   async function handleSave() {
     try {
       const message = await saveDraft();
+      infoLog("Saved FACT detail", entityId);
       await onSaveSuccess(message || "Saved FACT");
     } catch (error) {
+      // Keep detailed save failure trace for FACT updates.
+      errorLog("Failed to save FACT detail", entityId, error);
       onSaveFailure(String(error));
     }
   }
