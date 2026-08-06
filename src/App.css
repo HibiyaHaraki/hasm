@@ -83,6 +83,110 @@ textarea {
   gap: 14px;
 }
 
+.open-page-home {
+  min-height: calc(100vh - 48px);
+  place-items: center;
+  padding: 20px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.open-home-center {
+  width: min(880px, 100%);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+
+.open-home-center h2 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+}
+
+.open-home-subtitle {
+  margin-bottom: 6px;
+  color: var(--theme-muted);
+}
+
+.open-home-form {
+  width: min(820px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.open-home-input-wrap {
+  width: 100%;
+}
+
+.open-home-input-wrap input {
+  width: 100%;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, #ffffff);
+  padding: 0.92rem 1.15rem;
+  background: color-mix(in srgb, var(--theme-input-bg) 70%, #ffffff);
+  color: var(--theme-input-text);
+}
+
+.open-home-input-wrap input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--theme-primary) 74%, #ffffff);
+  outline-offset: 2px;
+}
+
+.open-home-submit {
+  border-radius: 999px;
+  padding-inline: 1.25rem;
+}
+
+.open-home-create-link,
+.open-home-back {
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--theme-primary) 62%, #ffffff);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.open-home-create-link:hover,
+.open-home-back:hover {
+  color: var(--theme-secondary);
+}
+
+.open-home-status {
+  justify-content: center;
+}
+
+.boot-page-home {
+  min-height: calc(100vh - 48px);
+  place-items: center;
+}
+
+.boot-home-center {
+  width: min(840px, 100%);
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+
+.boot-home-center p {
+  color: var(--theme-muted);
+}
+
+.boot-home-meta-row {
+  justify-content: center;
+}
+
+.boot-home-actions {
+  justify-content: center;
+}
+
 .button-cluster {
   display: flex;
   gap: 10px;
@@ -537,6 +641,31 @@ h1 {
 @media (max-width: 720px) {
   .app-shell {
     padding: 14px;
+  }
+
+  .open-page-home {
+    min-height: calc(100vh - 28px);
+    padding: 10px 0;
+  }
+
+  .open-home-form {
+    grid-template-columns: 1fr;
+  }
+
+  .open-home-submit {
+    width: 100%;
+  }
+
+  .boot-page-home {
+    min-height: calc(100vh - 28px);
+  }
+
+  .boot-home-actions {
+    width: 100%;
+  }
+
+  .boot-home-actions button {
+    width: 100%;
   }
 
   .card-surface {

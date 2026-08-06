@@ -261,7 +261,7 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
     let fact_id = parse_uuid(entity_id)?;
     let row = connection
         .query_row(
-            "SELECT fact_id, fact_description_path, branch_experience_ids, person_ids, link_ids
+            "SELECT fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids
              FROM fact WHERE fact_id = ?1",
             [fact_id.to_string()],
             |row| {
@@ -271,18 +271,22 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         )
         .optional()
         .map_err(|error| error.to_string())?;
 
-    if let Some((fact_id, description_path, branch_experience_ids, person_ids, link_ids)) = row {
+    if let Some((fact_id, fact_name, description_path, experience_ids, person_ids, link_ids)) =
+        row
+    {
         info!("get_fact_detail success: entity_id={}", entity_id);
         return Ok(Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
+            fact_name,
             fact_description_path: description_path.clone(),
-            branch_experience_ids: parse_json_uuid_array(&branch_experience_ids),
+            experience_ids: parse_json_uuid_array(&experience_ids),
             person_ids: parse_json_uuid_array(&person_ids),
             link_ids: parse_json_uuid_array(&link_ids),
             markdown: read_markdown(&root, &description_path),
@@ -519,8 +523,9 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
             );
             CREATE TABLE IF NOT EXISTS fact (
                 fact_id UUID PRIMARY KEY,
+                fact_name TEXT NOT NULL DEFAULT '',
                 fact_description_path TEXT NOT NULL DEFAULT '',
-                branch_experience_ids TEXT NOT NULL DEFAULT '[]',
+                experience_ids TEXT NOT NULL DEFAULT '[]',
                 person_ids TEXT NOT NULL DEFAULT '[]',
                 link_ids TEXT NOT NULL DEFAULT '[]'
             );
@@ -571,8 +576,8 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
         let description_path = Fact::default_markdown_path(&entity_id);
         connection
             .execute(
-                "INSERT OR IGNORE INTO fact (fact_id, fact_description_path, branch_experience_ids, person_ids, link_ids)
-                 VALUES (?1, ?2, '[]', '[]', '[]')",
+                "INSERT OR IGNORE INTO fact (fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids)
+                 VALUES (?1, '', ?2, '[]', '[]', '[]')",
                 params![entity_id.to_string(), description_path],
             )
             .map_err(|error| error.to_string())?;
@@ -680,17 +685,19 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
 
     connection
         .execute(
-            "INSERT INTO fact (fact_id, fact_description_path, branch_experience_ids, person_ids, link_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO fact (fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(fact_id) DO UPDATE SET
+                fact_name = excluded.fact_name,
                 fact_description_path = excluded.fact_description_path,
-                branch_experience_ids = excluded.branch_experience_ids,
+                experience_ids = excluded.experience_ids,
                 person_ids = excluded.person_ids,
                 link_ids = excluded.link_ids",
             params![
                 detail.fact_id.to_string(),
+                detail.fact_name,
                 description_path,
-                to_json_uuid_array(&detail.branch_experience_ids),
+                to_json_uuid_array(&detail.experience_ids),
                 to_json_uuid_array(&detail.person_ids),
                 to_json_uuid_array(&detail.link_ids),
             ],
@@ -817,7 +824,10 @@ fn list_experiences(connection: &Connection) -> Result<Vec<EntitySummary>, Strin
 
 fn list_facts(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     let mut statement = connection
-        .prepare("SELECT fact_id, person_ids, link_ids FROM fact ORDER BY fact_id")
+        .prepare(
+            "SELECT fact_id, fact_name, person_ids, link_ids
+             FROM fact ORDER BY COALESCE(NULLIF(fact_name, ''), fact_id)",
+        )
         .map_err(|error| error.to_string())?;
 
     let rows = statement
@@ -826,17 +836,19 @@ fn list_facts(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut items = Vec::new();
     for row in rows {
-        let (fact_id, person_ids, link_ids) = row.map_err(|error| error.to_string())?;
+        let (fact_id, fact_name, person_ids, link_ids) = row.map_err(|error| error.to_string())?;
         let fact = Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
+            fact_name,
             fact_description_path: String::new(),
-            branch_experience_ids: Vec::new(),
+            experience_ids: Vec::new(),
             person_ids: parse_json_uuid_array(&person_ids),
             link_ids: parse_json_uuid_array(&link_ids),
             markdown: String::new(),
@@ -989,8 +1001,8 @@ fn load_experiences(connection: &Connection, model_root: &Path) -> Result<Vec<Ex
 fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT fact_id, fact_description_path, branch_experience_ids, person_ids, link_ids
-             FROM fact ORDER BY fact_id",
+            "SELECT fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids
+             FROM fact ORDER BY COALESCE(NULLIF(fact_name, ''), fact_id)",
         )
         .map_err(|error| error.to_string())?;
 
@@ -1002,19 +1014,21 @@ fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, S
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut facts = Vec::new();
     for row in rows {
-        let (fact_id, description_path, branch_experience_ids, person_ids, link_ids) =
+        let (fact_id, fact_name, description_path, experience_ids, person_ids, link_ids) =
             row.map_err(|error| error.to_string())?;
 
         facts.push(Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
+            fact_name,
             fact_description_path: description_path.clone(),
-            branch_experience_ids: parse_json_uuid_array(&branch_experience_ids),
+            experience_ids: parse_json_uuid_array(&experience_ids),
             person_ids: parse_json_uuid_array(&person_ids),
             link_ids: parse_json_uuid_array(&link_ids),
             markdown: read_markdown(model_root, &description_path),

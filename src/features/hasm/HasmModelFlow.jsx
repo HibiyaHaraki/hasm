@@ -19,7 +19,7 @@ import {
   COLOR_PATTERNS,
   DEFAULT_COLOR_PATTERN,
   getThemeVariables,
-} from "../../hasm_color_patterns/src/index.js";
+} from "../../hasm_color_pattern/src/index.js";
 import { errorLog, infoLog } from "../../hasm_logger/src/react/logger.js";
 
 const EMPTY_WORKSPACE = {
@@ -130,6 +130,10 @@ function HasmModelFlow() {
             statusMessage={statusMessage}
             errorMessage={errorMessage}
             onBack={() => setPage("boot")}
+            onCreateNew={() => {
+              setStatusMessage("Create new HASM model flow is coming soon.");
+              setErrorMessage("");
+            }}
             onOpenSuccess={(nextWorkspace) => {
               infoLog("Model opened successfully", nextWorkspace.modelRoot);
               setWorkspace(nextWorkspace);

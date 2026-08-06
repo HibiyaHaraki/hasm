@@ -50,8 +50,9 @@ erDiagram
 
   FACT {
     UUID fact_id PK
+    STRING fact_name
     STRING fact_description_path
-    UUID[] branch_experience_ids
+    UUID[] experience_ids
     UUID[] person_ids
     UUID[] link_ids
   }
@@ -102,8 +103,9 @@ This is the branch in Git. However, HASM does not need uniequness.
 This is the commit in GIT. This include fact which actually happen.
 
 * FACT ID (UUID)
-* Branch ID (List of UUID)
-* Person ID (List of UUID)
+* FACT Name (String)
+* EXPERIENCE ID (List of UUID)
+* PERSON ID (List of UUID)
 * FACT description (String: Path to HASM Markdown)
 * LINK ID (List of UUID)
 
