@@ -10,8 +10,9 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct Fact {
     pub fact_id: Uuid,
+    pub fact_name: String,
     pub fact_description_path: String,
-    pub branch_experience_ids: Vec<Uuid>,
+    pub experience_ids: Vec<Uuid>,
     pub person_ids: Vec<Uuid>,
     pub link_ids: Vec<Uuid>,
     pub markdown: String,
@@ -24,7 +25,11 @@ impl Fact {
     }
 
     pub fn title(&self) -> String {
-        self.fact_id.to_string()
+        if self.fact_name.trim().is_empty() {
+            self.fact_id.to_string()
+        } else {
+            self.fact_name.clone()
+        }
     }
 
     pub fn subtitle(&self) -> String {

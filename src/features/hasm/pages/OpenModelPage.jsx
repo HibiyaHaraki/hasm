@@ -11,7 +11,15 @@ import { useState } from "react";
 import { openHasmModel } from "../api";
 import { errorLog, infoLog } from "../../../hasm_logger/src/react/logger.js";
 
-function OpenModelPage({ initialPath, statusMessage, errorMessage, onBack, onOpenSuccess, onOpenFailure }) {
+function OpenModelPage({
+  initialPath,
+  statusMessage,
+  errorMessage,
+  onBack,
+  onOpenSuccess,
+  onOpenFailure,
+  onCreateNew,
+}) {
   // Step 1. Initialize open-target path and opening state.
   const [path, setPath] = useState(initialPath || "");
   const [opening, setOpening] = useState(false);
@@ -38,28 +46,60 @@ function OpenModelPage({ initialPath, statusMessage, errorMessage, onBack, onOpe
     }
   }
 
+  function handleCreateNewClick(event) {
+    event.preventDefault();
+
+    if (onCreateNew) {
+      onCreateNew();
+      return;
+    }
+
+    onOpenFailure("Create new HASM flow is not available yet.");
+  }
+
   // Step 4. Render path input, status messages, and flow navigation controls.
   return (
-    <section className="open-page card-surface">
-      <p className="eyebrow">Open HASM Model</p>
-      <h2>Select HASM Model</h2>
-      <p>Input a folder path such as D:/models/my.hasm and open it.</p>
+    <section className="open-page open-page-home card-surface">
+      <div className="open-home-center">
+        <p className="eyebrow">Open HASM Model</p>
+        <h2>Select .hasm Folder</h2>
+        <p className="open-home-subtitle">Enter a folder path like D:/models/my.hasm</p>
 
-      <div className="path-row">
-        <input value={path} onChange={(event) => setPath(event.currentTarget.value)} placeholder="D:/models/my.hasm" />
-        <button type="button" className="primary-button" onClick={handleOpen} disabled={opening}>
-          {opening ? "Opening..." : "Open"}
+        <form
+          className="open-home-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleOpen();
+          }}
+        >
+          <label className="open-home-input-wrap" htmlFor="hasm-model-path">
+            <input
+              id="hasm-model-path"
+              value={path}
+              onChange={(event) => setPath(event.currentTarget.value)}
+              placeholder="D:/models/my.hasm"
+              autoComplete="off"
+            />
+          </label>
+
+          <button type="submit" className="primary-button open-home-submit" disabled={opening}>
+            {opening ? "Opening..." : "Open"}
+          </button>
+        </form>
+
+        <button type="button" className="open-home-create-link" onClick={handleCreateNewClick}>
+          Create new hasm
+        </button>
+
+        <div className="status-row open-home-status">
+          {statusMessage ? <span className="status-pill">{statusMessage}</span> : null}
+          {errorMessage ? <span className="error-text">{errorMessage}</span> : null}
+        </div>
+
+        <button type="button" className="open-home-back" onClick={onBack}>
+          Back
         </button>
       </div>
-
-      <div className="status-row">
-        {statusMessage ? <span className="status-pill">{statusMessage}</span> : null}
-        {errorMessage ? <span className="error-text">{errorMessage}</span> : null}
-      </div>
-
-      <button type="button" onClick={onBack}>
-        Back
-      </button>
     </section>
   );
 }

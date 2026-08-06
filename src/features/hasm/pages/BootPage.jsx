@@ -9,21 +9,22 @@
 
 function BootPage({ modelLoaded, modelRoot, totalCount, onContinue, onOpenModel, onViewDraft }) {
   return (
-    <section className="boot-page card-surface">
-      <p className="eyebrow">Boot HASM</p>
-      <h1>HASM Model Workspace</h1>
-      <p>
-        This app follows your flowchart: boot, decide model selection, open model, then visualize and
-        edit details for PERSON, EXPERIENCE, FACT, and LINK.
-      </p>
+    <section className="boot-page boot-page-home card-surface">
+      <div className="boot-home-center">
+        <p className="eyebrow">Boot HASM</p>
+        <h1>HASM Model Workspace</h1>
+        <p>
+          This app follows your flowchart: boot, decide model selection, open model, then visualize and
+          edit details for PERSON, EXPERIENCE, FACT, and LINK.
+        </p>
 
-      <div className="meta-row">
-        <span>Model Selected: {modelLoaded ? "Yes" : "No"}</span>
-        {modelLoaded ? <span>Root: {modelRoot}</span> : null}
-        <span>Total Entities: {totalCount}</span>
-      </div>
+        <div className="meta-row boot-home-meta-row">
+          <span>Model Selected: {modelLoaded ? "Yes" : "No"}</span>
+          {modelLoaded ? <span>Root: {modelRoot}</span> : null}
+          <span>Total Entities: {totalCount}</span>
+        </div>
 
-      <div className="button-cluster">
+        <div className="button-cluster boot-home-actions">
         <button type="button" className="primary-button" onClick={onContinue}>
           Continue Boot Flow
         </button>
@@ -33,6 +34,7 @@ function BootPage({ modelLoaded, modelRoot, totalCount, onContinue, onOpenModel,
         <button type="button" onClick={onViewDraft}>
           Temporal Draft Page
         </button>
+        </div>
       </div>
     </section>
   );

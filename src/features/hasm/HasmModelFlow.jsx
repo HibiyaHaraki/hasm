@@ -130,6 +130,10 @@ function HasmModelFlow() {
             statusMessage={statusMessage}
             errorMessage={errorMessage}
             onBack={() => setPage("boot")}
+            onCreateNew={() => {
+              setStatusMessage("Create new HASM model flow is coming soon.");
+              setErrorMessage("");
+            }}
             onOpenSuccess={(nextWorkspace) => {
               infoLog("Model opened successfully", nextWorkspace.modelRoot);
               setWorkspace(nextWorkspace);

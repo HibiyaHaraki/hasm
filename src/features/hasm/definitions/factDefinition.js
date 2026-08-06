@@ -11,6 +11,7 @@ import { normalizeLines } from "./helpers";
 
 export const factFieldSet = [
   { key: "factId", label: "Fact ID", readOnly: true },
+  { key: "factName", label: "Fact Name" },
   {
     key: "factDescriptionPath",
     label: "Description Path",
@@ -18,8 +19,8 @@ export const factFieldSet = [
     className: "full-width",
   },
   {
-    key: "branchExperienceIdsText",
-    label: "Branch Experience IDs",
+    key: "experienceIdsText",
+    label: "Experience IDs",
     multiline: true,
     placeholder: "One EXPERIENCE UUID per line",
   },
@@ -44,7 +45,7 @@ export function toFactEditableDetail(detail) {
 
   return {
     ...detail,
-    branchExperienceIdsText: (detail.branchExperienceIds || []).join("\n"),
+    experienceIdsText: (detail.experienceIds || []).join("\n"),
     personIdsText: (detail.personIds || []).join("\n"),
     linkIdsText: (detail.linkIds || []).join("\n"),
   };
@@ -53,7 +54,7 @@ export function toFactEditableDetail(detail) {
 export function toFactSavePayload(draft) {
   return {
     ...draft,
-    branchExperienceIds: normalizeLines(draft.branchExperienceIdsText || ""),
+    experienceIds: normalizeLines(draft.experienceIdsText || ""),
     personIds: normalizeLines(draft.personIdsText || ""),
     linkIds: normalizeLines(draft.linkIdsText || ""),
   };
