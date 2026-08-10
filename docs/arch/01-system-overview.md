@@ -91,7 +91,7 @@ flowchart TB
     %% ----------------------------------------------------
     subgraph DetailPages["3. Entity Detail Pages"]
         
-        subgraph PersonDetail["PERSON Detail"]
+        subgraph PersonDetail["3.1. PERSON Detail"]
             PD[PERSON Detail Page]:::page
             EditPersonMeta([Edit PERSON MetaData]):::action
             SavePersonMeta[[Tauri: Save PERSON MetaData]]:::tauri
@@ -101,7 +101,7 @@ flowchart TB
             SavePersonMeta --> PD
         end
 
-        subgraph ExpDetail["EXPERIENCE Detail"]
+        subgraph ExpDetail["3.2. EXPERIENCE Detail"]
             ED[EXPERIENCE Detail Page]:::page
             EditExpMeta([Edit EXPERIENCE MetaData]):::action
             SaveExpMeta[[Tauri: Save EXPERIENCE MetaData]]:::tauri
@@ -111,7 +111,7 @@ flowchart TB
             SaveExpMeta --> ED
         end
 
-        subgraph FactDetail["FACT Detail"]
+        subgraph FactDetail["3.3. FACT Detail"]
             FD[FACT Detail Page]:::page
             EditFactMeta([Edit FACT MetaData]):::action
             SaveFactMeta[[Tauri: Save FACT MetaData]]:::tauri
@@ -121,7 +121,7 @@ flowchart TB
             SaveFactMeta --> FD
         end
 
-        subgraph LinkDetail["LINK Detail"]
+        subgraph LinkDetail["3.4. LINK Detail"]
             LD[LINK Detail Page]:::page
             EditLinkMeta([Edit LINK MetaData]):::action
             SaveLinkMeta[[Tauri: Save LINK MetaData]]:::tauri
@@ -163,3 +163,41 @@ flowchart TB
     BackToVisualize --> VisualizePage
 ```
 
+## Detail Architectures
+
+Below is the list of sequence diagrams detailing the interactions between the React frontend, Tauri API, and Rust backend.
+
+* [SEQ-01: App Launch & App Validation]()
+  * **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
+  * **Key Tauri Function:** `Tauri: Validate HASM App`
+  * **Description:** Covers initial application boot, system environment check, and version validation.
+
+* [SEQ-02: Model Selection & Loading]()
+  * **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
+  * **Key Tauri Function:** `Tauri: Validate HASM Model`
+  * **Description:** Details selecting a HASM model file from `Select Page`, validating data structure in Rust, and navigating to `Visualize Page`.
+
+* [SEQ-03: Entity Navigation & Markdown Validation]()
+  * **Diagram Location:** `2. Markdown Loading & Validation` (`RoutingPhase`)
+  * **Key Tauri Function:** `Tauri: Validate HASM Markdown`
+  * **Description:** Explains the navigation from `Visualize Page` (clicking PERSON, EXPERIENCE, FACT, or LINK) to the corresponding detail page after validating Markdown integrity.
+
+* [SEQ-04: Entity MetaData Editing & Saving]()
+  * **Diagram Location:** `3. Entity Detail Pages` (`DetailPages` / `PersonDetail`, `ExpDetail`, `FactDetail`, `LinkDetail`)
+  * **Key Tauri Functions:** `Tauri: Save PERSON MetaData`, `Save EXPERIENCE MetaData`, `Save FACT MetaData`, `Save LINK MetaData`
+  * **Description:** Demonstrates how entity metadata is modified within React forms on each detail page and saved persistently via Tauri commands.
+
+* [SEQ-05: External Markdown App Invocation & Refresh]()
+  * **Diagram Location:** `4. Common Actions` (`CommonActions`)
+  * **Key Tauri Function:** `Tauri: Call HASM Markdown App`
+  * **Description:** Triggers an external Markdown editor process from Rust and refreshes the React UI state upon closing the editor.
+
+* [SEQ-06: Navigation Back to Visualize]()
+  * **Diagram Location:** `4. Common Actions` (`CommonActions`)
+  * **Key Tauri Function:** N/A (Frontend Router & State Management)
+  * **Description:** Handles returning to `Visualize Page` via `Click Back to Visualize` using cached model state without re-triggering unnecessary backend validation.
+
+* [SEQ-07: Error Fallback & Recovery Flow]()
+  * **Diagram Location:** Across all subgraphs (`ErrorHASMApp`, `ErrorHASMModel`, `ErrorHASMMarkdown`)
+  * **Key Tauri Function:** Re-invoking respective validation functions upon retry
+  * **Description:** Outlines user retry actions and routing fallback strategies when validation or process errors occur at any stage.
