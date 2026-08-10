@@ -167,7 +167,7 @@ flowchart TB
 
 Below is the list of sequence diagrams detailing the interactions between the React frontend, Tauri API, and Rust backend.
 
-* [SEQ-01: App Launch & App Validation]()
+* [SEQ-01: App Launch & App Validation](./10-SEQ-01_AppLaunch_AppValidation.md)
   * **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
   * **Key Tauri Function:** `Tauri: Validate HASM App`
   * **Description:** Covers initial application boot, system environment check, and version validation.
