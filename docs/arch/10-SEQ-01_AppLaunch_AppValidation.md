@@ -1,7 +1,7 @@
 # SEQ-01: App Launch & App Validation (Detailed Specification)
 
-This document details the startup and initialization flow for the HASM Desktop Application.
-It ensures that external editor dependencies, application versions, launch parameters (CLI arguments), and file system paths are thoroughly validated before the user interfaces with the application.
+This document details the startup, initialization, and initial model path selection flow for the HASM Desktop Application.
+It ensures that external editor dependencies, application versions, launch parameters (CLI arguments), and manual path selections are thoroughly validated before triggering the core model loading process (`SEQ-02`).
 
 ## Sequence Diagram
 
@@ -9,7 +9,7 @@ It ensures that external editor dependencies, application versions, launch param
 sequenceDiagram
     autonumber
     actor User as User / OS
-    participant React as React (App.tsx)
+    participant React as React (App.tsx / SelectPage)
     participant Router as React Router
     participant Bridge as Tauri IPC Bridge
     participant Rust as Rust Command (main.rs)
@@ -65,10 +65,10 @@ sequenceDiagram
     end
 
     %% ----------------------------------------------------
-    %% Check 3: Path Existence Verification (If Path Provided)
+    %% Check 3: Path Existence Verification (If CLI Argument Provided)
     %% ----------------------------------------------------
     rect rgb(30, 41, 59)
-        Note over React,FS: Check 3: Verify Folder Path Existence (Only if isModelSelected == true)
+        Note over React,FS: Check 3: Verify Folder Path Existence (Only if CLI Path Provided)
         
         opt isModelSelected == true
             React->>Bridge: invoke('validate_hasm_folder_path', { path: modelPath })
@@ -89,21 +89,50 @@ sequenceDiagram
             Bridge-->>React: Resolve Promise
         end
 
-        React->>React: Set State: { loadState: 3, isAppValid: true }
+        React->>React: Set State: { loadState: 3 }
     end
 
     %% ----------------------------------------------------
-    %% Final Routing
+    %% Check 4: Manual Path Input & Real-time Validation (If CLI Path NOT Provided)
     %% ----------------------------------------------------
-    React->>React: Set State: { isLoading: false }
-    
-    alt Booted via Context Menu (Path exists & verified: isModelSelected == true)
-        React->>Router: navigate('/loading-model', { state: { path: modelPath } })
-        Note over React,Router: Skip Select Page -> Proceed directly to SEQ-02
-    else Booted directly via exe (No path argument: isModelSelected == false)
-        React->>Router: navigate('/select')
-        Note over React,Router: Display Select Page for manual folder selection
+    rect rgb(30, 41, 59)
+        Note over React,FS: Check 4: Manual Selection & Real-time Path Validation
+        
+        alt Booted via Context Menu (Path exists & verified: isModelSelected == true)
+            React->>React: Path verified -> Bypass Select Page
+        else Booted directly via exe (No CLI Path: isModelSelected == false)
+            React->>React: Set State: { isLoading: false }
+            React->>Router: navigate('/select')
+            Note over React,Router: Display Select Page
+            
+            loop Real-time Path Validation on Form Input / File Picker (Debounced)
+				User->>React: Input / Select Folder Path in Form
+				React->>Bridge: invoke('validate_hasm_folder_path', { path: inputPath })
+				Bridge->>Rust: IPC: validate_hasm_folder_path(inputPath)
+				Rust->>FS: std::path::Path::new(&inputPath).exists()
+				FS-->>Rust: boolean
+				
+				alt Path Exists & Valid (Within 2000ms)
+					Rust-->>Bridge: Return Ok(())
+					Bridge-->>React: Resolve Promise
+					React->>React: Enable 'Submit' Button & Clear Warnings
+				else Path Invalid OR FS Timeout (>2000ms)
+					Rust-->>Bridge: Return Err(AppValidationError)
+					Bridge-->>React: Reject Promise
+					React->>React: Disable 'Submit' Button & Show Timeout/Invalid Warning
+				end
+			end
+            
+            User->>React: Click 'Submit / Load' Button
+            React->>React: Set State: { modelPath: inputPath, isLoading: true }
+        end
     end
+
+    %% ----------------------------------------------------
+    %% Final Transition to SEQ-02
+    %% ----------------------------------------------------
+    React->>Router: navigate('/loading-model', { state: { path: modelPath } })
+    Note over React,Router: Guaranteed Valid Model Path -> Proceed to SEQ-02
 
 ```
 
@@ -134,46 +163,50 @@ pub struct AppVersionResponse {
 ### Step 1: Initial Application Boot
 
 * **Execution:** `React (App.tsx)`
-* **Description:** When the application mounts, React sets its local/global initialization state to `{ isLoading: true, loadState: 0, error: null }`. This triggers an initial splash or loading spinner UI.
+* **Description:** When the application mounts, React sets its local/global initialization state to `{ isLoading: true, loadState: 0, error: null }`.
 
 ### Step 2: Check 1 - Validate External HASM Markdown App
 
 * **Command:** `invoke('validate_hasm_markdown_app')`
 * **Description:**
-* React calls Rust to verify that the external HASM Markdown Application executable is present and callable on the host OS.
-* **Timeout Constraint:** Managed within a 5,000ms threshold. If the external process hangs or fails to respond, it yields a `Result::Err`.
-* **Error Handling:** On error, execution breaks immediately. React sets `isLoading: false`, stores the error message, and routes to `/error-app`.
-* **Success:** React updates its progress state to `loadState: 1`.
-
-
+  * React verifies that the external HASM Markdown Application executable is present and callable on the host OS.
+  * **Timeout Constraint:** Managed within a 5,000ms threshold.
+  * **Error Handling:** On error, execution breaks immediately to `/error-app`.
+  * **Success:** React updates state to `loadState: 1`.
 
 ### Step 3: Check 2 - Inspect App Version & CLI Arguments
 
 * **Command:** `invoke('validate_app_version')`
 * **Description:**
-* Rust reads its package version (`CARGO_PKG_VERSION`) and inspects `std::env::args()`.
-* If a folder path was passed via the File Explorer context menu (e.g., `hasm-app.exe "C:\path\to\hasm-folder"`), Rust parses this argument and sets `isModelSelected = true` with `path = Some("C:\\path\\to\\hasm-folder")`.
-* If launched directly via executable without arguments, `isModelSelected` returns `false`.
+  * Rust checks `CARGO_PKG_VERSION` and `std::env::args()`.
+  * If launched via Explorer Context Menu with a folder path, `isModelSelected = true` and `path = Some("...")`.
+  * If launched directly via executable, `isModelSelected = false`.
+  * **Success:** React updates state to `loadState: 2` and stores `modelPath`.
 
-
-* **Success:** React updates its progress state to `loadState: 2` and stores the retrieved `modelPath` in state/context.
-
-### Step 4: Check 3 - Verify Folder Path Existence (Conditional)
+### Step 4: Check 3 - Verify Folder Path Existence (CLI Argument Case)
 
 * **Command:** `invoke('validate_hasm_folder_path', { path: modelPath })`
 * **Condition:** Executed **ONLY** when `isModelSelected == true`.
 * **Description:**
-* Rust checks if the supplied path actually exists on the target disk (`std::path::Path::new(&path).exists()`).
-* Note: This step solely checks disk existence; full HASM model schema parsing is deferred to `SEQ-02`.
-* **Timeout Constraint:** Wrapped in a 3,000ms threshold to prevent UI freezes on unresponsive network drives.
-* **Error Handling:** If the path was deleted or unreadable, a `break` is triggered, returning `ERR_TARGET_PATH_NOT_FOUND` and navigating to `/error-app`.
+  * Checks if the CLI-supplied path exists on disk (`Path::exists()`).
+  * **Timeout Constraint:** Managed within a 3,000ms threshold.
+  * **Error Handling:** If non-existent, breaks immediately to `/error-app`.
+  * **Success:** React updates state to `loadState: 3`.
 
+### Step 5: Check 4 - Manual Path Input & Real-time Validation (Manual Select Case)
 
-* **Success:** React updates its progress state to `{ loadState: 3, isAppValid: true }`.
+* **Execution:** `Select Page Component`
+* **Condition:** Executed **ONLY** when `isModelSelected == false`.
+* **Description:**
+  * React navigates to `/select` and renders the path selection form/file picker.
+  * As the user types or chooses a path, React calls `validate_hasm_folder_path` in real-time (debounced by 300ms).
+  * **Timeout Constraint:** Enforced with a 2,000ms threshold. If checking a remote/unresponsive path exceeds 2 seconds, it treats the path as unverified and shows a timeout warning.
+  * **Validation Logic:**
+    * **Path Valid:** Form button is enabled, inline warning is hidden.
+    * **Path Invalid:** Form button remains disabled, preventing submission of invalid paths.
+  * When the user clicks Submit, React captures the validated `modelPath` and re-enables `isLoading: true`.
 
-### Step 5: Final Routing Decision
+### Step 6: Transition to SEQ-02
 
 * **Execution:** `React Router`
-* **Description:** Once all enabled checks complete successfully, `isLoading` is set to `false`.
-* **Branch A (`isModelSelected == true`):** Navigates directly to `/loading-model`, passing `modelPath` via route state to initiate `SEQ-02: Model Selection & Loading`.
-* **Branch B (`isModelSelected == false`):** Navigates to `/select` (`Select Page`), prompting the user to manually choose a HASM folder.
+* **Description:** With a 100% verified disk path guaranteed (`modelPath`), React routes to `/loading-model` to initiate `SEQ-02: Model Loading` (schema parsing and data structure loading).

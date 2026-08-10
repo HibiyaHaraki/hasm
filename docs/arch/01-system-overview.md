@@ -172,7 +172,7 @@ Below is the list of sequence diagrams detailing the interactions between the Re
   * **Key Tauri Function:** `Tauri: Validate HASM App`
   * **Description:** Covers initial application boot, system environment check, and version validation.
 
-* [SEQ-02: Model Selection & Loading]()
+* [SEQ-02: Model Loading]()
   * **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
   * **Key Tauri Function:** `Tauri: Validate HASM Model`
   * **Description:** Details selecting a HASM model file from `Select Page`, validating data structure in Rust, and navigating to `Visualize Page`.
