@@ -1,0 +1,28 @@
+# EVAL-01: App Launch & Validation Test Specification
+
+This document defines the unified test matrix, acceptance criteria, traceability matrix, and adversarial/negative test cases for validating the launch and initialization flow (`SEQ-01` / `REQ-01`).
+
+---
+
+## 1. Functional & Acceptance Test Matrix
+
+| Test ID | Trace Requirement ID | Category | Initial Condition / Launch Method | Test Steps | Expected Result |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-01-01** | `REQ-01-FUNC-101`<br/>`REQ-01-FUNC-201` | Check 1 | External HASM Markdown App is installed and valid. | 1. Double-click `hasm-app.exe` to launch application.<br/>2. Observe initialization state and Check 1 execution. | 1. React mounts and sets `isLoading: true`, `loadState: 0`.<br/>2. Check 1 passes successfully; `loadState` transitions to `1`. |
+| **TC-01-02** | `REQ-01-RULE-001`<br/>`REQ-01-FUNC-201` | Check 1 | External HASM Markdown App is missing or corrupted. | 1. Rename or delete the external Markdown App executable.<br/>2. Double-click `hasm-app.exe` to launch application. | 1. Environment check fails.<br/>2. IPC rejects with `ERR_MARKDOWN_APP_INVALID`; subsequent checks are aborted and router immediately navigates to `/error-app`. |
+| **TC-01-03** | `REQ-01-FUNC-301`<br/>`REQ-01-FUNC-401`<br/>`REQ-01-FUNC-601` | Check 2/3 | Booted via File Explorer context menu with a valid folder path. | 1. Right-click a valid HASM model folder in File Explorer.<br/>2. Select "Open with HASM App". | 1. Check 2 parses CLI args (`isModelSelected = true`).<br/>2. Check 3 verifies path existence on disk within 3,000ms.<br/>3. Bypasses `/select` page directly and navigates to `/loading-model`. |
+| **TC-01-04** | `REQ-01-FUNC-301`<br/>`REQ-01-FUNC-501` | Check 2/4 | Booted via direct `exe` execution (No arguments). | 1. Double-click `hasm-app.exe` directly.<br/>2. Observe app navigation after Check 2. | 1. Check 2 returns `isModelSelected = false`.<br/>2. App pauses loading and navigates to `/select` page.<br/>3. `Submit` button remains disabled until valid input is entered. |
+| **TC-01-05** | `REQ-01-FUNC-501`<br/>`REQ-01-FUNC-601` | Check 4 | User inputs a valid local path manually on `/select`. | 1. Navigate to `/select` page.<br/>2. Type a valid local path (e.g. `C:\valid\hasm\path`) into the form.<br/>3. Click the `Submit` button. | 1. Input is debounced by 300ms before triggering IPC.<br/>2. Real-time validation succeeds; inline warning clears and `Submit` button becomes enabled.<br/>3. Clicking `Submit` sets `isLoading: true` and navigates to `/loading-model`. |
+
+---
+
+## 2. Negative & Edge-Case Test Matrix (意地悪検査項目)
+
+| Test ID | Trace Requirement ID | Category | Initial Condition / Scenario | Test Steps | Expected Result |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **TC-01-N01** | `REQ-01-RULE-002`<br/>`REQ-01-FUNC-301`<br/>`REQ-01-FUNC-401` | Path Security | Command / CLI Path Injection Attack | 1. Execute `hasm-app.exe "C:\valid; rm -rf /"` or relative traversal path `..\..\..\System32`.<br/>2. Observe application boot process. | 1. Rust treats CLI argument purely as a literal string for `Path::new()`.<br/>2. Path existence check fails or is rejected safely.<br/>3. App breaks execution and routes to `/error-app` without executing shell commands. |
+| **TC-01-N02** | `REQ-01-RULE-001`<br/>`REQ-01-FUNC-401` | Workspace Anomaly | Non-Existent Context Menu Path (Deleted Workspace) | 1. Right-click a valid folder to launch via context menu.<br/>2. Delete or rename the target folder in OS before Check 3 executes. | 1. Check 3 attempts `Path::exists()` against the deleted path.<br/>2. IPC rejects with `ERR_TARGET_PATH_NOT_FOUND`.<br/>3. Execution breaks immediately and router navigates to `/error-app`. |
+| **TC-01-N03** | `REQ-01-RULE-003`<br/>`REQ-01-FUNC-501` | Network Anomaly | Unresponsive Network / NAS Path (UNC Pathing) | 1. Navigate to `/select` page.<br/>2. Input an unroutable network path (e.g. `\\192.168.255.255\share`). | 1. Real-time validation triggers `validate_hasm_folder_path`.<br/>2. OS file system check blocks, but React frontend enforces a 2,000ms timeout.<br/>3. `Submit` button remains disabled and an inline error "Path verification timed out" is displayed. |
+| **TC-01-N04** | `REQ-01-RULE-003`<br/>`REQ-01-FUNC-401` | Hardware Anomaly | Unmounted USB / Removable Media | 1. Connect a USB drive and launch via context menu using USB path.<br/>2. Unplug the USB drive mid-boot before Check 3 completes. | 1. Check 3 triggers `validate_hasm_folder_path`.<br/>2. Check fails or hits 3,000ms frontend timeout threshold.<br/>3. App aborts gracefully without OS crash/panic and routes to `/error-app`. |
+| **TC-01-N05** | `REQ-01-FUNC-501` | Stress / Race Condition | High-Frequency Form Typing (Debounce Test) | 1. Open `/select` page.<br/>2. Rapidly paste and delete valid/invalid paths into the input form (100+ keystrokes/sec). | 1. 300ms debounce prevents flooding IPC with validation requests.<br/>2. Intermediate invocations are dropped.<br/>3. Late/out-of-order IPC responses do not overwrite the final input state (no Race Condition). |
+| **TC-01-N06** | `REQ-01-FUNC-501`<br/>`REQ-01-FUNC-601` | Stress / Event Storming | Rapid Double-Clicking Submit Button | 1. Input a valid path on `/select` page.<br/>2. Rapidly double-click or multi-click the `Submit` button. | 1. React immediately sets `isLoading: true` and disables the button on the first click.<br/>2. Subsequent clicks are ignored.<br/>3. Exactly one router navigation to `/loading-model` is triggered without duplicate IPC calls. |
