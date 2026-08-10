@@ -70,6 +70,8 @@ erDiagram
     UUID fact_id PK
     STRING fact_name
     STRING fact_description
+    DATETIME start_time
+    DATETIME end_time
     INT security_level
   }
 
@@ -136,6 +138,8 @@ FACT is the information which actually happens.
 * **FACT ID** (*UUID*)
 * **FACT Name** (*String*)
 * **FACT description** (*String*)
+* **Start Time** (*Datetime*)
+* **End Time** (*Datetime*)
 * **Security Level** (*Int*)
 
 #### FACT_EXPERIENCE
