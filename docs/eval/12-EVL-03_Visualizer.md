@@ -1,0 +1,44 @@
+# EVAL-03: HASM 3D Visualizer Test Specification
+
+This document defines the comprehensive test matrix, acceptance criteria, and traceability mapping for validating the HASM 3D Visualizer, state validation guards, 3D topology calculations (`TimeScaleMode`), pointer raycasting interaction, Read-Only indicator rendering, and route transitions (`SEQ-03` / `REQ-03`).
+
+Tests are structured across three distinct test levels: **Desktop App Level (E2E / Integration)**, **React Level (Frontend Component & Canvas Logic)**, and **Tauri Level (Rust 3D Layout Engine & Guard Contracts)**.
+
+## 1. Desktop App Level Tests (E2E / System Integration)
+
+These integration tests verify the end-to-end behavior of the 3D Visualizer, including state validation fallback redirects, filter update re-rendering, and 3D node selection route transitions.
+
+| Test ID | Trace Requirement ID | Test Type | Test Scenario | Test Steps | Expected Result |
+| --- | --- | --- | --- | --- | --- |
+| **TC-03-E2E-001** | `REQ-03-RULE-001``REQ-03-RULE-002``REQ-03-FUNC-101``REQ-03-FUNC-103``REQ-03-FUNC-110``REQ-03-FUNC-111``REQ-03-FUNC-113` | Positive (Normal) | Normal 3D Visualizer Initial Rendering | 1. Complete `SEQ-02` model load successfully.2. Navigate to `/visualizer`.3. Observe Three.js Canvas rendering. | 1. Visualizer mounts with default `Linear` scale mode.2. Rust computes 3D layout and Three.js renders EXPERIENCE lines and FACT commit spheres.3. Page contains no text editing widgets. |
+| **TC-03-E2E-002** | `REQ-03-RULE-006``REQ-03-FUNC-106``REQ-03-FUNC-107` | Fallback Guard (Unloaded) | Accessing `/visualizer` Without Active Model | 1. Launch application directly to `/visualizer` without loading a model in `SEQ-02`. | 1. Rust rejects `compute_visualizer_layout` with `ERR_NO_ACTIVE_MODEL`.2. React Router immediately redirects fallback to `/select`. |
+| **TC-03-E2E-003** | `REQ-03-RULE-007``REQ-03-FUNC-108``REQ-03-FUNC-109` | Fallback Guard (Unverified) | Accessing `/visualizer` with Unverified Model State | 1. Set model state in Rust to unverified (`is_verified = false`).2. Attempt to open `/visualizer`. | 1. Rust rejects `compute_visualizer_layout` with `ERR_MODEL_NOT_VERIFIED`.2. React Router redirects to `/loading-model` passing `{ returnTo: '/visualizer' }` for re-verification. |
+| **TC-03-E2E-004** | `REQ-03-FUNC-201``REQ-03-FUNC-202``REQ-03-FUNC-207``REQ-03-FUNC-208` | Positive (Interaction) | Switching `TimeScaleMode` to `SequentialIndex` | 1. On `/visualizer`, click the `TimeScaleMode` dropdown and select `SequentialIndex`. | 1. IPC invokes `compute_visualizer_layout` with `SequentialIndex`.2. Three.js smoothly updates Z-axis positions so FACT commits are evenly spaced chronologically. |
+| **TC-03-E2E-005** | `REQ-03-FUNC-401``REQ-03-FUNC-402``REQ-03-FUNC-403``REQ-03-FUNC-404` | Positive (Navigation) | Clicking 3D Commit Node to Navigate to Detail View | 1. Click on a rendered 3D FACT commit sphere in the canvas. | 1. Three.js raycasting extracts target `entity_type` and `entity_id`.2. React Router navigates to `/entity-detail/FACT/{UUID}` carrying `modelPath` and `isReadOnly`. |
+
+## 2. React Level Tests (Frontend Component, Canvas & Raycasting)
+
+These unit and component tests focus on `VisualizerPage.tsx`, Three.js canvas setup, hard timeout handling (5,000ms), 100ms raycasting throttling, Read-Only status rendering, and floating 2D tooltips.
+
+| Test ID | Trace Requirement ID | Test Type | Component / Hook | Test Steps | Expected Result |
+| --- | --- | --- | --- | --- | --- |
+| **TC-03-REACT-001** | `REQ-03-FUNC-101``REQ-03-FUNC-102``REQ-03-FUNC-103` | Positive (Mount) | `VisualizerPage.tsx` | 1. Mount `VisualizerPage`.2. Check initial state and IPC invocation arguments. | 1. State initialized to `timeScaleMode = Linear`, `zScaleFactor = 1.0`, `securityLevel = All`.2. Invokes `compute_visualizer_layout` with default `VisualizerFilter`. |
+| **TC-03-REACT-002** | `REQ-03-RULE-004``REQ-03-FUNC-104``REQ-03-FUNC-105` | Negative (Timeout) | `VisualizerPage.tsx` (Mount Timeout) | 1. Mock `compute_visualizer_layout` to never resolve.2. Advance mock timers past 5,000ms. | 1. Frontend 5,000ms hard timeout triggers.2. Sets `renderError = "3D Layout calculation timed out"`.3. Navigates to `/error-model`. |
+| **TC-03-REACT-003** | `REQ-03-FUNC-203``REQ-03-FUNC-204` | Negative (Timeout) | `VisualizerPage.tsx` (Filter Timeout) | 1. Change filter control on mounted page.2. Mock IPC response to hang.3. Advance mock timers past 5,000ms. | 1. Filter update hard timeout triggers at 5,000ms.2. Displays toast error ("Filter update timed out").3. Reverts UI filter control to previous state. |
+| **TC-03-REACT-004** | `REQ-03-RULE-005``REQ-03-FUNC-301``REQ-03-FUNC-302` | Performance (Throttling) | `ThreeCanvas.tsx` (Raycaster) | 1. Dispatch 50 `pointermove` events over 100ms window on the 3D Canvas element. | 1. Raycaster intersection logic is executed **exactly once** (throttled to 100ms interval). |
+| **TC-03-REACT-005** | `REQ-03-FUNC-303``REQ-03-FUNC-304``REQ-03-FUNC-305` | Positive (Interaction) | `2DTooltipPanel.tsx` | 1. Hover pointer over mesh at coordinate `(X, Y)`.2. Move pointer away from mesh. | 1. Hovering renders floating 2D panel displaying `Name`, `Description`, `Security Level`, and `Start/End Time`.2. Moving away immediately unmounts/hides the tooltip panel. |
+| **TC-03-REACT-006** | `REQ-03-FUNC-114` | Positive (Warning) | `WarningBanner.tsx` | 1. Resolve `compute_visualizer_layout` with `RenderPayload.warnings = ["Unreferenced folder found"]`. | 1. Floating warning banner/toast is displayed on screen without breaking canvas render. |
+| **TC-03-REACT-007** | `REQ-03-RULE-002` | Positive (UI State) | `VisualizerPage.tsx` (Read-Only Mode) | 1. Mount `VisualizerPage` passing route state `{ isReadOnly: true }` (e.g., from secondary process in `SEQ-02`).2. Inspect UI headers and canvas rendering. | 1. "Read-Only Mode" indicator/badge is rendered clearly in the top header.2. 3D canvas renders normally and remains fully interactive for hovering and navigation. |
+
+## 3. Tauri Level Tests (Rust 3D Layout Engine & Guard Contracts)
+
+These unit and integration tests verify Rust data contracts, active/verified model validation guards, and Z-axis spatial mapping algorithms (`Linear`, `Logarithmic`, `SequentialIndex`) using `cargo test`.
+
+| Test ID | Trace Requirement ID | Test Type | Rust Module / Function | Test Steps | Expected Result |
+| --- | --- | --- | --- | --- | --- |
+| **TC-03-RUST-001** | `REQ-03-DATA-001``REQ-03-DATA-002``REQ-03-DATA-003``REQ-03-DATA-004``REQ-03-DATA-005` | Positive (Contract) | `models::visualizer` | 1. Instantiate `TimeScaleMode`, `VisualizerFilter`, `Node3D`, `Line3D`, and `RenderPayload`.2. Perform Serde JSON serialization and deserialization. | 1. Structs serialize correctly with exact JSON fields (`time_scale_mode`, `z_scale_factor`, `position`, `line_type`).2. Deserialization succeeds identically. |
+| **TC-03-RUST-002** | `REQ-03-RULE-006``REQ-03-FUNC-106` | Fallback Guard | `compute_visualizer_layout` | 1. Ensure Rust global model state is `None`.2. Execute `compute_visualizer_layout`. | 1. Command rejects with `ModelError { code: "ERR_NO_ACTIVE_MODEL" }`. |
+| **TC-03-RUST-003** | `REQ-03-RULE-007``REQ-03-FUNC-108` | Fallback Guard | `compute_visualizer_layout` | 1. Set `HasmModel` in Rust state with `is_verified = false`.2. Execute `compute_visualizer_layout`. | 1. Command rejects with `ModelError { code: "ERR_MODEL_NOT_VERIFIED" }`. |
+| **TC-03-RUST-004** | `REQ-03-FUNC-110``REQ-03-FUNC-205` | Positive (Algorithm) | `compute_visualizer_layout` (`Linear`) | 1. Setup verified `HasmModel` with 2 FACTs ($t_1 = 1000, t_2 = 3000$).2. Execute layout with `time_scale_mode = Linear` and `z_scale_factor = 1.0`. | 1. EXPERIENCE branches receive distinct XY positions.2. $Z_1 = (1000 - base) \times 1.0$, $Z_2 = (3000 - base) \times 1.0$. Z-distance is linear ($\Delta Z = 2000$). |
+| **TC-03-RUST-005** | `REQ-03-FUNC-206` | Positive (Algorithm) | `compute_visualizer_layout` (`Logarithmic`) | 1. Setup verified `HasmModel` with 2 FACTs.2. Execute layout with `time_scale_mode = Logarithmic`. | 1. Z-coordinates calculated using $\log_{10}(\Delta t + 1) \times z\_scale\_factor$, compressing long time gaps. |
+| **TC-03-RUST-006** | `REQ-03-FUNC-207` | Positive (Algorithm) | `compute_visualizer_layout` (`SequentialIndex`) | 1. Setup verified `HasmModel` with 3 FACTs having irregular time gaps (1 min, 5 months).2. Execute layout with `time_scale_mode = SequentialIndex`. | 1. FACTs are sorted chronologically.2. Z-coordinates spaced evenly ($Z_0 = 0 \times step$, $Z_1 = 1 \times step$, $Z_2 = 2 \times step$), guaranteeing distinct visibility regardless of time gap. |
