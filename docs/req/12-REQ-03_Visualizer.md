@@ -1,18 +1,21 @@
-# REQ-03: HASM 3D Visualizer (Formal Specification)
+# REQ-03: HASM 3D Visualizer & Graph Rendering (Formal Specification)
 
-This specification defines the functional, data, and performance requirements for the HASM 3D Visualizer (`/visualizer`) under `SEQ-03`.
+This specification defines the functional, data, time constraint, progress streaming, and error handling requirements for calculating and rendering the 3D Git-like timeline graph under `SEQ-03`.
 
 ---
 
 ## 1. System Invariants & Core Rules
 
-* **[REQ-03-RULE-001] Event-Driven Architecture:** The 3D Visualizer MUST operate as an event-driven view with separate handling for initial mount, filter updates, hover raycasting, and node click navigation.
-* **[REQ-03-RULE-002] Read-Only View:** The Visualizer page MUST NOT contain any content editing features. All entity modifications MUST be restricted to dedicated detail/editor routes.
-* **[REQ-03-RULE-003] Delegation of Spatial Layout:** All 3D spatial coordinate calculations and filtering operations MUST be performed on the Rust backend (`visualizer.rs`), returning a lightweight `RenderPayload` to React via Tauri IPC.
-* **[REQ-03-RULE-004] Hard Timeout Enforcement:** Any IPC call to `compute_visualizer_layout` MUST enforce a strict **5,000ms** hard timeout on the frontend.
-* **[REQ-03-RULE-005] Raycasting Throttling:** Pointer interaction (hover detection) on the 3D canvas MUST be throttled to a maximum execution rate of once every **100ms** to preserve 60 FPS rendering performance.
-* **[REQ-03-RULE-006] Active Model Validation Guard:** IPC command `compute_visualizer_layout` MUST fail if no active `HasmModel` instance exists in Rust backend memory.
-* **[REQ-03-RULE-007] Verification State Enforcement:** System MUST NOT generate 3D layouts if the active `HasmModel`'s internal `is_verified` flag is `false`.
+* **[REQ-03-RULE-001] State Guard Interception:** Access to `/visualizer` MUST be guarded by the Rust in-memory state. If no model is loaded (`ERR_NO_ACTIVE_MODEL`), the system MUST navigate to `/select`. If the loaded model is unverified (`is_verified == false`), the system MUST navigate to `/loading-model`.
+* **[REQ-03-RULE-002] Multi-Mode Z-Axis Mapping:** The spatial mapping of entity Z-coordinates MUST support three discrete user-selectable modes (`TimeScaleMode`):
+1. `Linear`: $Z \propto \Delta t$.
+2. `Logarithmic`: $Z \propto \log_{10}(\Delta t + 1)$.
+3. `SequentialIndex`: $Z = \text{index} \times \text{step\_distance}$.
+
+
+* **[REQ-03-RULE-003] Non-Blocking Background Computation:** Layout calculation for large datasets MUST be executed on a background Rust worker thread (`tokio::task::spawn_blocking`) without freezing the main application or Tauri UI thread.
+* **[REQ-03-RULE-004] Watchdog Progress Protection:** Long-running layout calculations MUST emit `visualizer-layout-progress` events at least once every **10,000ms**. Failure to receive events within this threshold MUST trigger a Watchdog Timeout.
+* **[REQ-03-RULE-005] Non-Destructive Filter Reversion:** If a filter or time scale update times out or fails, the 3D Canvas MUST retain or revert to the last successfully rendered 3D scene state and inform the user via a toast notification.
 
 ---
 
@@ -21,98 +24,66 @@ This specification defines the functional, data, and performance requirements fo
 ### 2.1 IPC Payload Data Contracts
 
 ```rust
-// [REQ-03-DATA-001] Time Scale Mapping Mode Enum
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TimeScaleMode {
-    Linear,           // Z = (timestamp - base_time) * scale_factor
-    Logarithmic,      // Z = log10(timestamp - base_time + 1) * scale_factor
-    SequentialIndex,  // Z = index * step_distance * scale_factor
-}
-
-// [REQ-03-DATA-002] Visualizer Filter Request Payload
+// [REQ-03-DATA-001] Layout Filter Request Payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VisualizerFilter {
-    pub time_range: (Option<i64>, Option<i64>),
+pub struct LayoutFilterRequest {
+    pub time_range: (Option<String>, Option<String>), // ISO8601 Strings
     pub security_level: Option<i32>,
-    pub time_scale_mode: TimeScaleMode,
+    pub time_scale_mode: TimeScaleMode, // "Linear" | "Logarithmic" | "SequentialIndex"
     pub z_scale_factor: f32,
 }
 
-// [REQ-03-DATA-003] 3D Node Representation Payload
+// [REQ-03-DATA-002] Layout Progress Event Payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Node3D {
-    pub id: Uuid,
-    pub entity_type: String, // "PERSON" | "EXPERIENCE" | "FACT" | "LINK"
-    pub name: String,
-    pub description: String,
-    pub position: [f32; 3],  // [x, y, z]
-    pub security_level: i32,
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
+pub struct LayoutProgressPayload {
+    pub current: usize,
+    pub total: usize,
+    pub percentage: f32,
+    pub message: String,
 }
 
-// [REQ-03-DATA-004] 3D Line Representation Payload
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Line3D {
-    pub id: Uuid,
-    pub start_pos: [f32; 3],
-    pub end_pos: [f32; 3],
-    pub line_type: String,   // "BRANCH" | "FACT_LINK"
-}
-
-// [REQ-03-DATA-005] Complete Render Payload
+// [REQ-03-DATA-003] Final 3D Render Payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenderPayload {
-    pub nodes: Vec<Node3D>,
-    pub lines: Vec<Line3D>,
-    pub total_count: usize,
-    pub filtered_count: usize,
+    pub nodes_3d: Vec<Node3DGeometry>,
+    pub lines_3d: Vec<Line3DGeometry>,
     pub warnings: Vec<String>,
+}
+
+// [REQ-03-DATA-004] Visualizer Error Payload Enum
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VisualizerError {
+    NoActiveModel,
+    ModelNotVerified,
+    LayoutStalledTimeout { threshold_ms: u64 },
+    CalculationFailed { message: String },
 }
 
 ```
 
+---
+
 ## 3. Detailed Functional Requirements
 
-### Chapter 1: Initial View Load Event & State Validation Guards
+### Chapter 1: Initial View Load, State Guards & Progress Streaming
 
-* **[REQ-03-FUNC-101] Component Mounting:** React MUST mount `VisualizerPage` when navigating to `/visualizer`.
-* **[REQ-03-FUNC-102] Default Filter State:** React MUST initialize the filter state with default values: `timeScaleMode = Linear`, `zScaleFactor = 1.0`, `securityLevel = All`, `timeRange = Full`.
-* **[REQ-03-FUNC-103] Initial Layout Invocation:** React MUST invoke `compute_visualizer_layout` with the default `VisualizerFilter`.
-* **[REQ-03-FUNC-104] Initial Layout Timeout:** React MUST enforce a **5,000ms** hard timeout for the initial layout invocation.
-* **[REQ-03-FUNC-105] Initial Layout Timeout Routing:** If the initial layout IPC call exceeds 5,000ms, React MUST set `renderError` and navigate to `/error-model`.
-* **[REQ-03-FUNC-106] Missing Model Detection:** If no `HasmModel` is loaded in Rust memory, Rust MUST reject `compute_visualizer_layout` with error code `"ERR_NO_ACTIVE_MODEL"`.
-* **[REQ-03-FUNC-107] Missing Model Redirect:** Upon receiving `"ERR_NO_ACTIVE_MODEL"`, React Router MUST navigate directly to `/select`.
-* **[REQ-03-FUNC-108] Unverified Model Detection:** If `HasmModel` is present but `is_verified` is `false`, Rust MUST reject `compute_visualizer_layout` with error code `"ERR_MODEL_NOT_VERIFIED"`.
-* **[REQ-03-FUNC-109] Unverified Model Redirect:** Upon receiving `"ERR_MODEL_NOT_VERIFIED"`, React Router MUST navigate to `/loading-model` passing `{ returnTo: '/visualizer' }` in route state to execute `SEQ-02` re-verification.
-* **[REQ-03-FUNC-110] Experience Branch XY Calculation:** Rust MUST compute distinct XY plane coordinates for each `EXPERIENCE` entity line.
-* **[REQ-03-FUNC-111] Fact Z-Axis Placement:** Rust MUST place `FACT` nodes on their parent `EXPERIENCE` branch along the Z-axis based on the selected `TimeScaleMode`.
-* **[REQ-03-FUNC-112] Link Mesh Generation:** Rust MUST compute 3D lines/curves for relationship links between entities.
-* **[REQ-03-FUNC-113] Three.js Canvas Setup:** React MUST initialize the Three.js Scene, Camera, Ambient/Directional Lights, and OrbitControls upon receiving `RenderPayload`.
-* **[REQ-03-FUNC-114] Warning Banner Display:** If `RenderPayload.warnings` contains unreferenced folders, React MUST display a floating toast/banner.
+* **[REQ-03-FUNC-101] Visualizer Route Mounting:** Upon mounting `VisualizerPage.tsx`, React MUST initialize the default filter state and subscribe to `visualizer-layout-progress` events.
+* **[REQ-03-FUNC-102] Missing Model Guard:** If Rust returns `ERR_NO_ACTIVE_MODEL`, React Router MUST navigate to `/select`.
+* **[REQ-03-FUNC-103] Unverified Model Guard:** If Rust returns `ERR_MODEL_NOT_VERIFIED`, React Router MUST navigate to `/loading-model` passing `{ returnTo: '/visualizer' }`.
+* **[REQ-03-FUNC-104] Layout Watchdog Timer Initialization:** React MUST start a **10,000ms** Watchdog Timer upon invoking `compute_visualizer_layout`.
+* **[REQ-03-FUNC-105] Chunked Progress Emission:** During layout computation, Rust MUST emit `visualizer-layout-progress` events periodically during entity filtering, branch positioning, Z-coordinate calculation, and spline generation.
+* **[REQ-03-FUNC-106] Progress Event UI Reset:** Receiving a `visualizer-layout-progress` event MUST reset the Watchdog Timer to 0ms and update the progress overlay UI (`layoutProgress`, `loadingMessage`).
+* **[REQ-03-FUNC-107] Watchdog Timeout Trigger:** If 10,000ms elapses without receiving a progress event, React MUST abort waiting, set `renderError = "Layout calculation stalled"`, and navigate to `/error-model`.
+* **[REQ-03-FUNC-108] Three.js Scene Initialization:** Upon resolving `RenderPayload`, React MUST hide the loading progress overlay and instantiate Three.js geometries, lights, and camera positioning.
+* **[REQ-03-FUNC-109] Model Warning Rendering:** If `RenderPayload.warnings` is non-empty (e.g., unreferenced storage folders), React MUST render a warning toast/banner.
 
-### Chapter 2: Filter & Scale Update Event (Control Interaction)
+### Chapter 2: Filter & TimeScale Control Interactions
 
-* **[REQ-03-FUNC-201] Filter State Update:** React MUST update internal filter state when the user modifies any UI control (Time Slider, Security Selector, TimeScaleMode, Z-Factor).
-* **[REQ-03-FUNC-202] Layout Re-computation IPC:** React MUST invoke `compute_visualizer_layout` with the updated `VisualizerFilter`.
-* **[REQ-03-FUNC-203] Filter Update Hard Timeout:** React MUST enforce a **5,000ms** hard timeout for layout re-computation.
-* **[REQ-03-FUNC-204] Filter Timeout Rollback:** If layout re-computation exceeds 5,000ms, React MUST display a toast error ("Filter update timed out") and revert to the previous filter state.
-* **[REQ-03-FUNC-205] Linear Mapping Mode:** When `timeScaleMode` is `Linear`, Rust MUST calculate Z-coordinates linearly proportional to elapsed timestamp values ($\Delta t$).
-* **[REQ-03-FUNC-206] Logarithmic Mapping Mode:** When `timeScaleMode` is `Logarithmic`, Rust MUST calculate Z-coordinates using logarithmic scaling ($\log_{10}(\Delta t + 1)$).
-* **[REQ-03-FUNC-207] Sequential Index Mapping Mode:** When `timeScaleMode` is `SequentialIndex`, Rust MUST sort `FACT` items chronologically and space them evenly along the Z-axis based on chronological order.
-* **[REQ-03-FUNC-208] Geometry Mesh Update:** Upon receiving updated `RenderPayload`, React MUST update Three.js mesh positions without destroying the canvas context.
+* **[REQ-03-FUNC-201] Dynamic Filter Re-calculation:** Changing time sliders, `time_scale_mode`, or `z_scale_factor` MUST trigger `compute_visualizer_layout` with updated parameters.
+* **[REQ-03-FUNC-202] Filter Progress Overlay Display:** Filter updates MUST display a lightweight non-modal progress bar overlay driven by `visualizer-layout-progress` events.
+* **[REQ-03-FUNC-203] Filter Timeout Handling:** If a filter update exceeds the 10,000ms Watchdog threshold, React MUST display an error toast ("Filter update timed out. Reverting view.") and preserve the previous 3D scene state.
 
-### Chapter 3: Node Hover Event (Pointer Raycasting)
+### Chapter 3 & 4: Interactivity & Entity Detail Navigation
 
-* **[REQ-03-FUNC-301] Pointer Movement Listener:** React MUST attach pointer movement listeners to the 3D Canvas element.
-* **[REQ-03-FUNC-302] Throttled Raycasting:** React MUST execute Three.js Raycaster operations at a maximum frequency of once every **100ms**.
-* **[REQ-03-FUNC-303] Intersection Detection:** Raycaster MUST identify the closest intersected 3D mesh node under the pointer.
-* **[REQ-03-FUNC-304] Tooltip Display:** When intersecting an entity mesh, React MUST display a floating 2D panel showing `Name`, `Description`, `Security Level`, and `Start/End Time`.
-* **[REQ-03-FUNC-305] Tooltip Dismissal:** When the pointer leaves all entity meshes, React MUST immediately hide the floating 2D panel.
-
-### Chapter 4: Node Click Event (Entity Navigation)
-
-* **[REQ-03-FUNC-401] Canvas Click Listener:** React MUST attach click event listeners to the 3D Canvas element.
-* **[REQ-03-FUNC-402] Target Entity Resolution:** Upon click, Raycaster MUST extract the target entity's `entity_type` and `entity_id`.
-* **[REQ-03-FUNC-403] Route Transition:** React Router MUST navigate to `/entity-detail/:entity_type/:entity_id`.
-* **[REQ-03-FUNC-404] Detail View Data Transfer:** React Router MUST transfer `modelPath` and `isReadOnly` state to the target detail route.
+* **[REQ-03-FUNC-301] Pointer Raycasting:** Hovering over 3D meshes MUST perform raycasting at throttled intervals (100ms) to display 2D floating tooltips with entity metadata.
+* **[REQ-03-FUNC-302] Entity Click Navigation:** Clicking any 3D node or line mesh MUST trigger React Router navigation to `/entity-detail/:entity_type/:entity_id`.

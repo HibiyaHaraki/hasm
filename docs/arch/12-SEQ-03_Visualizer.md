@@ -1,8 +1,10 @@
 # SEQ-03: HASM 3D Visualizer (Event-Driven Architecture Sequence)
 
-This document details the visual concept, 3D space mapping logic, and event-driven interactions for the HASM 3D Visualizer (`/visualizer`), divided into distinct chapters per User Event trigger.
+This document details the visual concept, 3D space mapping logic, state validation guards, and event-driven layout computation with **granular progress streaming (`emit`)** for the HASM 3D Visualizer (`/visualizer`).
 
-## Visual & Conceptual Metaphor: Git-like 3D Timeline
+---
+
+## 1. Visual & Conceptual Metaphor: Git-like 3D Timeline
 
 The HASM 3D Visualizer represents life experiences and activities in a three-dimensional space by leveraging a **Git Branch & Commit metaphor**:
 
@@ -36,50 +38,66 @@ The HASM 3D Visualizer represents life experiences and activities in a three-dim
 
 ```
 
-```mermaid
-graph TD
-    subgraph "XY Plane (Branch Distribution)"
-        ExpA["EXPERIENCE A<br/>(e.g., Software Engineering)"]
-        ExpB["EXPERIENCE B<br/>(e.g., Aviation / Mileage Run)"]
-    end
+---
 
-    subgraph "Z-Axis (Time Progression)"
-        FactA1["FACT A1<br/>Z = t0 (Commit)"]
-        FactA2["FACT A2<br/>Z = t1 (Commit)"]
-        FactB1["FACT B1<br/>Z = t0 (Commit)"]
-    end
+## 2. Data Contracts & Time Constraints
 
-    ExpA -->|Extends along Z| FactA1
-    FactA1 -->|Time Arrow| FactA2
-    ExpB -->|Extends along Z| FactB1
+### 2.1 IPC Data Definitions (Rust / TypeScript Interface)
 
-    FactA1 -. "LINK (Relation)" .-> FactB1
+```rust
+// Layout calculation filter request payload
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LayoutFilterRequest {
+    pub time_range: (Option<String>, Option<String>), // ISO8601 Strings
+    pub security_level: Option<i32>,
+    pub time_scale_mode: TimeScaleMode, // "Linear" | "Logarithmic" | "SequentialIndex"
+    pub z_scale_factor: f32,
+}
+
+// Event payload emitted during background layout calculation
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LayoutProgressPayload {
+    pub current: usize,
+    pub total: usize,
+    pub percentage: f32,
+    pub message: String, // e.g. "Positioning FACT nodes (450/1000)..."
+}
+
+// Final 3D render payload returned to React Three.js Scene
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RenderPayload {
+    pub nodes_3d: Vec<Node3DGeometry>,
+    pub lines_3d: Vec<Line3DGeometry>,
+    pub warnings: Vec<String>,
+}
 
 ```
 
+### 2.2 Time Constraints Policy Matrix
+
+| Operation | Timeout Rule | Timeout Value | Timeout Action & Handling |
+| --- | --- | --- | --- |
+| **Layout Computation Stream** (`compute_visualizer_layout`) | Watchdog Timer (Pattern B) | **10,000 ms** (Without event) | Cancel calculation; reject IPC; display toast error or fallback to `/error-model`. |
+
 ---
 
-## Participant Lifecycle Legend
+## 3. Participant Lifecycle Legend
 
-All event chapters share the standardized lifecycle participants:
-
-* **User**: End user interacting with the 3D Canvas / UI controls.
+* **User**: End user interacting with the 3D Canvas / Filter controls.
 * **React**: `VisualizerPage.tsx` and Three.js Canvas State Manager.
 * **Router**: `React Router` navigation engine.
-* **Bridge**: `Tauri IPC Bridge` for async Command invoking.
-* **Rust**: `visualizer.rs` / `HasmModel` in-memory backend engine.
-* **FS**: Local File System / Workspace Storage.
+* **Bridge**: `Tauri IPC Bridge / listen()`.
+* **Rust**: `visualizer.rs` / Worker Thread in Rust backend.
+* **Model**: `HasmModel` in-memory domain instance.
 
 ---
 
-## Chapter 1: Initial View Load Event & State Validation Guards
+## 4. Sequence Architecture Chapters
 
-Triggered automatically when the user navigates to `/visualizer`. 
-Executes strict state validations against the Rust backend memory:
-1. **Unloaded Model Guard:** Redirects to `/select` if no `HasmModel` is loaded in Rust memory.
-2. **Unverified Model Guard:** Redirects to `/loading-model` if the `HasmModel` is unverified (`is_verified == false`).
+### Chapter 1: Initial View Load, State Validation Guards & Async Progress Streaming
 
-### Sequence Diagram
+Triggered automatically when the user navigates to `/visualizer`.
+Executes strict state validations against Rust memory, spawns a background worker thread for layout calculation, and emits `visualizer-layout-progress` events to render a smooth progress bar.
 
 ```mermaid
 sequenceDiagram
@@ -88,14 +106,16 @@ sequenceDiagram
     participant React as React (VisualizerPage.tsx)
     participant Router as React Router
     participant Bridge as Tauri IPC Bridge / listen()
-    participant Rust as Rust Command (visualizer.rs / HasmModel)
-    participant FS as File System / Workspace
+    participant Rust as Rust Command (visualizer.rs)
+    participant Model as HasmModel (In-Memory)
 
-    Note over User,FS: Pre-condition: User attempts to load /visualizer route.
+    Note over User,Model: Pre-condition: User attempts to load /visualizer route.
 
-    React->>React: Mount VisualizerPage & Set Initial State<br/>{ isDataLoading: true, renderError: null }
+    React->>Bridge: Setup Event Listener: listen('visualizer-layout-progress')
+    React->>React: Mount VisualizerPage & Set Initial State<br/>{ isDataLoading: true, layoutProgress: 0, loadingMessage: "Initializing 3D Engine...", renderError: null }
     React->>React: Initialize Default Filter State:<br/>{ timeRange: [Min, Max], securityLevel: All, timeScaleMode: "Linear", zScaleFactor: 1.0 }
     
+    React->>React: Start Watchdog Timer (Threshold: 10,000ms without progress event)
     React->>Bridge: invoke('compute_visualizer_layout', { filter: initialFilter })
     Bridge->>Rust: IPC: compute_visualizer_layout(filter)
 
@@ -122,87 +142,102 @@ sequenceDiagram
     end
 
     %% ----------------------------------------------------
-    %% Timeout Guard: Hard Timeout Execution (>5,000ms)
-    %% ----------------------------------------------------
-    break On Hard Timeout (>5,000ms without response)
-        React->>React: Set State: { isDataLoading: false, renderError: "3D Layout calculation timed out" }
-        React->>Router: navigate('/error-model')
-        Note over React,Router: Display Visualizer Error Page
-    end
-
-    %% ----------------------------------------------------
-    %% Normal Execution: Model Loaded & Verified -> Compute 3D Geometry
+    %% Async Worker Execution & Progress Streaming (Large Data Support)
     %% ----------------------------------------------------
     rect rgb(15, 23, 42)
-        Note over Rust: Rust 3D Layout Logic (Active & Verified Model)
-        Rust->>Rust: 1. Filter entities by timeRange and securityLevel
-        Rust->>Rust: 2. Position EXPERIENCE branches on XY plane
-        Rust->>Rust: 3. Position FACT commits on Z-axis based on TimeScaleMode
-        Rust->>Rust: 4. Pack into RenderPayload { nodes3D, lines3D, warnings }
-    end
+        Note over Rust,Model: Spawn Async Worker Thread (tokio::task::spawn_blocking)
+        
+        Rust-->>Bridge: emit('visualizer-layout-progress', { current: 0, total: Total, percentage: 10.0, message: "Filtering Entities..." })
+        Bridge-->>React: Listener Callback Fires: LayoutProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update State: { layoutProgress: 10.0, loadingMessage }
 
-    Rust-->>Bridge: Return Ok(RenderPayload)
-    Bridge-->>React: Resolve Promise (renderPayload)
-    React->>React: Store renderPayload & Set State { isDataLoading: false }
-    
-    alt Has Model Warnings
-        React->>React: Render Warning Banner / Toast (Unreferenced Folders)
-    end
+        Rust->>Model: Filter entities by timeRange and securityLevel
 
-    React->>React: Initialize Three.js Scene, Camera, Lights & Add Meshes
-    React->>User: Render Initial 3D World Scene
-```
+        Rust-->>Bridge: emit('visualizer-layout-progress', { current: ExpCount, total: Total, percentage: 40.0, message: "Positioning EXPERIENCE Branches..." })
+        Bridge-->>React: Listener Callback Fires: LayoutProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update State: { layoutProgress: 40.0, loadingMessage }
 
-## Chapter 2: Filter & Scale Update Event (Control Interaction)
+        Rust->>Rust: Calculate XY Branch Layout
 
-Triggered when the user adjusts the Time Slider, changes `TimeScaleMode` (`Linear`, `Logarithmic`, `SequentialIndex`), or toggles Security Levels.
+        loop Chunked FACT Processing (e.g., Every 200 FACTs)
+            Rust-->>Bridge: emit('visualizer-layout-progress', { current: ProcessedFacts, total: FactCount, percentage: P, message: "Calculating Z-coordinates..." })
+            Bridge-->>React: Listener Callback Fires: LayoutProgressPayload
+            React->>React: Reset Watchdog Timer to 0ms & Update Smooth Progress UI State:<br/>{ layoutProgress: P, loadingMessage }
+            Rust->>Rust: Compute Z-coordinates according to TimeScaleMode
+        end
 
-### Sequence Diagram
+        Rust-->>Bridge: emit('visualizer-layout-progress', { current: Total, total: Total, percentage: 90.0, message: "Building 3D Geometry Splines..." })
+        Bridge-->>React: Listener Callback Fires: LayoutProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update State: { layoutProgress: 90.0, loadingMessage }
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as User
-    participant React as React (VisualizerPage.tsx)
-    participant Bridge as Tauri IPC Bridge
-    participant Rust as Rust Command (visualizer.rs)
+        Rust->>Rust: Pack into RenderPayload { nodes3D, lines3D, warnings }
 
-    User->>React: Change Filter Control (e.g., Switch TimeScaleMode to "SequentialIndex")
-    React->>React: Set State { filter: updatedFilter, isFilterUpdating: true }
-    
-    React->>Bridge: invoke('compute_visualizer_layout', { filter: updatedFilter })
-    Bridge->>Rust: IPC: compute_visualizer_layout(updatedFilter)
-    
-    break On Hard Timeout (>5,000ms)
-        React->>React: Set State: { isFilterUpdating: false }
-        React->>User: Display Toast Error: "Filter update timed out. Reverting view."
-    end
-
-    rect rgb(15, 23, 42)
-        Note over Rust: Re-evaluate Z-axis with TimeScaleMode
-        alt mode == "Linear"
-            Rust->>Rust: Z = (start_time - base_time) * zScaleFactor
-        else mode == "Logarithmic"
-            Rust->>Rust: Z = log10(start_time - base_time + 1) * zScaleFactor
-        else mode == "SequentialIndex"
-            Rust->>Rust: Sort FACTs chronologically -> Z = index * step_distance * zScaleFactor
+        break On Watchdog Timeout (>10,000ms elapsed since LAST progress event)
+            React->>React: Set State: { isDataLoading: false, renderError: "Layout calculation stalled" }
+            React->>Router: navigate('/error-model')
         end
     end
 
     Rust-->>Bridge: Return Ok(RenderPayload)
     Bridge-->>React: Resolve Promise (renderPayload)
     
-    React->>React: Update Three.js Geometries & Positions
+    React->>React: Clear Watchdog Timer & Store renderPayload<br/>Set State { isDataLoading: false, layoutProgress: 100.0 }
+    
+    alt Has Model Warnings
+        React->>React: Render Warning Banner / Toast (Unreferenced Folders)
+    end
+
+    React->>React: Initialize Three.js Scene, Camera, Lights & Add Meshes
+    React->>User: Render Initial 3D World Scene Smoothly
+
+```
+
+---
+
+### Chapter 2: Filter & Scale Update Event with Async Progress
+
+Triggered when the user adjusts the Time Slider, changes `TimeScaleMode` (`Linear`, `Logarithmic`, `SequentialIndex`), or toggles Security Levels.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant React as React (VisualizerPage.tsx)
+    participant Bridge as Tauri IPC Bridge / listen()
+    participant Rust as Rust Command (visualizer.rs)
+
+    User->>React: Change Filter Control (e.g., Switch TimeScaleMode to "SequentialIndex")
+    React->>React: Set State { filter: updatedFilter, isFilterUpdating: true, layoutProgress: 0 }
+    React->>React: Start Watchdog Timer (10,000ms)
+    
+    React->>Bridge: invoke('compute_visualizer_layout', { filter: updatedFilter })
+    Bridge->>Rust: IPC: compute_visualizer_layout(updatedFilter)
+
+    loop Chunked Progress Streaming
+        Rust-->>Bridge: emit('visualizer-layout-progress', { current, total, percentage, message })
+        Bridge-->>React: Listener Callback Fires
+        React->>React: Reset Watchdog Timer & Update Progress Overlay / Bar
+    end
+    
+    break On Watchdog Timeout (>10,000ms)
+        React->>React: Set State: { isFilterUpdating: false }
+        React->>User: Display Toast Error: "Filter update timed out. Reverting view."
+    end
+
+    Rust-->>Bridge: Return Ok(RenderPayload)
+    Bridge-->>React: Resolve Promise (renderPayload)
+    
+    React->>React: Clear Watchdog Timer & Update Three.js Geometries
     React->>React: Set State { isFilterUpdating: false }
     React->>User: Re-render Updated 3D Graph Smoothly
 
 ```
 
-## Chapter 3: Node Hover Event (Pointer Raycasting)
+---
+
+### Chapter 3: Node Hover Event (Pointer Raycasting)
 
 Triggered continuously as the user moves the mouse cursor over the 3D Canvas.
-
-### Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -222,11 +257,11 @@ sequenceDiagram
 
 ```
 
-## Chapter 4: Node Click Event (Entity Navigation)
+---
+
+### Chapter 4: Node Click Event (Entity Navigation)
 
 Triggered when the user clicks a specific 3D Mesh (Node / Commit / Line) on the Canvas.
-
-### Sequence Diagram
 
 ```mermaid
 sequenceDiagram
