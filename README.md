@@ -1,10 +1,10 @@
 # HASM Model Editor 🌟
 
-HASM Model Editor is a desktop-focused model management tool for opening, browsing, and editing HASM model data. The app combines a React frontend and a Rust/Tauri backend so model entities can be handled through a workflow-driven UI while keeping local file-based operations reliable.
+HASM Model Editor is a desktop-focused model management tool for opening, browsing, and editing HASM model data. The app combines a React frontend and a Rust/Tauri backend so model entities can be inspected and updated in a practical workflow.
 
 ## Why this project exists ✨
 
-Many model files are spread across multiple formats and locations, which makes it hard to inspect and update related entities consistently. HASM Model Editor focuses on structured navigation and detail editing for the four core entity types in one workspace.
+Many model files are spread across multiple formats and locations, which makes it hard to inspect and update related entities consistently. HASM Model Editor focuses on structured navigation and detail editing so users can work with model data safely and efficiently.
 
 - 📂 Open a HASM model root path
 - 🧭 Visualize and switch across entity categories
@@ -100,5 +100,5 @@ Planned enhancements include:
 
 ## License 📜
 
-This project is currently shared without a formal license declaration.
-If you plan to publish or reuse it publicly, add an appropriate open-source license such as MIT, Apache-2.0, or BSD-2-Clause.
+This project is licensed under the GNU General Public License v3.0.
+See [LICENSE](LICENSE) for details.
