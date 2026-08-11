@@ -161,6 +161,7 @@ flowchart TB
     LD --> BackToVisualize
 
     BackToVisualize --> VisualizePage
+
 ```
 
 ## Detail Architectures
@@ -168,36 +169,42 @@ flowchart TB
 Below is the list of sequence diagrams detailing the interactions between the React frontend, Tauri API, and Rust backend.
 
 * [SEQ-01: App Launch & App Validation](./10-SEQ-01_AppLaunch_AppValidation.md)
-  * **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
-  * **Key Tauri Function:** `Tauri: Validate HASM App`
-  * **Description:** Covers initial application boot, system environment check, and version validation.
+* **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
+* **Key Tauri Function:** `Tauri: Validate HASM App`
+* **Description:** Covers initial application boot, system environment check, and version validation.
+
 
 * [SEQ-02: Model Loading](./11-SEQ-02_HASM_Model_Load.md)
-  * **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
-  * **Key Tauri Function:** `Tauri: Validate HASM Model`
-  * **Description:** Details selecting a HASM model file from `Select Page`, validating data structure in Rust, and navigating to `Visualize Page`.
+* **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`)
+* **Key Tauri Function:** `Tauri: Validate HASM Model`
+* **Description:** Details selecting a HASM model file from `Select Page`, validating data structure in Rust, and navigating to `Visualize Page`.
 
-* [SEQ-03: Entity Navigation & Markdown Validation]()
-  * **Diagram Location:** `2. Markdown Loading & Validation` (`RoutingPhase`)
-  * **Key Tauri Function:** `Tauri: Validate HASM Markdown`
-  * **Description:** Explains the navigation from `Visualize Page` (clicking PERSON, EXPERIENCE, FACT, or LINK) to the corresponding detail page after validating Markdown integrity.
+
+* [SEQ-03: HASM 3D Visualizer & Experience-Fact Graph Rendering](./12-SEQ-03_Visualizer.md)
+* **Diagram Location:** `1. App Boot & Model Loading` (`BootPhase`) & `2. Markdown Loading & Validation` (`RoutingPhase`)
+* **Key Tauri Function:** `Tauri: compute_visualizer_layout`
+* **Description:** Details event-driven 3D layout calculation on Rust backend using `TimeScaleMode` (Linear/Logarithmic/SequentialIndex), state validation guards (`ERR_NO_ACTIVE_MODEL` -> `Select Page`, `ERR_MODEL_NOT_VERIFIED` -> `Loading HASM Model Page`), Three.js rendering, raycasting interactivity, and navigating to Entity Detail pages.
+
 
 * [SEQ-04: Entity MetaData Editing & Saving]()
-  * **Diagram Location:** `3. Entity Detail Pages` (`DetailPages` / `PersonDetail`, `ExpDetail`, `FactDetail`, `LinkDetail`)
-  * **Key Tauri Functions:** `Tauri: Save PERSON MetaData`, `Save EXPERIENCE MetaData`, `Save FACT MetaData`, `Save LINK MetaData`
-  * **Description:** Demonstrates how entity metadata is modified within React forms on each detail page and saved persistently via Tauri commands.
+* **Diagram Location:** `3. Entity Detail Pages` (`DetailPages` / `PersonDetail`, `ExpDetail`, `FactDetail`, `LinkDetail`)
+* **Key Tauri Functions:** `Tauri: Save PERSON MetaData`, `Save EXPERIENCE MetaData`, `Save FACT MetaData`, `Save LINK MetaData`
+* **Description:** Demonstrates how entity metadata is modified within React forms on each detail page and saved persistently via Tauri commands.
+
 
 * [SEQ-05: External Markdown App Invocation & Refresh]()
-  * **Diagram Location:** `4. Common Actions` (`CommonActions`)
-  * **Key Tauri Function:** `Tauri: Call HASM Markdown App`
-  * **Description:** Triggers an external Markdown editor process from Rust and refreshes the React UI state upon closing the editor.
+* **Diagram Location:** `4. Common Actions` (`CommonActions`)
+* **Key Tauri Function:** `Tauri: Call HASM Markdown App`
+* **Description:** Triggers an external Markdown editor process from Rust and refreshes the React UI state upon closing the editor.
+
 
 * [SEQ-06: Navigation Back to Visualize]()
-  * **Diagram Location:** `4. Common Actions` (`CommonActions`)
-  * **Key Tauri Function:** N/A (Frontend Router & State Management)
-  * **Description:** Handles returning to `Visualize Page` via `Click Back to Visualize` using cached model state without re-triggering unnecessary backend validation.
+* **Diagram Location:** `4. Common Actions` (`CommonActions`)
+* **Key Tauri Function:** N/A (Frontend Router & State Management)
+* **Description:** Handles returning to `Visualize Page` via `Click Back to Visualize` using cached model state without re-triggering unnecessary backend validation.
+
 
 * [SEQ-07: Error Fallback & Recovery Flow]()
-  * **Diagram Location:** Across all subgraphs (`ErrorHASMApp`, `ErrorHASMModel`, `ErrorHASMMarkdown`)
-  * **Key Tauri Function:** Re-invoking respective validation functions upon retry
-  * **Description:** Outlines user retry actions and routing fallback strategies when validation or process errors occur at any stage.
+* **Diagram Location:** Across all subgraphs (`ErrorHASMApp`, `ErrorHASMModel`, `ErrorHASMMarkdown`)
+* **Key Tauri Function:** Re-invoking respective validation functions upon retry
+* **Description:** Outlines user retry actions and routing fallback strategies when validation or process errors occur at any stage.
