@@ -186,7 +186,7 @@ Below is the list of sequence diagrams detailing the interactions between the Re
 * **Description:** Details event-driven 3D layout calculation on Rust backend using `TimeScaleMode` (Linear/Logarithmic/SequentialIndex), state validation guards (`ERR_NO_ACTIVE_MODEL` -> `Select Page`, `ERR_MODEL_NOT_VERIFIED` -> `Loading HASM Model Page`), Three.js rendering, raycasting interactivity, and navigating to Entity Detail pages.
 
 
-* [SEQ-04: Entity MetaData Editing & Saving]()
+* [SEQ-04: Entity MetaData Editing & Saving](./13-SEQ-04_Entity_Editing.md)
 * **Diagram Location:** `3. Entity Detail Pages` (`DetailPages` / `PersonDetail`, `ExpDetail`, `FactDetail`, `LinkDetail`)
 * **Key Tauri Functions:** `Tauri: Save PERSON MetaData`, `Save EXPERIENCE MetaData`, `Save FACT MetaData`, `Save LINK MetaData`
 * **Description:** Demonstrates how entity metadata is modified within React forms on each detail page and saved persistently via Tauri commands.
