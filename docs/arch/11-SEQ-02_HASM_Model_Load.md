@@ -1,6 +1,6 @@
 # SEQ-02: Model Loading & Storage Verification (Architecture Sequence)
 
-This document details the sequence for checking workspace locks, loading metadata from `hasm.db` into the `HasmModel` Rust domain class (storing `local_path`), and executing encapsulated storage verification via `model.verify_storage()`.
+This document details the complete sequence for checking workspace locks, loading metadata from `hasm.db` into the `HasmModel` Rust domain class with granular progress streaming (`current`, `total`, `percentage`), Watchdog Timeout handling (Pattern B), and executing encapsulated storage verification via `model.verify_storage()`.
 
 ---
 
@@ -19,18 +19,23 @@ sequenceDiagram
     Note over React,FS: Pre-condition: Navigation from SEQ-01 completed. React receives modelPath via route state.
 
     React->>Bridge: Setup Event Listeners:<br/>listen('model-load-progress') & listen('model-verify-progress')
-    React->>React: Mount Component & Set State<br/>{ isModelLoading: true, modelProgress: 0, loadingMessage: "Initializing...", modelError: null }
+    React->>React: Mount Component & Set Initial State<br/>{ isModelLoading: true, modelProgress: 0, current: 0, total: 0, loadingMessage: "Initializing...", modelError: null }
 
     %% ----------------------------------------------------
-    %% Step 1: Workspace Lock Check (Exclusive Access Control)
+    %% Step 1: Workspace Lock Check (Fixed 3,000ms Timeout)
     %% ----------------------------------------------------
     rect rgb(30, 41, 59)
-        Note over React,FS: Step 1: Check Workspace Lock File (Multi-Process Safety)
+        Note over React,FS: Step 1: Check Workspace Lock File (Fixed 3,000ms Hard Timeout)
         React->>Bridge: invoke('check_workspace_lock', { path: modelPath })
         Bridge->>Rust: IPC: check_workspace_lock(path)
         
         Rust->>FS: Check existence of .hasm/lock
         
+        break On Frontend Hard Timeout (>3,000ms without response)
+            React->>React: Set State: { modelError: "Lock check timed out", isModelLoading: false }
+            React->>Router: navigate('/error-model')
+        end
+
         alt Lock exists (Already opened by another HASM process)
             FS-->>Rust: Lock File Present
             Rust-->>Bridge: Return Ok(LockStatus { isLocked: true, holderPid: 1234 })
@@ -46,10 +51,11 @@ sequenceDiagram
     end
 
     %% ----------------------------------------------------
-    %% Step 2: Load Database into HasmModel Instance via Methods
+    %% Step 2: Load Database into HasmModel (Watchdog Timer Pattern B)
     %% ----------------------------------------------------
     rect rgb(30, 41, 59)
-        Note over React,FS: Step 2: Load hasm.db using HasmModel & Entity Methods
+        Note over React,FS: Step 2: Load hasm.db into HasmModel (Granular Progress & 10,000ms Watchdog Timer)
+        React->>React: Start Watchdog Timer (Threshold: 10,000ms without progress event)
         React->>Bridge: invoke('load_hasm_model_db', { path: modelPath })
         Bridge->>Rust: IPC: load_hasm_model_db(path)
         
@@ -66,70 +72,83 @@ sequenceDiagram
         Rust->>Model: Call HasmModel::new(modelPath)
         Model-->>Rust: Return HasmModel instance with local_path bound
 
-        %% Loading PERSON
-        Rust-->>Bridge: emit('model-load-progress', { progress: 5, message: "Loading PERSON metadata..." })
-        Bridge-->>React: Listener Callback Fires: payload { progress: 5, message }
-        React->>React: Set State: { modelProgress: 5, loadingMessage: "Loading PERSON metadata..." }
+        %% Loading PERSON Progress Stream
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P1, message: "Loading PERSON..." })
+        Bridge-->>React: Listener Callback Fires: ProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query PERSON records
         loop For each PERSON row
             Rust->>Rust: Call Person::new(name, desc, life_exp_id, sec_level)
             Rust->>Model: Call model.add_person(person)
         end
         
-        %% Loading EXPERIENCE
-        Rust-->>Bridge: emit('model-load-progress', { progress: 12, message: "Loading EXPERIENCE metadata..." })
-        Bridge-->>React: Listener Callback Fires: payload { progress: 12, message }
-        React->>React: Set State: { modelProgress: 12, loadingMessage: "Loading EXPERIENCE metadata..." }
+        %% Loading EXPERIENCE Progress Stream
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P2, message: "Loading EXPERIENCE..." })
+        Bridge-->>React: Listener Callback Fires: ProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query EXPERIENCE & EXPERIENCE_TREE records
         loop For each EXPERIENCE row
             Rust->>Rust: Call Experience::new(name, desc, sec_level) & populate parent/child IDs
             Rust->>Model: Call model.add_experience(experience)
         end
         
-        %% Loading FACT
-        Rust-->>Bridge: emit('model-load-progress', { progress: 20, message: "Loading FACT metadata..." })
-        Bridge-->>React: Listener Callback Fires: payload { progress: 20, message }
-        React->>React: Set State: { modelProgress: 20, loadingMessage: "Loading FACT metadata..." }
+        %% Loading FACT Progress Stream
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P3, message: "Loading FACT..." })
+        Bridge-->>React: Listener Callback Fires: ProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query FACT & FACT_EXPERIENCE records
         loop For each FACT row
             Rust->>Rust: Call Fact::new(name, desc, start, end, sec_level) & populate exp IDs
             Rust->>Model: Call model.add_fact(fact)
         end
         
-        %% Loading LINK
-        Rust-->>Bridge: emit('model-load-progress', { progress: 28, message: "Loading LINK metadata..." })
-        Bridge-->>React: Listener Callback Fires: payload { progress: 28, message }
-        React->>React: Set State: { modelProgress: 28, loadingMessage: "Loading LINK metadata..." }
+        %% Loading LINK Progress Stream
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P4, message: "Loading LINK..." })
+        Bridge-->>React: Listener Callback Fires: ProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query LINK & LINK_RELATION records
         loop For each LINK row
             Rust->>Rust: Call Link::new(type, desc, origin_type, origin_id, target_type, target_id, sec_level)
             Rust->>Model: Call model.add_link(link)
         end
 
-        Rust-->>Bridge: emit('model-load-progress', { progress: 30, message: "DB metadata loaded" })
-        Bridge-->>React: Listener Callback Fires: payload { progress: 30, message }
-        React->>React: Set State: { modelProgress: 30, loadingMessage: "DB metadata loaded" }
+        break On Watchdog Timeout (>10,000ms elapsed since LAST progress event)
+            React->>React: Set State: { modelError: "DB loading stalled (Watchdog timeout)", isModelLoading: false }
+            React->>Router: navigate('/error-model')
+        end
+
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: Total, total: Total, percentage: 30.0, message: "DB metadata loaded" })
+        Bridge-->>React: Listener Callback Fires: ProgressPayload
+        React->>React: Reset Watchdog Timer to 0ms & Update State: { modelProgress: 30.0, loadingMessage }
 
         Rust-->>Bridge: Return Ok(HasmModel)
         Bridge-->>React: Resolve Promise (hasmModelInstance)
-        React->>React: Store in React State: { modelData: hasmModelInstance }
+        React->>React: Clear Step 2 Watchdog Timer & Store: { modelData: hasmModelInstance }
     end
 
     %% ----------------------------------------------------
-    %% Step 3: Encapsulated Model Storage Verification Method
+    %% Step 3: Storage Verification Method (Watchdog Timer Pattern B)
     %% ----------------------------------------------------
     rect rgb(30, 41, 59)
-        Note over React,FS: Step 3: Execute model.verify_storage() Method
+        Note over React,FS: Step 3: Execute model.verify_storage() (10,000ms Watchdog Timer)
+        React->>React: Start Watchdog Timer (Threshold: 10,000ms without progress event)
         React->>Bridge: invoke('verify_hasm_storage', { model: hasmModelInstance })
         Bridge->>Rust: IPC: verify_hasm_storage(model)
 
-        Rust-->>Bridge: emit('model-verify-progress', { progress: 50, message: "Verifying storage folder structure..." })
-        Bridge-->>React: Listener Callback Fires: payload { progress: 50, message }
-        React->>React: Set State: { modelProgress: 50, loadingMessage: "Verifying storage folder structure..." }
+        loop Chunked Verification Progress Stream (e.g., Every 50 Verified Folders)
+            Rust-->>Bridge: emit('model-verify-progress', { step: "STORAGE_VERIFY", current: V, total: VTotal, percentage: P, message: "Verifying storage..." })
+            Bridge-->>React: Listener Callback Fires: ProgressPayload
+            React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current: V, total: VTotal, modelProgress: P, loadingMessage }
+        end
 
         Rust->>Model: Call model.verify_storage()
         Model->>FS: Check folder existence for all UUIDs & scan unreferenced directories
         Model-->>Rust: Return VerificationResult { missing_entities, unreferenced_entities }
+
+        break On Watchdog Timeout (>10,000ms elapsed since LAST progress event)
+            React->>React: Set State: { modelError: "Storage verification stalled (Watchdog timeout)", isModelLoading: false }
+            React->>Router: navigate('/error-model')
+        end
 
         %% Evaluate Verification Results
         break On Fatal Error (result.has_fatal_error() == true)
@@ -142,7 +161,7 @@ sequenceDiagram
 
         Rust-->>Bridge: Return Ok(VerificationResult)
         Bridge-->>React: Resolve Promise (result)
-        React->>React: Set State: { modelProgress: 100, loadingMessage: "Model verification complete", isModelLoading: false }
+        React->>React: Clear Step 3 Watchdog Timer & Update State: { modelProgress: 100.0, loadingMessage: "Complete", isModelLoading: false }
     end
 
     %% ----------------------------------------------------
