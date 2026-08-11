@@ -192,7 +192,7 @@ Below is the list of sequence diagrams detailing the interactions between the Re
 * **Description:** Demonstrates how entity metadata is modified within React forms on each detail page and saved persistently via Tauri commands.
 
 
-* [SEQ-05: External Markdown App Invocation & Refresh]()
+* [SEQ-05: External Markdown App Invocation & Refresh](./14-SEQ-05_Edit_on_HASM_Markdown.md)
 * **Diagram Location:** `4. Common Actions` (`CommonActions`)
 * **Key Tauri Function:** `Tauri: Call HASM Markdown App`
 * **Description:** Triggers an external Markdown editor process from Rust and refreshes the React UI state upon closing the editor.
