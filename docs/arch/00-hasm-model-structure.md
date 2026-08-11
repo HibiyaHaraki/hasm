@@ -1,22 +1,24 @@
 # HASM Model Database Structure
 
-## HASM Model
+This document defines the storage layout, relational database schema (`hasm.db`), and the in-memory Rust domain model for the Human Activity Structuring Model (HASM).
 
-HASM model consists of following entities.
+---
 
-* **PERSON**
-* **EXPERIENCE**
-* **FACT**
-* **LINK**
+## 1. Overview & Storage Architecture
 
-HASM model independently keeps the information of each entities. However, metadata is also importatnt to keep the model structure. Therefore, the data is kept in local as Folder structure and database like below.
+The HASM model represents subjective human experiences, facts, persons, and relationships (links) through four primary entity types:
 
-* Markdown and the assets to explain each entity will become huge and need to edit without GUI app. Therefore, this will keep as low text data. This will also helps to track the change on Git.
-* The metadata for establishing HASM model will be included in hasm.db
+* **PERSON**: Core identity unit within the HASM model.
+* **EXPERIENCE**: Subjective timeline branch and contextual container for facts.
+* **FACT**: Concrete historical event bounded by time.
+* **LINK**: Directed relationship connecting any two entities.
 
-### Storage Model
+To achieve clean separation between human-readable content and structural metadata, HASM uses a hybrid persistence architecture:
 
-The markdowns which explain the detail of each entities are stored as local text file which can be editable by popular editor. This also helps to track the change by Git.
+1. **Local File System (HASM Markdown & Assets)**: Large text contents, detailed descriptions, and media assets are stored as standard Markdown files (`main.md`) and asset directories (`assets/`). This ensures offline accessibility, compatibility with external text editors, and seamless version control via Git.
+2. **Relational Database (`hasm.db`)**: High-performance metadata, structural foreign key relationships, junction tables, and entity indices are managed within a local SQLite database (`hasm.db`).
+
+### Workspace Storage Layout
 
 ```
 my.hasm/
@@ -24,173 +26,179 @@ my.hasm/
   |-- EXPERIENCE/
   |   `-- {UUID}/
   |       |-- main.md (HASM Markdown)
-  |       `-- assets/ (HASM Markdown)
+  |       `-- assets/ (Images and media files)
   |-- FACT/
   |   `-- {UUID}/
   |       |-- main.md (HASM Markdown)
-  |       `-- assets/ (HASM Markdown)
+  |       `-- assets/
   |-- LINK/
   |   `-- {UUID}/
   |       |-- main.md (HASM Markdown)
-  |       `-- assets/ (HASM Markdown)
+  |       `-- assets/
   `-- PERSON/
       `-- {UUID}/
           |-- main.md (HASM Markdown)
-          `-- assets/ (HASM Markdown)
+          `-- assets/
 
 ```
-
-### DB Model
-
-The metadata which establish the HASM model will be stored in database model. To support the connection between each entities, following tables are added.
-
-* **EXPERIENCE_TREE**
-* **FACT_EXPERIENCE**
-* **LINK_RELATION**
-
-```mermaid
-erDiagram
-  PERSON {
-    UUID person_id PK
-    UUID life_experience_id
-    STRING person_name
-    STRING person_description
-    INT security_level
-  }
-
-  EXPERIENCE {
-    UUID experience_id PK
-    STRING experience_name
-    STRING experience_description
-    INT security_level
-  }
-
-  EXPERIENCE_TREE {
-      UUID parent_id PK "EXPERIENCE.experience_id"
-      UUID child_id PK "EXPERIENCE.experience_id"
-  }
-
-  FACT {
-    UUID fact_id PK
-    STRING fact_name
-    STRING fact_description
-    DATETIME start_time
-    DATETIME end_time
-    INT security_level
-  }
-
-  FACT_EXPERIENCE {
-      UUID fact_id PK "FACT.fact_id"
-      UUID experience_id PK "EXPERIENCE.experience_id"
-  }
-
-  LINK {
-    UUID link_id PK
-    STRING link_type
-    STRING link_description
-    STRING origin_entity_type "PERSON | EXPERIENCE | FACT"
-    UUID origin_entity_id
-    STRING target_entity_type "PERSON | EXPERIENCE | FACT"
-    UUID target_entity_id
-    INT security_level
-  }
-
-  LINK_RELATION {
-    UUID link_id PK "LINK.link_id"
-    UUID related_link_id PK "LINK.link_id"
-  }
-
-  PERSON ||--|| EXPERIENCE : "has"
-  EXPERIENCE ||--o{ EXPERIENCE_TREE : "parent"
-  EXPERIENCE ||--o{ EXPERIENCE_TREE : "child"
-  FACT ||--o{ FACT_EXPERIENCE : "belongs to"
-  EXPERIENCE ||--o{ FACT_EXPERIENCE : "contains"
-  PERSON ||..o{ LINK : "origin/target"
-  EXPERIENCE ||..o{ LINK : "origin/target"
-  FACT ||..o{ LINK : "origin/target"
-  LINK ||--o{ LINK_RELATION : "has_relation"
-
-```
-
-### PERSON
-
-PERSON is basic unit of the HASM model. Each person has one mandatory branch **Life EXPERIENCE ID**
-
-* **PERSON ID** (*UUID*)
-* **Life EXPERIENCE ID** (*UUID*)
-* **PERSON Name** (*String*)
-* **PERSON description** (*String*)
-* **Security Level** (*Int*)
-
-### EXPERIENCE
-
-#### EXPERIENCE
-
-PERSON owns experience. The experience is the subjective grouping of the facts.
-
-* **EXPERIENCE ID** (*UUID*)
-* **EXPERIENCE Name** (*String*)
-* **EXPERIENCE description** (*String*)
-* **Security Level** (*Int*)
-
-#### EXPERIENCE_TREE
-
-Experiences are connected like a Git branch by using **Parent IDs** and **Child IDs**.
-
-* **Parent ID** (*UUID*) : Which EXPERIENCE is the base of this EXPERIENCE (This is the beginning point of the branching)
-* **Child ID** (*UUID*) : Which EXPERIENCE is affected by this branch (This is the end point of the branching)
-
-### FACT
-
-#### FACT
-
-FACT is the information which actually happens.
-
-* **FACT ID** (*UUID*)
-* **FACT Name** (*String*)
-* **FACT description** (*String*)
-* **Start Time** (*Datetime*)
-* **End Time** (*Datetime*)
-* **Security Level** (*Int*)
-
-#### FACT_EXPERIENCE
-
-The FACT is connected on EXPERIENCE branch by using **EXPERIENCE IDs**. Then the fact is registered as someone's experience.
-
-* **FACT ID** (*UUID*)
-* **EXPERIENCE ID** (*UUID*)
-
-### LINK
-
-#### LINK
-
-Link represent relationship among PEOPLE, EXPERIENCE, and FACT. Basically, a link represent the relationship between single entity and single entity by using **Origin Entity ID** and **Target Entity ID**.
-
-* **LINK ID** (*UUID*)
-* **LINK Type** (*String*)
-* **Link description** (*String*)
-* **Origin Entity ID** (*UUID*)
-* **Target Entity ID** (*UUID*)
-
-#### LINK_RELATION
-
-If there is a against meaning link like "refer" and "is refered by", that is included in **Related LINK IDs**. This helps to delete the all relation which has same information. Between **LINK ID** and **Related LINK ID**, there is no direction information.
-
-* **LINK ID** (*UUID*)
-* **Related LINK ID** (*UUID*)
 
 ---
 
-## Rust Domain Model Structure
+## 2. Relational Database Model (`hasm.db`)
 
-While the relational database (`hasm.db`) uses junction tables (`EXPERIENCE_TREE`, `FACT_EXPERIENCE`, `LINK_RELATION`) to handle many-to-many relationships, the in-memory Rust Domain Model simplifies these connections by directly embedding ID lists (`Vec<Uuid>`) into each core entity struct.
+The SQLite database (`hasm.db`) maintains structural metadata and many-to-many junction tables (`EXPERIENCE_TREE`, `FACT_EXPERIENCE`, `LINK_RELATION`) to enable fast querying and graph traversals.
 
-This approach aligns perfectly with HASM concepts, eliminates relational mapping friction, and provides clean JSON serialization for the React frontend via Tauri IPC.
+### Entity Relationship Diagram (ERD)
 
-### Class Diagram
+```mermaid
+erDiagram
+    PERSON {
+        TEXT person_id PK "UUID"
+        TEXT life_experience_id FK "UUID"
+        TEXT person_name
+        TEXT person_description
+        INTEGER security_level
+    }
+
+    EXPERIENCE {
+        TEXT experience_id PK "UUID"
+        TEXT experience_name
+        TEXT experience_description
+        INTEGER security_level
+    }
+
+    EXPERIENCE_TREE {
+        TEXT parent_id PK "UUID (EXPERIENCE.experience_id)"
+        TEXT child_id PK "UUID (EXPERIENCE.experience_id)"
+    }
+
+    FACT {
+        TEXT fact_id PK "UUID"
+        TEXT fact_name
+        TEXT fact_description
+        TEXT start_time "ISO8601 Datetime"
+        TEXT end_time "ISO8601 Datetime"
+        INTEGER security_level
+    }
+
+    FACT_EXPERIENCE {
+        TEXT fact_id PK "UUID (FACT.fact_id)"
+        TEXT experience_id PK "UUID (EXPERIENCE.experience_id)"
+    }
+
+    LINK {
+        TEXT link_id PK "UUID"
+        TEXT link_type
+        TEXT link_description
+        TEXT origin_entity_type "PERSON | EXPERIENCE | FACT"
+        TEXT origin_entity_id "UUID"
+        TEXT target_entity_type "PERSON | EXPERIENCE | FACT"
+        TEXT target_entity_id "UUID"
+        INTEGER security_level
+    }
+
+    LINK_RELATION {
+        TEXT link_id PK "UUID (LINK.link_id)"
+        TEXT related_link_id PK "UUID (LINK.link_id)"
+    }
+
+    PERSON ||--|| EXPERIENCE : "owns life experience"
+    EXPERIENCE ||--o{ EXPERIENCE_TREE : "parent branch"
+    EXPERIENCE ||--o{ EXPERIENCE_TREE : "child branch"
+    FACT ||--o{ FACT_EXPERIENCE : "belongs to"
+    EXPERIENCE ||--o{ FACT_EXPERIENCE : "contains"
+    PERSON ||..o{ LINK : "origin or target"
+    EXPERIENCE ||..o{ LINK : "origin or target"
+    FACT ||..o{ LINK : "origin or target"
+    LINK ||--o{ LINK_RELATION : "symmetrical relation"
+
+```
+
+---
+
+### Detailed Schema Definitions
+
+#### PERSON
+
+Primary unit representing an individual. Every `PERSON` owns one mandatory root branch specified by `life_experience_id`.
+
+* **`person_id`** (*UUID, Primary Key*): Unique identifier for the person.
+* **`life_experience_id`** (*UUID, Foreign Key*): Root `EXPERIENCE` ID representing the individual's entire life stream.
+* **`person_name`** (*TEXT*): Name or handle of the person.
+* **`person_description`** (*TEXT*): Short overview or summary.
+* **`security_level`** (*INTEGER*): Access control level ($0 \le \text{level} \le 5$).
+
+#### EXPERIENCE
+
+Represent subjective contextual groupings of facts (e.g., projects, education periods, career milestones).
+
+* **`experience_id`** (*UUID, Primary Key*): Unique identifier for the experience.
+* **`experience_name`** (*TEXT*): Title of the experience.
+* **`experience_description`** (*TEXT*): Overview of the experience stream.
+* **`security_level`** (*INTEGER*): Access control level.
+
+##### `EXPERIENCE_TREE` (Junction Table)
+
+Models Git-like branching and parent-child hierarchies between experience streams.
+
+* **`parent_id`** (*UUID, PK, FK*): Base `EXPERIENCE` from which branching originates.
+* **`child_id`** (*UUID, PK, FK*): Dependent `EXPERIENCE` affected by or branching off the parent.
+
+#### FACT
+
+Concrete events or occurrences anchored in time.
+
+* **`fact_id`** (*UUID, Primary Key*): Unique identifier for the fact.
+* **`fact_name`** (*TEXT*): Short summary of the fact.
+* **`fact_description`** (*TEXT*): Detailed factual description.
+* **`start_time`** (*TEXT*): ISO8601 timestamp for event start.
+* **`end_time`** (*TEXT*): ISO8601 timestamp for event completion (optional).
+* **`security_level`** (*INTEGER*): Access control level.
+
+##### `FACT_EXPERIENCE` (Junction Table)
+
+Maps facts onto experience timelines (many-to-many relationship).
+
+* **`fact_id`** (*UUID, PK, FK*): Reference to the associated `FACT`.
+* **`experience_id`** (*UUID, PK, FK*): Reference to the containing `EXPERIENCE`.
+
+#### LINK
+
+Polymorphic directed relationship connecting any two entities (`PERSON`, `EXPERIENCE`, or `FACT`).
+
+* **`link_id`** (*UUID, Primary Key*): Unique identifier for the link.
+* **`link_type`** (*TEXT*): Categorical relationship type (e.g., `"causes"`, `"references"`, `"mentors"`).
+* **`link_description`** (*TEXT*): Contextual explanation of the relationship.
+* **`origin_entity_type`** (*TEXT*): Source entity classification (`"Person"`, `"Experience"`, or `"Fact"`).
+* **`origin_entity_id`** (*UUID*): Target ID of the source entity.
+* **`target_entity_type`** (*TEXT*): Destination entity classification (`"Person"`, `"Experience"`, or `"Fact"`).
+* **`target_entity_id`** (*UUID*): Target ID of the destination entity.
+* **`security_level`** (*INTEGER*): Access control level.
+
+##### `LINK_RELATION` (Junction Table)
+
+Associates inverse or reciprocal link pairs (e.g., `"refers"` and `"is referred by"`) without enforcing inherent directionality. Facilitates atomic cascading deletions.
+
+* **`link_id`** (*UUID, PK, FK*): Primary link identifier.
+* **`related_link_id`** (*UUID, PK, FK*): Reciprocal or associated link identifier.
+
+---
+
+## 3. In-Memory Rust Domain Model
+
+While SQLite relies on junction tables (`EXPERIENCE_TREE`, `FACT_EXPERIENCE`, `LINK_RELATION`), the in-memory Rust Domain Model simplifies graph traversal by directly embedding ID lists (`Vec<Uuid>`) into each core struct.
+
+All core entities implement the `Verifiable` trait to enforce domain rules (such as non-empty names, valid security levels, $t_{\text{start}} \le t_{\text{end}}$ time constraints, and self-loop link prevention) prior to database persistence.
+
+### Domain Class Diagram
 
 ```mermaid
 classDiagram
+    class Verifiable {
+        <<trait>>
+        +verify() Result~(), EntityValidationError~
+    }
+
     class HasmModel {
         +PathBuf local_path
         +Vec~Person~ people
@@ -199,19 +207,20 @@ classDiagram
         +Vec~Link~ links
         +new(local_path) HasmModel
         +verify_storage() VerificationResult
-        +add_person(Person)
-        +add_experience(Experience)
-        +add_fact(Fact)
-        +add_link(Link)
+        +verify_domain_rules() Vec~(EntityType, Uuid, EntityValidationError)~
+        +add_person(person: Person)
+        +add_experience(experience: Experience)
+        +add_fact(fact: Fact)
+        +add_link(link: Link)
         +get_person_uuids() Vec~Uuid~
         +get_experience_uuids() Vec~Uuid~
         +get_fact_uuids() Vec~Uuid~
         +get_link_uuids() Vec~Uuid~
         +get_all_uuids() HashSet~Uuid~
-        +find_person_by_id(Uuid) Option~Person~
-        +find_experience_by_id(Uuid) Option~Experience~
-        +find_fact_by_id(Uuid) Option~Fact~
-        +find_link_by_id(Uuid) Option~Link~
+        +find_person_by_id(id: Uuid) Option~Person~
+        +find_experience_by_id(id: Uuid) Option~Experience~
+        +find_fact_by_id(id: Uuid) Option~Fact~
+        +find_link_by_id(id: Uuid) Option~Link~
         +total_entity_count() usize
     }
 
@@ -228,6 +237,7 @@ classDiagram
         +String person_description
         +i32 security_level
         +new(name, desc, life_exp_id, sec_level) Person
+        +verify() Result~(), EntityValidationError~
     }
 
     class Experience {
@@ -239,6 +249,7 @@ classDiagram
         +Vec~Uuid~ child_ids
         +Vec~Uuid~ fact_ids
         +new(name, desc, sec_level) Experience
+        +verify() Result~(), EntityValidationError~
     }
 
     class Fact {
@@ -250,6 +261,7 @@ classDiagram
         +i32 security_level
         +Vec~Uuid~ experience_ids
         +new(name, desc, start, end, sec_level) Fact
+        +verify() Result~(), EntityValidationError~
     }
 
     class EntityType {
@@ -271,7 +283,13 @@ classDiagram
         +i32 security_level
         +Vec~Uuid~ related_link_ids
         +new(type, desc, origin_type, origin_id, target_type, target_id, sec_level) Link
+        +verify() Result~(), EntityValidationError~
     }
+
+    Verifiable <|.. Person : implements
+    Verifiable <|.. Experience : implements
+    Verifiable <|.. Fact : implements
+    Verifiable <|.. Link : implements
 
     HasmModel "1" *-- "many" Person
     HasmModel "1" *-- "many" Experience
@@ -279,18 +297,61 @@ classDiagram
     HasmModel "1" *-- "many" Link
     HasmModel ..> VerificationResult : returns
     Link ..> EntityType : uses
+
 ```
 
-### Rust Struct Definitions
+---
+
+### Rust Struct Implementations
 
 ```rust
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
-/// Storage verification result containing missing and unreferenced entity IDs
+// ===================================================================
+// Domain Validation Error Definitions
+// ===================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EntityValidationError {
+    EmptyName,
+    TimeInversion { start_time: String, end_time: String },
+    SelfLoopLink { link_id: Uuid },
+    InvalidSecurityLevel { level: i32 },
+}
+
+impl fmt::Display for EntityValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyName => write!(f, "Entity name cannot be empty or whitespace."),
+            Self::TimeInversion { start_time, end_time } => {
+                write!(f, "Start time ({start_time}) must be earlier than or equal to End time ({end_time}).")
+            }
+            Self::SelfLoopLink { link_id } => write!(f, "Link ({link_id}) cannot have identical source and target IDs."),
+            Self::InvalidSecurityLevel { level } => write!(f, "Security level ({level}) must be between 0 and 5."),
+        }
+    }
+}
+
+impl std::error::Error for EntityValidationError {}
+
+// ===================================================================
+// Verifiable Trait Definition
+// ===================================================================
+
+pub trait Verifiable {
+    /// Validates domain invariants for a single entity before database persistence.
+    fn verify(&self) -> Result<(), EntityValidationError>;
+}
+
+// ===================================================================
+// Storage Verification Result
+// ===================================================================
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VerificationResult {
     pub missing_entities: Vec<(EntityType, Uuid)>,
@@ -303,10 +364,13 @@ impl VerificationResult {
     }
 }
 
-/// Container struct representing the entire HASM Domain Model
+// ===================================================================
+// Container Struct: HasmModel
+// ===================================================================
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HasmModel {
-    pub local_path: PathBuf, // ワークスペースの基底パス
+    pub local_path: PathBuf, // Base workspace directory path
     pub people: Vec<Person>,
     pub experiences: Vec<Experience>,
     pub facts: Vec<Fact>,
@@ -321,9 +385,37 @@ impl HasmModel {
         }
     }
 
-    // ===================================================================
-    // Storage Verification Method (Encapsulated Domain Logic)
-    // ===================================================================
+    // -------------------------------------------------------------------
+    // Domain & Storage Verification
+    // -------------------------------------------------------------------
+
+    /// Validates all loaded entities using their individual `verify()` methods.
+    pub fn verify_domain_rules(&self) -> Vec<(EntityType, Uuid, EntityValidationError)> {
+        let mut errors = Vec::new();
+
+        for person in &self.people {
+            if let Err(err) = person.verify() {
+                errors.push((EntityType::Person, person.person_id, err));
+            }
+        }
+        for exp in &self.experiences {
+            if let Err(err) = exp.verify() {
+                errors.push((EntityType::Experience, exp.experience_id, err));
+            }
+        }
+        for fact in &self.facts {
+            if let Err(err) = fact.verify() {
+                errors.push((EntityType::Fact, fact.fact_id, err));
+            }
+        }
+        for link in &self.links {
+            if let Err(err) = link.verify() {
+                errors.push((EntityType::Link, link.link_id, err));
+            }
+        }
+
+        errors
+    }
 
     /// Verifies that all loaded entities have corresponding local folders on disk,
     /// and checks for any unreferenced folders on disk.
@@ -362,24 +454,17 @@ impl HasmModel {
             }
         }
 
-        // 5. Scan unreferenced folders on disk against model.get_all_uuids()
-        // (Implementation details: read dir and compare with HashSet)
-
         result
     }
 
-    // ===================================================================
-    // Entity Addition & Mutator Methods
-    // ===================================================================
+    // -------------------------------------------------------------------
+    // Mutators & Accessors
+    // -------------------------------------------------------------------
 
     pub fn add_person(&mut self, person: Person) { self.people.push(person); }
     pub fn add_experience(&mut self, experience: Experience) { self.experiences.push(experience); }
     pub fn add_fact(&mut self, fact: Fact) { self.facts.push(fact); }
     pub fn add_link(&mut self, link: Link) { self.links.push(link); }
-
-    // ===================================================================
-    // UUID List Extraction Methods
-    // ===================================================================
 
     pub fn get_person_uuids(&self) -> Vec<Uuid> { self.people.iter().map(|p| p.person_id).collect() }
     pub fn get_experience_uuids(&self) -> Vec<Uuid> { self.experiences.iter().map(|e| e.experience_id).collect() }
@@ -395,10 +480,6 @@ impl HasmModel {
         set
     }
 
-    // ===================================================================
-    // Entity Lookup Methods
-    // ===================================================================
-
     pub fn find_person_by_id(&self, id: Uuid) -> Option<&Person> { self.people.iter().find(|p| p.person_id == id) }
     pub fn find_experience_by_id(&self, id: Uuid) -> Option<&Experience> { self.experiences.iter().find(|e| e.experience_id == id) }
     pub fn find_fact_by_id(&self, id: Uuid) -> Option<&Fact> { self.facts.iter().find(|f| f.fact_id == id) }
@@ -410,8 +491,16 @@ impl HasmModel {
 }
 
 // ===================================================================
-// Entity Implementations with Constructors (new)
+// Entity Domain Structs & Trait Implementations
 // ===================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EntityType {
+    Person,
+    Experience,
+    Fact,
+    Link,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Person {
@@ -430,12 +519,24 @@ impl Person {
         security_level: i32,
     ) -> Self {
         Self {
-            person_id: Uuid::new_v4(), // 自動UUID発行
+            person_id: Uuid::new_v4(),
             life_experience_id,
             person_name: person_name.into(),
             person_description: person_description.into(),
             security_level,
         }
+    }
+}
+
+impl Verifiable for Person {
+    fn verify(&self) -> Result<(), EntityValidationError> {
+        if self.person_name.trim().is_empty() {
+            return Err(EntityValidationError::EmptyName);
+        }
+        if !(0..=5).contains(&self.security_level) {
+            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
+        }
+        Ok(())
     }
 }
 
@@ -465,6 +566,18 @@ impl Experience {
             child_ids: Vec::new(),
             fact_ids: Vec::new(),
         }
+    }
+}
+
+impl Verifiable for Experience {
+    fn verify(&self) -> Result<(), EntityValidationError> {
+        if self.experience_name.trim().is_empty() {
+            return Err(EntityValidationError::EmptyName);
+        }
+        if !(0..=5).contains(&self.security_level) {
+            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
+        }
+        Ok(())
     }
 }
 
@@ -499,11 +612,24 @@ impl Fact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EntityType {
-    Person,
-    Experience,
-    Fact,
+impl Verifiable for Fact {
+    fn verify(&self) -> Result<(), EntityValidationError> {
+        if self.fact_name.trim().is_empty() {
+            return Err(EntityValidationError::EmptyName);
+        }
+        if !(0..=5).contains(&self.security_level) {
+            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
+        }
+        if let (Some(start), Some(end)) = (self.start_time, self.end_time) {
+            if start > end {
+                return Err(EntityValidationError::TimeInversion {
+                    start_time: start.to_rfc3339(),
+                    end_time: end.to_rfc3339(),
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -542,3 +668,20 @@ impl Link {
         }
     }
 }
+
+impl Verifiable for Link {
+    fn verify(&self) -> Result<(), EntityValidationError> {
+        if self.link_type.trim().is_empty() {
+            return Err(EntityValidationError::EmptyName);
+        }
+        if !(0..=5).contains(&self.security_level) {
+            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
+        }
+        if self.origin_entity_type == self.target_entity_type && self.origin_entity_id == self.target_entity_id {
+            return Err(EntityValidationError::SelfLoopLink { link_id: self.link_id });
+        }
+        Ok(())
+    }
+}
+
+```
