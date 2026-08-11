@@ -1,10 +1,10 @@
 # SEQ-04: Entity MetaData Editing & Saving (Detailed Architecture Specification)
 
-This document provides the complete detailed architectural specification for loading, validating, modifying, saving, canceling, and navigating back from an entity detail ticket (PERSON, EXPERIENCE, FACT, LINK) modeled after a JIRA Task Ticket interface.
+This document provides the complete detailed architectural specification for loading, validating, modifying, saving, canceling, checking external file modification timestamps or file deletions on window focus, refreshing Markdown, and navigating back from an entity detail ticket (PERSON, EXPERIENCE, FACT, LINK) modeled after a JIRA Task Ticket interface.
 
 * **Diagram Location:** `3. Entity Detail Pages` (`DetailPages` / `PersonDetail`, `ExpDetail`, `FactDetail`, `LinkDetail`)
-* **Key Tauri Functions:** `load_entity_detail`, `save_entity_metadata`
-* **Description:** Demonstrates loading entity metadata from Rust in-memory state, verifying Markdown via `hasm_markdown.exe` with dynamic timeouts, executing entity-level Rust domain validation before persisting metadata to `hasm.db`, invalidating Rust model verification state (`is_verified = false`), and navigating back to the Visualizer with automatic re-verification triggers.
+* **Key Tauri Functions:** `load_entity_detail`, `save_entity_metadata`, `check_entity_mtime`, `reload_entity_markdown`
+* **Description:** Demonstrates loading entity metadata from Rust in-memory state, verifying Markdown via `hasm_markdown.exe` with dynamic timeouts, executing entity-level Rust domain validation before persisting metadata to `hasm.db`, invalidating Rust model verification state (`is_verified = false`), checking `mtime` differences or file deletion on window focus to highlight the refresh action with appropriate visual urgency (Amber/Red), handling missing file exceptions by routing to `/error-markdown`, providing manual Markdown reload capability, and navigating back to the Visualizer with automatic re-verification triggers.
 
 ---
 
@@ -25,6 +25,7 @@ pub struct LoadEntityRequest {
 pub struct EntityDetailPayload {
     pub metadata: EntityMeta,
     pub markdown_body: String,
+    pub loaded_mtime_ms: u64, // UNIX Epoch ms of main.md
     pub timeout_used_ms: u64,
 }
 
@@ -36,14 +37,46 @@ pub struct SaveEntityMetadataRequest {
     pub name: String,
     pub description: Option<String>,
     pub security_level: i32,
-    pub start_time: Option<String>, // ISO8601
-    pub end_time: Option<String>,   // ISO8601
+    pub start_time: Option<String>, // ISO8601 String
+    pub end_time: Option<String>,   // ISO8601 String
+}
+
+// Payload for check_entity_mtime command (Window Focus check)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CheckMtimeRequest {
+    pub entity_type: String,
+    pub entity_id: Uuid,
+    pub last_loaded_mtime_ms: u64,
+}
+
+// Response payload for check_entity_mtime command
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CheckMtimePayload {
+    pub is_modified: bool,
+    pub is_deleted: bool, // Set to true if target main.md/dir is missing on disk
+    pub current_mtime_ms: u64,
+}
+
+// Payload for reload_entity_markdown command
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReloadMarkdownRequest {
+    pub entity_type: String,
+    pub entity_id: Uuid,
+}
+
+// Response payload for reload_entity_markdown
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReloadMarkdownPayload {
+    pub markdown_body: String,
+    pub new_mtime_ms: u64,
+    pub timeout_used_ms: u64,
 }
 
 // Error Enum returned to Frontend
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EntityEditorError {
     EntityNotFound { id: String },
+    MarkdownFileNotFound { path: String }, // Returned when main.md is missing on disk
     MarkdownTimeout { timeout_ms: u64 },
     MarkdownVerificationFailed { exit_code: i32, stderr: String },
     EntityVerificationFailed { code: String, message: String },
@@ -57,8 +90,9 @@ pub enum EntityEditorError {
 
 | Operation | Timeout Rule | Timeout Value | Timeout Action & Rollback |
 | --- | --- | --- | --- |
-| **Markdown Verification** (`hasm_markdown.exe`) | Dynamic (File Size) | $\min(3000 + \lfloor \frac{\text{SizeKB}}{100} \rfloor \times 1000, 15000)\text{ ms}$ | Kill child process; return `ERR_MARKDOWN_TIMEOUT`; navigate to `/error-markdown`. |
+| **Markdown Verification** (`hasm_markdown.exe`) | Dynamic (File Size) | $\min(3000 + \lfloor \frac{\text{SizeKB}}{100} \rfloor \times 1000, 15000)\text{ ms}$ | Kill child process; return `ERR_MARKDOWN_TIMEOUT`; navigate to `/error-markdown` (or abort refresh). |
 | **Metadata DB Persistence** (`hasm.db`) | Fixed Hard Timeout | **5,000 ms** | `ROLLBACK` SQLite Transaction; return `ERR_SAVE_TIMEOUT`; preserve form state on React UI. |
+| **mtime Diff / Existence Check** (`check_entity_mtime`) | Instant (Fs Metadata) | **< 10 ms** | Non-blocking background check on Window Focus; return `is_modified` / `is_deleted` booleans. |
 
 ---
 
@@ -101,7 +135,7 @@ Prior to executing SQLite transactions, the Rust backend instantiates the domain
 
 ### Chapter 1: Loading entity
 
-Triggered automatically when navigating to `/entity-detail/:entity_type/:entity_id`. Fetches metadata from Rust memory and verifies the target `main.md` via `hasm_markdown.exe` using file-size-based dynamic timeouts.
+Triggered automatically when navigating to `/entity-detail/:entity_type/:entity_id`. Fetches metadata from Rust memory and verifies the target `main.md` via `hasm_markdown.exe` using file-size-based dynamic timeouts, saving the initial file `loaded_mtime_ms`.
 
 ```mermaid
 sequenceDiagram
@@ -116,7 +150,7 @@ sequenceDiagram
 
     Note over User,FS: Pre-condition: User opened /entity-detail/:entity_type/:entity_id. HasmModel metadata resides in Rust memory.
 
-    React->>React: Mount EntityDetailPage & Set Initial State<br/>{ isEntityLoading: true, isMarkdownVerifying: true, isEntitySaving: false }
+    React->>React: Mount EntityDetailPage & Set Initial State<br/>{ isEntityLoading: true, isMarkdownVerifying: true, hasExternalChanges: false, isMarkdownDeleted: false }
     
     React->>Bridge: invoke('load_entity_detail', { entityType, entityId })
     Bridge->>Rust: IPC: load_entity_detail(entityType, entityId)
@@ -136,10 +170,20 @@ sequenceDiagram
 
     rect rgb(15, 23, 42)
         Note over Rust,FS: 2. Calculate Dynamic Timeout & Exec Verification Process
-        Rust->>FS: Check main.md File Size (SizeKB)
+        Rust->>FS: Check main.md File Size (SizeKB) & Get mtime (loaded_mtime_ms)
+        
+        alt Target main.md File Missing on Disk
+            FS-->>Rust: File Not Found Error
+            Rust-->>Bridge: Return Err(MarkdownFileNotFound)
+            Bridge-->>React: Reject Promise
+            React->>React: Set State { isEntityLoading: false, isMarkdownVerifying: false }
+            React->>Router: navigate('/error-markdown')
+            Note over React,Router: Transition to Error HASM Markdown Page ("Markdown File Deleted")
+        end
+
         Rust->>Rust: Dynamic Timeout = min(3000 + (SizeKB / 100) * 1000, 15000) ms
         
-        Rust->>SubExe: Execute Process with Timeout: hasm_markdown.exe verify --path {target_md_path}
+        Rust->>SubExe: Execute Process with Timeout: hasm_markdown.exe verify --path {target_dir_path}
         SubExe->>FS: Read & Parse main.md (YAML FrontMatter + Syntax Verification)
 
         break On Process Execution Timeout (> Dynamic Timeout ms)
@@ -163,10 +207,10 @@ sequenceDiagram
         end
     end
 
-    Rust-->>Bridge: Return Ok(EntityDetailPayload)
+    Rust-->>Bridge: Return Ok(EntityDetailPayload { metadata, markdownBody, loadedMtimeMs })
     Bridge-->>React: Resolve Promise (payload)
     
-    React->>React: Store payload in State & Render Markdown Content
+    React->>React: Store payload & loadedMtimeMs in State
     React->>React: Set State { isEntityLoading: false, isMarkdownVerifying: false }
     React->>User: Display JIRA-style Entity Detail Ticket View
 
@@ -309,3 +353,96 @@ sequenceDiagram
 
     React->>Router: navigate('/visualizer')
     Note over React,Router: Transition to Visualizer Route (SEQ-03 handles SEQ-02 re-verification if is_verified == false)
+
+```
+
+---
+
+### Chapter 5: Window focus mtime check & refresh entity Markdown
+
+Triggered automatically when the user brings focus back to the HASM app window (e.g., after editing or deleting in an external editor). Performs a non-blocking `mtime` and existence check.
+
+* **Case A (External Edit):** Disk `mtime > lastLoadedMtimeMs` -> Highlights "Refresh Markdown" button with **Amber Alert Style**.
+* **Case B (File Deleted):** File missing on disk (`is_deleted = true`) -> Highlights "Refresh Markdown" button with **Red Danger Style** and displays a warning toast.
+* **Refresh Execution on Deleted File:** Clicking Refresh on a deleted file rejects with `MarkdownFileNotFound` and routes to `/error-markdown`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User
+    participant React as React (EntityDetailPage.tsx)
+    participant Router as React Router
+    participant Bridge as Tauri IPC Bridge
+    participant Rust as Rust Command (entity_editor.rs)
+    participant SubExe as Submodule (hasm_markdown.exe)
+    participant FS as File System (Entity Folder / main.md)
+
+    Note over User,FS: Phase 5.1: Non-blocking Window Focus mtime & Existence Check
+    User->>React: Focus / Switch back to HASM App Window
+    React->>React: Trigger Window 'focus' Event Listener
+    
+    React->>Bridge: invoke('check_entity_mtime', { entityType, entityId, lastLoadedMtimeMs })
+    Bridge->>Rust: IPC: check_entity_mtime(...)
+    Rust->>FS: Query current main.md existence & mtime (< 10ms execution)
+    
+    alt File Deleted on Disk
+        Rust-->>Bridge: Return Ok(CheckMtimePayload { is_modified: false, is_deleted: true, current_mtime_ms: 0 })
+        Bridge-->>React: Resolve Promise
+        React->>React: Set State { isMarkdownDeleted: true, hasExternalChanges: true }
+        React->>User: Highlight "Refresh Markdown" Button (Red Danger Style + Warning Badge)
+        React->>User: Display Toast Warning ("Target Markdown file was deleted on disk!")
+    else Disk mtime > lastLoadedMtimeMs (External Edit Detected)
+        Rust-->>Bridge: Return Ok(CheckMtimePayload { is_modified: true, is_deleted: false, current_mtime_ms })
+        Bridge-->>React: Resolve Promise
+        React->>React: Set State { hasExternalChanges: true, isMarkdownDeleted: false }
+        React->>User: Highlight "Refresh Markdown" Button (Amber Style + Pulsing Badge)
+    else Disk mtime Unchanged & File Exists
+        Rust-->>Bridge: Return Ok(CheckMtimePayload { is_modified: false, is_deleted: false })
+        Bridge-->>React: Resolve Promise (No UI changes)
+    end
+
+    %% ----------------------------------------------------
+    %% Phase 5.2: User Manual Refresh Execution
+    %% ----------------------------------------------------
+    Note over User,FS: Phase 5.2: User clicks Highlighted "Refresh Markdown" Button
+    User->>React: Click "Refresh Markdown" Button
+    React->>React: Set State { isMarkdownVerifying: true }
+    
+    React->>Bridge: invoke('reload_entity_markdown', { entityType, entityId })
+    Bridge->>Rust: IPC: reload_entity_markdown(entityType, entityId)
+
+    rect rgb(15, 23, 42)
+        Note over Rust,FS: Verify & Re-read Markdown File (Dynamic Timeout)
+        Rust->>FS: Inspect File Existence
+        
+        alt File missing on disk during reload
+            Rust-->>Bridge: Return Err(MarkdownFileNotFound)
+            Bridge-->>React: Reject Promise
+            React->>React: Set State { isMarkdownVerifying: false }
+            React->>Router: navigate('/error-markdown')
+            Note over React,Router: Transition to Error HASM Markdown Page ("Markdown File Deleted")
+        end
+
+        Rust->>FS: Check main.md File Size (SizeKB) & Fetch current mtime
+        Rust->>Rust: Dynamic Timeout = min(3000 + (SizeKB / 100) * 1000, 15000) ms
+        
+        Rust->>SubExe: Execute Process with Timeout: hasm_markdown.exe verify --path {target_dir_path}
+        SubExe->>FS: Read & Parse main.md in Entity Directory
+
+        alt Verification Failed
+            SubExe-->>Rust: Return Process Exit Code != 0
+            Rust-->>Bridge: Return Err(MarkdownVerificationFailed)
+            Bridge-->>React: Reject Promise
+            React->>React: Set State { isMarkdownVerifying: false }
+            React->>User: Display Toast Error ("Markdown syntax error detected. Refresh aborted.")
+        else Verification Succeeded
+            SubExe-->>Rust: Return Process Exit Code 0 + Raw Markdown Content
+        end
+    end
+
+    Rust-->>Bridge: Return Ok(ReloadMarkdownPayload { markdownBody, newMtimeMs })
+    Bridge-->>React: Resolve Promise (payload)
+    
+    React->>React: Update local Markdown content & Update State { lastLoadedMtimeMs: newMtimeMs, hasExternalChanges: false, isMarkdownDeleted: false }
+    React->>React: Reset "Refresh Markdown" Button Style to Normal & Set { isMarkdownVerifying: false }
+    React->>User: Re-render Ticket View with Fresh Markdown Content & Toast Success

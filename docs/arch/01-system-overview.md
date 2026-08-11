@@ -198,13 +198,7 @@ Below is the list of sequence diagrams detailing the interactions between the Re
 * **Description:** Triggers an external Markdown editor process from Rust and refreshes the React UI state upon closing the editor.
 
 
-* [SEQ-06: Navigation Back to Visualize]()
-* **Diagram Location:** `4. Common Actions` (`CommonActions`)
-* **Key Tauri Function:** N/A (Frontend Router & State Management)
-* **Description:** Handles returning to `Visualize Page` via `Click Back to Visualize` using cached model state without re-triggering unnecessary backend validation.
-
-
-* [SEQ-07: Error Fallback & Recovery Flow]()
+* [SEQ-06: Error Fallback & Recovery Flow]()
 * **Diagram Location:** Across all subgraphs (`ErrorHASMApp`, `ErrorHASMModel`, `ErrorHASMMarkdown`)
 * **Key Tauri Function:** Re-invoking respective validation functions upon retry
 * **Description:** Outlines user retry actions and routing fallback strategies when validation or process errors occur at any stage.
