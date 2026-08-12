@@ -17,6 +17,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Sync submodules
+        run: git submodule sync --recursive
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -25,7 +33,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build frontend
         run: npm run build
@@ -37,6 +45,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Sync submodules
+        run: git submodule sync --recursive
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
