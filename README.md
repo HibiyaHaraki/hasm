@@ -1,62 +1,61 @@
 # HASM Model Editor 🌟
 
-HASM Model Editor is a desktop-focused model management tool for opening, browsing, and editing HASM model data. The app combines a React frontend and a Rust/Tauri backend so model entities can be inspected and updated in a practical workflow.
+HASM is a local model format for organizing **people, experiences, facts, and links**. 🧩
+The HASM Model Editor is a small desktop app for opening that model, browsing its sections, and editing entity details. ✍️
 
-## Why this project exists ✨
+## What is HASM? 💡
 
-Many model files are spread across multiple formats and locations, which makes it hard to inspect and update related entities consistently. HASM Model Editor focuses on structured navigation and detail editing so users can work with model data safely and efficiently.
+HASM keeps model data close to the files that describe it: folders hold entity Markdown, while a local SQLite database helps the app browse and save structured metadata. 📁🗃️
 
-- 📂 Open a HASM model root path
-- 🧭 Visualize and switch across entity categories
-- ✍️ Inspect and edit detail records
-- 💾 Save changes back to local data files
+The editor is designed for a simple loop:
 
-## Current status 🚧
+- 📂 Open a model folder
+- 🧭 Browse PERSON, EXPERIENCE, FACT, and LINK
+- 🔎 Open an entity detail view
+- 💾 Edit and save metadata
+- 🎨 Switch the workspace color pattern
 
-The current implementation includes core workspace operations:
-
-- ✅ Model open flow and workspace initialization
-- ✅ Entity list visualization grouped by type
-- ✅ Detail editing pages for PERSON, EXPERIENCE, FACT, and LINK
-- ✅ Save APIs for each detail type through Tauri commands
-
-## How it works 🔄
+## Current flow 🔄
 
 ```mermaid
 flowchart LR
-	A[Boot page] --> B[Open HASM model root]
-	B --> C[Load workspace metadata and entity lists]
-	C --> D[Select entity type and item]
-	D --> E[Edit detail form]
-	E --> F[Save detail to local files]
+	A[🚀 Boot] --> B[📂 Open model folder]
+	B --> C[⚙️ Tauri opens workspace]
+	C --> D[🗃️ Sync folders with main.db]
+	D --> E[🧭 Browse entities]
+	E --> F[🔎 View entity details]
+	F --> G[✍️ Edit and save]
+	G --> H[🔄 Refresh workspace]
+	H --> E
+	E -.-> I[🎨 Change color pattern]
 ```
 
-## Architecture details 📚
+## Status 🧩
 
-- [HASM model structure](docs/arch/00-hasm-model-structure.md)
-- [System components](docs/arch/01-system-components.md)
-- [Create HASM model flow](docs/arch/02-create-hasm-model.md)
-- [Read HASM model flow](docs/arch/03-read-hasm-model.md)
-- [Save HASM model flow](docs/arch/04-save-hasm-model.md)
-- [Edit HASM model flow](docs/arch/05-edit-hasm-model.md)
-- [Frontend HASM model flow](docs/arch/06-frontend-hasm-model.md)
-
-## Feature overview 🧩
-
-| Area | Status | Description |
+| Area | Status | Short description |
 |---|---|---|
-| Boot and routing | ✅ | Start flow and route users to open or visualize stages |
-| Model open | ✅ | Load HASM model workspace from selected path |
-| Entity browsing | ✅ | Filter and list entities by type |
-| Entity detail editing | ✅ | Edit PERSON, EXPERIENCE, FACT, and LINK fields |
-| Visualization expansion | 🚧 | Additional visual model views are planned |
+| App boot | ✅ | Start the desktop workspace flow |
+| Model open | ✅ | Open a model folder and read its sections |
+| Entity browsing | ✅ | Browse PERSON, EXPERIENCE, FACT, and LINK |
+| Entity details | ✅ | Read and edit detail records |
+| Save and refresh | ✅ | Save through Tauri and reload the workspace |
+| New model creation | 🚧 | Planned next |
+| Rich relationship visualization | 🚧 | Planned after the core editor |
 
 ## Tech stack 🛠️
 
-- Frontend: React + Vite
-- Desktop shell: Tauri
-- Backend logic: Rust
-- Data access: Local file and SQLite-backed model resources
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=black)](https://tauri.app/)
+[![Rust](https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-local-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+
+- 🖥️ Frontend: React + Vite
+- ⚡ Desktop shell and bridge: Tauri 2
+- 🦀 Backend: Rust
+- 🗃️ Storage: local folders, Markdown, and SQLite `main.db`
+- 🎨 Theme package: `src/hasm_color_pattern`
+- 📝 Logging package: `src/hasm_logger`
 
 ## Getting started ▶️
 
@@ -82,21 +81,32 @@ npm run tauri build
 ## Project structure 📁
 
 ```text
-src/                # React frontend pages, components, hooks, and definitions
-src-tauri/          # Tauri bootstrap and Rust backend command/service logic
-docs/arch/          # Architecture notes and flow documentation
-package.json        # Frontend scripts and dependencies
-vite.config.js      # Vite configuration
+src/
+├── features/hasm/          # Boot, open, browse, detail, and Tauri API flow
+├── hasm_color_pattern/      # Reusable color patterns and theme helpers
+├── hasm_logger/             # Frontend logging helpers
+├── App.jsx                 # App entry component
+└── main.jsx                # React entry point
+src-tauri/
+├── src/hasm/                # Rust commands, services, types, and definitions
+├── src/hasm_logger/         # Rust logging support
+└── Cargo.toml              # Rust dependencies and build settings
+docs/
+├── arch/                    # Architecture and sequence plans
+├── req/                     # Requirements
+└── eval/                    # Evaluation and test specifications
+package.json                # Frontend scripts and dependencies
+vite.config.js              # Vite configuration
 ```
 
 ## Roadmap 🗺️
 
-Planned enhancements include:
+1. 🚧 **Workspace creation**: create a new HASM folder from the app.
+2. 🧪 **Validation and recovery**: clearer checks for missing or invalid model data.
+3. 🌐 **Relationship views**: make links and experience paths easier to explore.
+4. 📦 **Import and export**: support more practical model exchange workflows.
 
-- 🌐 Richer visualization of entity relationships
-- 🧪 Additional model validation helpers
-- 🧠 More guided editing and consistency checks
-- 📦 Expanded import/export workflows
+The detailed architecture, requirements, and evaluation plans live in [`docs/`](docs/), including the current sequence documents for loading, visualization, editing, recovery, and entity creation. 📚
 
 ## License 📜
 
