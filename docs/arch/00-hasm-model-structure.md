@@ -1,687 +1,448 @@
-# HASM Model Database Structure
+# HASM Desktop Application - Directory Structure & Architecture Overview
 
-This document defines the storage layout, relational database schema (`hasm.db`), and the in-memory Rust domain model for the Human Activity Structuring Model (HASM).
+This document outlines the complete directory layout, module responsibilities, file-to-function mapping, route guard architecture (Barrier 1), and test script locations for the HASM Desktop Application (Tauri v2 + React/JSX).
 
----
+The overall application architecture, lifecycle, and sequence flows referenced below correspond to:
 
-## 1. Overview & Storage Architecture
-
-The HASM model represents subjective human experiences, facts, persons, and relationships (links) through four primary entity types:
-
-* **PERSON**: Core identity unit within the HASM model.
-* **EXPERIENCE**: Subjective timeline branch and contextual container for facts.
-* **FACT**: Concrete historical event bounded by time.
-* **LINK**: Directed relationship connecting any two entities.
-
-To achieve clean separation between human-readable content and structural metadata, HASM uses a hybrid persistence architecture:
-
-1. **Local File System (HASM Markdown & Assets)**: Large text contents, detailed descriptions, and media assets are stored as standard Markdown files (`main.md`) and asset directories (`assets/`). This ensures offline accessibility, compatibility with external text editors, and seamless version control via Git.
-2. **Relational Database (`hasm.db`)**: High-performance metadata, structural foreign key relationships, junction tables, and entity indices are managed within a local SQLite database (`hasm.db`).
-
-### Workspace Storage Layout
-
-```
-my.hasm/
-  |-- hasm.db
-  |-- EXPERIENCE/
-  |   `-- {UUID}/
-  |       |-- main.md (HASM Markdown)
-  |       `-- assets/ (Images and media files)
-  |-- FACT/
-  |   `-- {UUID}/
-  |       |-- main.md (HASM Markdown)
-  |       `-- assets/
-  |-- LINK/
-  |   `-- {UUID}/
-  |       |-- main.md (HASM Markdown)
-  |       `-- assets/
-  `-- PERSON/
-      `-- {UUID}/
-          |-- main.md (HASM Markdown)
-          `-- assets/
-
-```
+* [SEQ-01: App Launch & App Validation](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)
+* [SEQ-02: Model Loading & Storage Verification](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)
+* [SEQ-03: HASM 3D Visualizer](https://www.google.com/search?q=./12-SEQ-03_Visualizer.md)
+* [SEQ-04: Entity MetaData Editing & Saving](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)
+* [SEQ-05: External Markdown App Invocation](https://www.google.com/search?q=./14-SEQ-05_Edit_on_HASM_Markdown.md)
+* [SEQ-06: Error Fallback & Recovery Flow](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)
+* [SEQ-07: Global Navigation & Environment Management](https://www.google.com/search?q=./16-SEQ-07_Others.md)
+* [SEQ-08: Entity Creation & Link Graph Binding Sequence](https://www.google.com/search?q=./17-SEQ-08_Entity_Creation.md)
 
 ---
 
-## 2. Relational Database Model (`hasm.db`)
+## Chapter 1: Directory Structure Overview
 
-The SQLite database (`hasm.db`) maintains structural metadata and many-to-many junction tables (`EXPERIENCE_TREE`, `FACT_EXPERIENCE`, `LINK_RELATION`) to enable fast querying and graph traversals.
-
-### Entity Relationship Diagram (ERD)
-
-```mermaid
-erDiagram
-    PERSON {
-        TEXT person_id PK "UUID"
-        TEXT life_experience_id FK "UUID"
-        TEXT person_name
-        TEXT person_description
-        INTEGER security_level
-    }
-
-    EXPERIENCE {
-        TEXT experience_id PK "UUID"
-        TEXT experience_name
-        TEXT experience_description
-        INTEGER security_level
-    }
-
-    EXPERIENCE_TREE {
-        TEXT parent_id PK "UUID (EXPERIENCE.experience_id)"
-        TEXT child_id PK "UUID (EXPERIENCE.experience_id)"
-    }
-
-    FACT {
-        TEXT fact_id PK "UUID"
-        TEXT fact_name
-        TEXT fact_description
-        TEXT start_time "ISO8601 Datetime"
-        TEXT end_time "ISO8601 Datetime"
-        INTEGER security_level
-    }
-
-    FACT_EXPERIENCE {
-        TEXT fact_id PK "UUID (FACT.fact_id)"
-        TEXT experience_id PK "UUID (EXPERIENCE.experience_id)"
-    }
-
-    LINK {
-        TEXT link_id PK "UUID"
-        TEXT link_type
-        TEXT link_description
-        TEXT origin_entity_type "PERSON | EXPERIENCE | FACT"
-        TEXT origin_entity_id "UUID"
-        TEXT target_entity_type "PERSON | EXPERIENCE | FACT"
-        TEXT target_entity_id "UUID"
-        INTEGER security_level
-    }
-
-    LINK_RELATION {
-        TEXT link_id PK "UUID (LINK.link_id)"
-        TEXT related_link_id PK "UUID (LINK.link_id)"
-    }
-
-    PERSON ||--|| EXPERIENCE : "owns life experience"
-    EXPERIENCE ||--o{ EXPERIENCE_TREE : "parent branch"
-    EXPERIENCE ||--o{ EXPERIENCE_TREE : "child branch"
-    FACT ||--o{ FACT_EXPERIENCE : "belongs to"
-    EXPERIENCE ||--o{ FACT_EXPERIENCE : "contains"
-    PERSON ||..o{ LINK : "origin or target"
-    EXPERIENCE ||..o{ LINK : "origin or target"
-    FACT ||..o{ LINK : "origin or target"
-    LINK ||--o{ LINK_RELATION : "symmetrical relation"
+```text
+hasm-desktop/
+├── src-tauri/                   # Rust Backend (Tauri Core Engine)
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── tests/                   # Rust Integration Tests (Tauri Level)
+│   │   ├── app_command_tests.rs
+│   │   ├── model_command_tests.rs
+│   │   ├── visualizer_tests.rs
+│   │   ├── entity_tests.rs
+│   │   └── entity_creation_tests.rs # SEQ-08 / EVL-08
+│   └── src/
+│       ├── main.rs              # App entry point & Tauri builder
+│       ├── lib.rs               # Library root & plugin setup
+│       ├── commands/            # Tauri IPC Commands Facade Layer
+│       │   ├── mod.rs
+│       │   ├── app_commands.rs  # SEQ-01, SEQ-06
+│       │   ├── model_commands.rs# SEQ-02, SEQ-07, SEQ-08 (create_hasm_workspace)
+│       │   ├── visualizer_commands.rs # SEQ-03
+│       │   └── entity_commands.rs    # SEQ-04, SEQ-05, SEQ-06, SEQ-08 (create_*)
+│       ├── domain/              # Core Domain Models & Invariants
+│       │   ├── mod.rs
+│       │   ├── models.rs        # HasmModel, Person, Experience, Fact, Link
+│       │   ├── validation.rs    # Verifiable trait & EntityValidationError
+│       │   └── errors.rs        # Unified Error Enums & Payloads
+│       ├── repository/          # Data Access & Persistence Layer
+│       │   ├── mod.rs
+│       │   ├── sqlite_repo.rs   # SqliteRepository (hasm.db transactions & inserts)
+│       │   └── storage_service.rs# FileStorageService (Folder existence, mtime, scaffolding)
+│       └── services/            # Infrastructure & Process Services
+│           ├── mod.rs
+│           ├── markdown_runner.rs# Submodule Runner (hasm_markdown.exe verify/spawn)
+│           └── layout_engine.rs # VisualizerLayoutEngine (3D Coordinate math)
+│
+├── tests/                       # E2E / Desktop Integration Tests (App Level)
+│   ├── e2e/
+│   │   ├── 01_app_launch.spec.js
+│   │   ├── 02_model_loading.spec.js
+│   │   ├── 03_visualizer.spec.js
+│   │   ├── 04_entity_editing.spec.js
+│   │   ├── 05_external_app.spec.js
+│   │   ├── 06_error_recovery.spec.js
+│   │   ├── 07_global_navigation.spec.js
+│   │   └── 08_entity_creation.spec.js # SEQ-08 / EVL-08
+│   └── mocks/                   # Test fixtures & mock workspaces
+│
+└── src/                         # Frontend (React + JavaScript / JSX)
+    ├── index.html
+    ├── main.jsx                 # React root element & provider setups
+    ├── App.jsx                  # Root router gate & Tauri window event listeners
+    ├── assets/                  # Static assets (images, icons, styles)
+    ├── components/              # Shared / Atomic UI Components
+    │   ├── common/              # Toast, Modal, Button, LoadingOverlay, GlobalNavbar, CreateEntityModal, CreateLinkModal
+    │   ├── visualizer/          # Three.js Canvas, ControlPanel, Tooltip, CreationToolbar
+    │   └── entity/              # TicketForm, MetaFields, RefreshButton
+    ├── pages/                   # Page Components mapped to React Router
+    │   ├── AppBootGatePage.jsx       # Route: / (SEQ-01)
+    │   ├── SelectModelPage.jsx       # Route: /select (SEQ-01, SEQ-08)
+    │   ├── LoadingModelPage.jsx      # Route: /loading-model (SEQ-02)
+    │   ├── VisualizerPage.jsx        # Route: /visualizer (SEQ-03, SEQ-08)
+    │   ├── EntityDetailPage.jsx      # Route: /entity-detail/:entity_type/:entity_id (SEQ-04)
+    │   ├── ErrorAppPage.jsx          # Route: /error-app (SEQ-06)
+    │   ├── ErrorModelPage.jsx        # Route: /error-model (SEQ-06)
+    │   └── ErrorMarkdownPage.jsx     # Route: /error-markdown (SEQ-06)
+    ├── routes/                  # React Router Configuration & Protection (Barrier 1)
+    │   ├── index.jsx            # Declarative Route definitions
+    │   └── ProtectedRoute.jsx   # Route Guard Wrapper (Model & Verification Enforcement)
+    ├── hooks/                   # Custom React Hooks & Component Tests
+    │   ├── useTauriInvoke.js
+    │   ├── useTauriListen.js
+    │   ├── useWindowFocus.js
+    │   ├── useWindowCloseListener.js
+    │   ├── useThreeCanvas.js
+    │   └── __tests__/           # React Level Unit/Component Tests
+    │       ├── LoadingModelPage.test.jsx
+    │       ├── VisualizerPage.test.jsx
+    │       ├── EntityDetailPage.test.jsx
+    │       ├── ErrorPages.test.jsx
+    │       └── ProtectedRoute.test.jsx
+    ├── services/                # IPC Call Wrappers & Mapper Services
+    │   ├── ipcBridge.js         # Centralized invoke() & listen() API calls (create_* included)
+    │   └── errorMapper.js       # Backend error code to UI message formatter
+    └── store/                   # Global State Management (Zustand / Context)
+        ├── useWorkspaceStore.js # Active model path, isVerified, isReadOnly
+        ├── useThemeStore.js     # Color palette selection (SEQ-07)
+        └── useAppConfigStore.js # App version, binary paths, UI settings
 
 ```
 
 ---
 
-### Detailed Schema Definitions
+## Chapter 2: Rust Backend Mapping (`src-tauri/src/`)
 
-#### PERSON
+### Chapter 2.1: Entry Point & Application Lifecycle (`main.rs`, `lib.rs`)
 
-Primary unit representing an individual. Every `PERSON` owns one mandatory root branch specified by `life_experience_id`.
+* **`main.rs`**
+* `main()`: Desktop entry point. Invokes `lib::run()`.
 
-* **`person_id`** (*UUID, Primary Key*): Unique identifier for the person.
-* **`life_experience_id`** (*UUID, Foreign Key*): Root `EXPERIENCE` ID representing the individual's entire life stream.
-* **`person_name`** (*TEXT*): Name or handle of the person.
-* **`person_description`** (*TEXT*): Short overview or summary.
-* **`security_level`** (*INTEGER*): Access control level ($0 \le \text{level} \le 5$).
 
-#### EXPERIENCE
+* **`lib.rs`**
+* `run()`: Initializes Tauri builder, configures plugins, attaches setup hooks, registers commands, and boots application.
+* `setup_app_environment(app: &mut App)`: Sets up thread-safe global state containers (`HasmModelHandle`, `WorkspaceLockState`).
+* `register_window_events(window: &Window)`: Attaches listener for `tauri://close-requested` event to run `release_workspace_lock` before exit ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
 
-Represent subjective contextual groupings of facts (e.g., projects, education periods, career milestones).
 
-* **`experience_id`** (*UUID, Primary Key*): Unique identifier for the experience.
-* **`experience_name`** (*TEXT*): Title of the experience.
-* **`experience_description`** (*TEXT*): Overview of the experience stream.
-* **`security_level`** (*INTEGER*): Access control level.
-
-##### `EXPERIENCE_TREE` (Junction Table)
-
-Models Git-like branching and parent-child hierarchies between experience streams.
-
-* **`parent_id`** (*UUID, PK, FK*): Base `EXPERIENCE` from which branching originates.
-* **`child_id`** (*UUID, PK, FK*): Dependent `EXPERIENCE` affected by or branching off the parent.
-
-#### FACT
-
-Concrete events or occurrences anchored in time.
-
-* **`fact_id`** (*UUID, Primary Key*): Unique identifier for the fact.
-* **`fact_name`** (*TEXT*): Short summary of the fact.
-* **`fact_description`** (*TEXT*): Detailed factual description.
-* **`start_time`** (*TEXT*): ISO8601 timestamp for event start.
-* **`end_time`** (*TEXT*): ISO8601 timestamp for event completion (optional).
-* **`security_level`** (*INTEGER*): Access control level.
-
-##### `FACT_EXPERIENCE` (Junction Table)
-
-Maps facts onto experience timelines (many-to-many relationship).
-
-* **`fact_id`** (*UUID, PK, FK*): Reference to the associated `FACT`.
-* **`experience_id`** (*UUID, PK, FK*): Reference to the containing `EXPERIENCE`.
-
-#### LINK
-
-Polymorphic directed relationship connecting any two entities (`PERSON`, `EXPERIENCE`, or `FACT`).
-
-* **`link_id`** (*UUID, Primary Key*): Unique identifier for the link.
-* **`link_type`** (*TEXT*): Categorical relationship type (e.g., `"causes"`, `"references"`, `"mentors"`).
-* **`link_description`** (*TEXT*): Contextual explanation of the relationship.
-* **`origin_entity_type`** (*TEXT*): Source entity classification (`"Person"`, `"Experience"`, or `"Fact"`).
-* **`origin_entity_id`** (*UUID*): Target ID of the source entity.
-* **`target_entity_type`** (*TEXT*): Destination entity classification (`"Person"`, `"Experience"`, or `"Fact"`).
-* **`target_entity_id`** (*UUID*): Target ID of the destination entity.
-* **`security_level`** (*INTEGER*): Access control level.
-
-##### `LINK_RELATION` (Junction Table)
-
-Associates inverse or reciprocal link pairs (e.g., `"refers"` and `"is referred by"`) without enforcing inherent directionality. Facilitates atomic cascading deletions.
-
-* **`link_id`** (*UUID, PK, FK*): Primary link identifier.
-* **`related_link_id`** (*UUID, PK, FK*): Reciprocal or associated link identifier.
 
 ---
 
-## 3. In-Memory Rust Domain Model
+### Chapter 2.2: App Commands (`src-tauri/src/commands/app_commands.rs`)
 
-While SQLite relies on junction tables (`EXPERIENCE_TREE`, `FACT_EXPERIENCE`, `LINK_RELATION`), the in-memory Rust Domain Model simplifies graph traversal by directly embedding ID lists (`Vec<Uuid>`) into each core struct.
-
-All core entities implement the `Verifiable` trait to enforce domain rules (such as non-empty names, valid security levels, $t_{\text{start}} \le t_{\text{end}}$ time constraints, and self-loop link prevention) prior to database persistence.
-
-### Domain Class Diagram
-
-```mermaid
-classDiagram
-    class Verifiable {
-        <<trait>>
-        +verify() Result~(), EntityValidationError~
-    }
-
-    class HasmModel {
-        +PathBuf local_path
-        +Vec~Person~ people
-        +Vec~Experience~ experiences
-        +Vec~Fact~ facts
-        +Vec~Link~ links
-        +new(local_path) HasmModel
-        +verify_storage() VerificationResult
-        +verify_domain_rules() Vec~(EntityType, Uuid, EntityValidationError)~
-        +add_person(person: Person)
-        +add_experience(experience: Experience)
-        +add_fact(fact: Fact)
-        +add_link(link: Link)
-        +get_person_uuids() Vec~Uuid~
-        +get_experience_uuids() Vec~Uuid~
-        +get_fact_uuids() Vec~Uuid~
-        +get_link_uuids() Vec~Uuid~
-        +get_all_uuids() HashSet~Uuid~
-        +find_person_by_id(id: Uuid) Option~Person~
-        +find_experience_by_id(id: Uuid) Option~Experience~
-        +find_fact_by_id(id: Uuid) Option~Fact~
-        +find_link_by_id(id: Uuid) Option~Link~
-        +total_entity_count() usize
-    }
-
-    class VerificationResult {
-        +Vec~(EntityType, Uuid)~ missing_entities
-        +Vec~(EntityType, Uuid)~ unreferenced_entities
-        +has_fatal_error() bool
-    }
-
-    class Person {
-        +Uuid person_id
-        +Uuid life_experience_id
-        +String person_name
-        +String person_description
-        +i32 security_level
-        +new(name, desc, life_exp_id, sec_level) Person
-        +verify() Result~(), EntityValidationError~
-    }
-
-    class Experience {
-        +Uuid experience_id
-        +String experience_name
-        +String experience_description
-        +i32 security_level
-        +Vec~Uuid~ parent_ids
-        +Vec~Uuid~ child_ids
-        +Vec~Uuid~ fact_ids
-        +new(name, desc, sec_level) Experience
-        +verify() Result~(), EntityValidationError~
-    }
-
-    class Fact {
-        +Uuid fact_id
-        +String fact_name
-        +String fact_description
-        +Option~DateTime~ start_time
-        +Option~DateTime~ end_time
-        +i32 security_level
-        +Vec~Uuid~ experience_ids
-        +new(name, desc, start, end, sec_level) Fact
-        +verify() Result~(), EntityValidationError~
-    }
-
-    class EntityType {
-        <<enumeration>>
-        Person
-        Experience
-        Fact
-        Link
-    }
-
-    class Link {
-        +Uuid link_id
-        +String link_type
-        +String link_description
-        +EntityType origin_entity_type
-        +Uuid origin_entity_id
-        +EntityType target_entity_type
-        +Uuid target_entity_id
-        +i32 security_level
-        +Vec~Uuid~ related_link_ids
-        +new(type, desc, origin_type, origin_id, target_type, target_id, sec_level) Link
-        +verify() Result~(), EntityValidationError~
-    }
-
-    Verifiable <|.. Person : implements
-    Verifiable <|.. Experience : implements
-    Verifiable <|.. Fact : implements
-    Verifiable <|.. Link : implements
-
-    HasmModel "1" *-- "many" Person
-    HasmModel "1" *-- "many" Experience
-    HasmModel "1" *-- "many" Fact
-    HasmModel "1" *-- "many" Link
-    HasmModel ..> VerificationResult : returns
-    Link ..> EntityType : uses
-
-```
+* `validate_hasm_app() -> Result<AppConfigPayload, AppValidationError>`: Checks binary existence and test-executes `hasm_markdown.exe` ([SEQ-01](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)).
+* `validate_app_version() -> Result<AppVersionResponse, AppValidationError>`: Inspects package version and parses CLI arguments for `--path` ([SEQ-01](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)).
+* `validate_hasm_folder_path(path: String) -> Result<(), AppValidationError>`: Validates folder path existence on disk ([SEQ-01](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)).
+* `reboot_app(retain_path: Option<String>) -> Result<(), AppLaunchError>`: Spawns a new app instance carrying `--path {retain_path}` argument and terminates current process ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
+* `exit_app() -> Result<(), AppLaunchError>`: Terminates current desktop process cleanly ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
 
 ---
 
-### Rust Struct Implementations
+### Chapter 2.3: Model Commands (`src-tauri/src/commands/model_commands.rs`)
 
-```rust
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::fmt;
-use std::path::{Path, PathBuf};
-use uuid::Uuid;
+* `check_workspace_lock(path: String) -> Result<LockStatus, ModelLoadingError>`: Inspects `.hasm/lock`, checks OS process table for `holder_pid`, performs stale lock recovery if dead, and returns lock/read-only status ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
+* `release_workspace_lock(path: String) -> Result<(), ModelLoadingError>`: Deletes `.hasm/lock` file for current workspace ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
+* `load_hasm_model_db(app_handle: AppHandle, path: String) -> Result<HasmModel, ModelLoadingError>`: Opens `hasm.db`, queries entity records, builds in-memory `HasmModel`, and streams progress via `model-load-progress` ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
+* `verify_hasm_storage(app_handle: AppHandle, model: HasmModel) -> Result<VerificationResult, ModelLoadingError>`: Executes `model.verify_storage()`, streams progress via `model-verify-progress`, sets `is_verified = true` on success, or rejects with missing entity details ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
+* `switch_workspace_cleanly(current_model_path: String) -> Result<(), ModelLoadingError>`: Releases active workspace lock, flushes SQLite pools, and resets in-memory `HasmModel` to `None` before returning to `/select` ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+* `create_hasm_workspace(target_directory_path: String) -> Result<WorkspacePathPayload, ModelLoadingError>`: Atomically scaffolds base `.hasm` directory, required entity subdirectories (`PERSON/`, `EXPERIENCE/`, `FACT/`, `LINK/`), initializes `hasm.db` with DDL schemas, and writes `.hasm/lock` (`SEQ-08`).
 
-// ===================================================================
-// Domain Validation Error Definitions
-// ===================================================================
+---
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum EntityValidationError {
-    EmptyName,
-    TimeInversion { start_time: String, end_time: String },
-    SelfLoopLink { link_id: Uuid },
-    InvalidSecurityLevel { level: i32 },
-}
+### Chapter 2.4: Visualizer Commands (`src-tauri/src/commands/visualizer_commands.rs`)
 
-impl fmt::Display for EntityValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::EmptyName => write!(f, "Entity name cannot be empty or whitespace."),
-            Self::TimeInversion { start_time, end_time } => {
-                write!(f, "Start time ({start_time}) must be earlier than or equal to End time ({end_time}).")
-            }
-            Self::SelfLoopLink { link_id } => write!(f, "Link ({link_id}) cannot have identical source and target IDs."),
-            Self::InvalidSecurityLevel { level } => write!(f, "Security level ({level}) must be between 0 and 5."),
-        }
-    }
-}
+* `compute_visualizer_layout(app_handle: AppHandle, filter: LayoutFilterRequest) -> Result<RenderPayload, VisualizerError>`: Spawns background worker thread (`tokio::task::spawn_blocking`), validates `is_verified == true`, calculates 3D coordinates based on `TimeScaleMode`, streams progress via `visualizer-layout-progress`, and returns render payload ([SEQ-03](https://www.google.com/search?q=./12-SEQ-03_Visualizer.md)).
 
-impl std::error::Error for EntityValidationError {}
+---
 
-// ===================================================================
-// Verifiable Trait Definition
-// ===================================================================
+### Chapter 2.5: Entity Commands (`src-tauri/src/commands/entity_commands.rs`)
 
-pub trait Verifiable {
-    /// Validates domain invariants for a single entity before database persistence.
-    fn verify(&self) -> Result<(), EntityValidationError>;
-}
+* `load_entity_detail(entity_type: String, entity_id: Uuid) -> Result<EntityDetailPayload, EntityEditorError>`: Fetches entity metadata from Rust memory, computes dynamic timeout based on `main.md` file size, and runs `hasm_markdown.exe verify` ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)).
+* `save_entity_metadata(entity_type: String, entity_id: Uuid, payload: SaveEntityMetadataRequest) -> Result<SaveResult, EntityEditorError>`: Instantiates domain entity, executes `entity.verify()`, persists to SQLite within a 5,000ms transaction timeout (`ROLLBACK` on error), and invalidates `is_verified = false` ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)).
+* `check_entity_mtime(entity_type: String, entity_id: Uuid, last_loaded_mtime_ms: u64) -> Result<CheckMtimePayload, EntityEditorError>`: Fast file metadata inspection (<10ms) returning `is_modified` and `is_deleted` booleans ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)).
+* `reload_entity_markdown(entity_type: String, entity_id: Uuid) -> Result<ReloadMarkdownPayload, EntityEditorError>`: Re-verifies syntax with `hasm_markdown.exe` using dynamic timeouts and reloads raw markdown body ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)).
+* `launch_external_markdown_app(entity_type: String, entity_id: Uuid) -> Result<LaunchExternalAppPayload, ExternalEditorError>`: Verifies directory and binary existence, then spawns detached `hasm_markdown.exe` child process ([SEQ-05](https://www.google.com/search?q=./14-SEQ-05_Edit_on_HASM_Markdown.md)).
+* `repair_missing_entity_folders(workspace_path: String, missing_entities: Vec<(EntityType, Uuid)>) -> Result<RepairResult, ModelLoadingError>`: Re-creates missing UUID directories, writes default `main.md` templates, and creates `assets/` subdirectories ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
+* `create_person(payload: CreatePersonRequest) -> Result<EntityCreationPayload, EntityCreationError>`: Validates invariants (`entity.verify()`), persists to SQLite `PERSON` table, scaffolds `{UUID}/` folder & template `main.md`, and appends to in-memory `HasmModel` (`SEQ-08`).
+* `create_experience(payload: CreateExperienceRequest) -> Result<EntityCreationPayload, EntityCreationError>`: Validates invariants, persists to SQLite `EXPERIENCE` and `EXPERIENCE_TREE` tables, and scaffolds `{UUID}/` folder & template `main.md` (`SEQ-08`).
+* `create_fact(payload: CreateFactRequest) -> Result<EntityCreationPayload, EntityCreationError>`: Validates invariants ($t_{\text{start}} \le t_{\text{end}}$), persists to SQLite `FACT` and `FACT_EXPERIENCE` tables, and scaffolds `{UUID}/` folder & template `main.md` (`SEQ-08`).
+* `create_link(payload: CreateLinkRequest) -> Result<EntityCreationPayload, EntityCreationError>`: Enforces graph constraints (prevents self-loops and orphan edge creation), persists to SQLite `LINK` table, and scaffolds `{UUID}/` folder & template `main.md` (`SEQ-08`).
 
-// ===================================================================
-// Storage Verification Result
-// ===================================================================
+---
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct VerificationResult {
-    pub missing_entities: Vec<(EntityType, Uuid)>,
-    pub unreferenced_entities: Vec<(EntityType, Uuid)>,
-}
+## Chapter 3: Rust Domain & Infrastructure Layer (`src-tauri/src/`)
 
-impl VerificationResult {
-    pub fn has_fatal_error(&self) -> bool {
-        !self.missing_entities.is_empty()
-    }
-}
+### Chapter 3.1: Domain Models (`src-tauri/src/domain/models.rs`)
 
-// ===================================================================
-// Container Struct: HasmModel
-// ===================================================================
+* `HasmModel::new(local_path: PathBuf) -> Self`: Constructor.
+* `HasmModel::add_person(&mut self, person: Person)`: Appends Person entity.
+* `HasmModel::add_experience(&mut self, experience: Experience)`: Appends Experience entity.
+* `HasmModel::add_fact(&mut self, fact: Fact)`: Appends Fact entity.
+* `HasmModel::add_link(&mut self, link: Link)`: Appends Link entity.
+* `HasmModel::verify_storage(&self) -> VerificationResult`: Scans filesystem to confirm existence of `{UUID}/main.md` directories and identifies unreferenced folders.
+* `HasmModel::verify_domain_rules(&self) -> Vec<(EntityType, Uuid, EntityValidationError)>`: Runs `.verify()` on all loaded domain instances.
+* `HasmModel::set_verified(&mut self, status: bool)`: Updates internal `is_verified` flag.
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct HasmModel {
-    pub local_path: PathBuf, // Base workspace directory path
-    pub people: Vec<Person>,
-    pub experiences: Vec<Experience>,
-    pub facts: Vec<Fact>,
-    pub links: Vec<Link>,
-}
+---
 
-impl HasmModel {
-    pub fn new(local_path: impl Into<PathBuf>) -> Self {
-        Self {
-            local_path: local_path.into(),
-            ..Default::default()
-        }
-    }
+### Chapter 3.2: Domain Validation (`src-tauri/src/domain/validation.rs`)
 
-    // -------------------------------------------------------------------
-    // Domain & Storage Verification
-    // -------------------------------------------------------------------
+* `Verifiable::verify(&self) -> Result<(), EntityValidationError>`: Trait definition.
+* `Person::verify(&self)`: Validates non-empty name and security level ($0 \le \text{level} \le 5$).
+* `Experience::verify(&self)`: Validates non-empty name and security level.
+* `Fact::verify(&self)`: Validates non-empty name, security level, and time constraint ($t_{\text{start}} \le t_{\text{end}}$).
+* `Link::verify(&self)`: Validates non-empty link type, security level, and self-loop prohibition (`source_id != target_id`).
 
-    /// Validates all loaded entities using their individual `verify()` methods.
-    pub fn verify_domain_rules(&self) -> Vec<(EntityType, Uuid, EntityValidationError)> {
-        let mut errors = Vec::new();
+---
 
-        for person in &self.people {
-            if let Err(err) = person.verify() {
-                errors.push((EntityType::Person, person.person_id, err));
-            }
-        }
-        for exp in &self.experiences {
-            if let Err(err) = exp.verify() {
-                errors.push((EntityType::Experience, exp.experience_id, err));
-            }
-        }
-        for fact in &self.facts {
-            if let Err(err) = fact.verify() {
-                errors.push((EntityType::Fact, fact.fact_id, err));
-            }
-        }
-        for link in &self.links {
-            if let Err(err) = link.verify() {
-                errors.push((EntityType::Link, link.link_id, err));
-            }
-        }
+### Chapter 3.3: Error Definitions (`src-tauri/src/domain/errors.rs`)
 
-        errors
-    }
+* `EntityValidationError`: Enum representing domain rule violations (`EmptyName`, `TimeInversion`, `SelfLoopLink`, `InvalidSecurityLevel`).
+* `AppValidationError`, `ModelLoadingError`, `VisualizerError`, `EntityEditorError`, `ExternalEditorError`: IPC error response structures with JSON serialization support.
 
-    /// Verifies that all loaded entities have corresponding local folders on disk,
-    /// and checks for any unreferenced folders on disk.
-    pub fn verify_storage(&self) -> VerificationResult {
-        let mut result = VerificationResult::default();
+---
 
-        // 1. Verify PERSON folders
-        for id in self.get_person_uuids() {
-            let path = self.local_path.join("PERSON").join(id.to_string()).join("main.md");
-            if !path.exists() {
-                result.missing_entities.push((EntityType::Person, id));
-            }
-        }
+### Chapter 3.4: Database Repository (`src-tauri/src/repository/sqlite_repo.rs`)
 
-        // 2. Verify EXPERIENCE folders
-        for id in self.get_experience_uuids() {
-            let path = self.local_path.join("EXPERIENCE").join(id.to_string()).join("main.md");
-            if !path.exists() {
-                result.missing_entities.push((EntityType::Experience, id));
-            }
-        }
+* `SqliteRepository::open_db(path: &Path) -> Result<SqlitePool, DbError>`: Establishes SQLite pool and runs schema integrity checks.
+* `SqliteRepository::load_all_records(pool: &SqlitePool) -> Result<RawDbRecords, DbError>`: Fetches records from `PERSON`, `EXPERIENCE`, `FACT`, `LINK`, and junction tables (`EXPERIENCE_TREE`, `FACT_EXPERIENCE`, `LINK_RELATION`).
+* `SqliteRepository::save_entity_metadata_transaction(pool: &SqlitePool, entity_type: &str, entity_id: Uuid, payload: &SaveEntityMetadataRequest) -> Result<(), DbError>`: Executes explicit `BEGIN`, UPDATE query, and `COMMIT` within a 5,000ms timeout with `ROLLBACK` fallback.
 
-        // 3. Verify FACT folders
-        for id in self.get_fact_uuids() {
-            let path = self.local_path.join("FACT").join(id.to_string()).join("main.md");
-            if !path.exists() {
-                result.missing_entities.push((EntityType::Fact, id));
-            }
-        }
+---
 
-        // 4. Verify LINK folders
-        for id in self.get_link_uuids() {
-            let path = self.local_path.join("LINK").join(id.to_string()).join("main.md");
-            if !path.exists() {
-                result.missing_entities.push((EntityType::Link, id));
-            }
-        }
+### Chapter 3.5: Storage Service (`src-tauri/src/repository/storage_service.rs`)
 
-        result
-    }
+* `FileStorageService::get_mtime(path: &Path) -> Result<u64, FsError>`: Returns UNIX epoch timestamp in milliseconds.
+* `FileStorageService::check_directory_exists(path: &Path) -> bool`: Directory verification.
+* `FileStorageService::create_entity_folder_structure(base_path: &Path, entity_type: EntityType, id: Uuid) -> Result<(), FsError>`: Creates `{UUID}/` folder, default `main.md`, and `assets/` subdirectory.
 
-    // -------------------------------------------------------------------
-    // Mutators & Accessors
-    // -------------------------------------------------------------------
+---
 
-    pub fn add_person(&mut self, person: Person) { self.people.push(person); }
-    pub fn add_experience(&mut self, experience: Experience) { self.experiences.push(experience); }
-    pub fn add_fact(&mut self, fact: Fact) { self.facts.push(fact); }
-    pub fn add_link(&mut self, link: Link) { self.links.push(link); }
+### Chapter 3.6: Markdown Process Runner (`src-tauri/src/services/markdown_runner.rs`)
 
-    pub fn get_person_uuids(&self) -> Vec<Uuid> { self.people.iter().map(|p| p.person_id).collect() }
-    pub fn get_experience_uuids(&self) -> Vec<Uuid> { self.experiences.iter().map(|e| e.experience_id).collect() }
-    pub fn get_fact_uuids(&self) -> Vec<Uuid> { self.facts.iter().map(|f| f.fact_id).collect() }
-    pub fn get_link_uuids(&self) -> Vec<Uuid> { self.links.iter().map(|l| l.link_id).collect() }
+* `MarkdownSubmoduleRunner::calculate_dynamic_timeout(file_size_kb: u64) -> u64`: Calculates $\min(3000 + \lfloor \text{SizeKB} / 100 \rfloor \times 1000, 15000)\text{ ms}$.
+* `MarkdownSubmoduleRunner::verify_markdown_syntax(target_dir: &Path, timeout_ms: u64) -> Result<String, MarkdownError>`: Spawns `hasm_markdown.exe verify` child process with hard timeout and captures stdout/stderr.
+* `MarkdownSubmoduleRunner::spawn_external_app(target_dir: &Path) -> Result<u32, ExternalEditorError>`: Spawns detached `hasm_markdown.exe` process ([SEQ-05](https://www.google.com/search?q=./14-SEQ-05_Edit_on_HASM_Markdown.md)).
 
-    pub fn get_all_uuids(&self) -> HashSet<Uuid> {
-        let mut set = HashSet::new();
-        set.extend(self.get_person_uuids());
-        set.extend(self.get_experience_uuids());
-        set.extend(self.get_fact_uuids());
-        set.extend(self.get_link_uuids());
-        set
-    }
+---
 
-    pub fn find_person_by_id(&self, id: Uuid) -> Option<&Person> { self.people.iter().find(|p| p.person_id == id) }
-    pub fn find_experience_by_id(&self, id: Uuid) -> Option<&Experience> { self.experiences.iter().find(|e| e.experience_id == id) }
-    pub fn find_fact_by_id(&self, id: Uuid) -> Option<&Fact> { self.facts.iter().find(|f| f.fact_id == id) }
-    pub fn find_link_by_id(&self, id: Uuid) -> Option<&Link> { self.links.iter().find(|l| l.link_id == id) }
+### Chapter 3.7: Visualizer Layout Engine (`src-tauri/src/services/layout_engine.rs`)
 
-    pub fn total_entity_count(&self) -> usize {
-        self.people.len() + self.experiences.len() + self.facts.len() + self.links.len()
-    }
-}
+* `VisualizerLayoutEngine::compute_3d_coordinates(model: &HasmModel, filter: &LayoutFilterRequest, progress_callback: impl Fn(usize, usize, f32, &str)) -> RenderPayload`:
+* `filter_entities()`: Filters entities by time range and security level.
+* `calculate_branch_xy_positions()`: Positions `EXPERIENCE` parallel lines on XY plane.
+* `calculate_fact_z_positions()`: Calculates Z-coordinates based on `Linear`, `Logarithmic`, or `SequentialIndex` formulas.
+* `generate_relationship_splines()`: Generates 3D connecting splines for `LINK` entities.
 
-// ===================================================================
-// Entity Domain Structs & Trait Implementations
-// ===================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum EntityType {
-    Person,
-    Experience,
-    Fact,
-    Link,
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Person {
-    pub person_id: Uuid,
-    pub life_experience_id: Uuid,
-    pub person_name: String,
-    pub person_description: String,
-    pub security_level: i32,
-}
+---
 
-impl Person {
-    pub fn new(
-        person_name: impl Into<String>,
-        person_description: impl Into<String>,
-        life_experience_id: Uuid,
-        security_level: i32,
-    ) -> Self {
-        Self {
-            person_id: Uuid::new_v4(),
-            life_experience_id,
-            person_name: person_name.into(),
-            person_description: person_description.into(),
-            security_level,
-        }
-    }
-}
+## Chapter 4: React Layer & Route Protection (`src/`)
 
-impl Verifiable for Person {
-    fn verify(&self) -> Result<(), EntityValidationError> {
-        if self.person_name.trim().is_empty() {
-            return Err(EntityValidationError::EmptyName);
-        }
-        if !(0..=5).contains(&self.security_level) {
-            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
-        }
-        Ok(())
-    }
-}
+### Chapter 4.1: Route Protection Guard - Barrier 1 (`src/routes/ProtectedRoute.jsx`)
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Experience {
-    pub experience_id: Uuid,
-    pub experience_name: String,
-    pub experience_description: String,
-    pub security_level: i32,
-    pub parent_ids: Vec<Uuid>,
-    pub child_ids: Vec<Uuid>,
-    pub fact_ids: Vec<Uuid>,
-}
+* **`ProtectedRoute.jsx` (First Line of Defense / Route Guard Wrapper)**
+* **Role & Responsibility:** Wraps protected application pages (`/visualizer`, `/entity-detail/...`) inside `src/routes/index.jsx`. Intercepts direct URL navigation attempts, DevTools route manipulations, or improper state transitions prior to mounting page components or firing IPC calls to Rust ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+* `ProtectedRoute({ children, requireVerified = true })`:
+1. **Unloaded Model Interception:** Checks `activeModelPath` and `isModelLoaded` from `useWorkspaceStore`. If no HASM workspace is selected or loaded, it immediately redirects to `/select` using `<Navigate replace to="/select"/>` and passes `redirectReason` / `redirectType` in `location.state`.
+2. **Unverified Model Interception:** If `requireVerified === true` and `isVerified === false`, it redirects to `/loading-model` passing `{ returnTo: location.pathname, redirectReason, redirectType }` in router state to trigger re-verification ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
+3. **Authorized Render:** Renders `children` page component only when all prerequisite workspace states are satisfied.
 
-impl Experience {
-    pub fn new(
-        experience_name: impl Into<String>,
-        experience_description: impl Into<String>,
-        security_level: i32,
-    ) -> Self {
-        Self {
-            experience_id: Uuid::new_v4(),
-            experience_name: experience_name.into(),
-            experience_description: experience_description.into(),
-            security_level,
-            parent_ids: Vec::new(),
-            child_ids: Vec::new(),
-            fact_ids: Vec::new(),
-        }
-    }
-}
 
-impl Verifiable for Experience {
-    fn verify(&self) -> Result<(), EntityValidationError> {
-        if self.experience_name.trim().is_empty() {
-            return Err(EntityValidationError::EmptyName);
-        }
-        if !(0..=5).contains(&self.security_level) {
-            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
-        }
-        Ok(())
-    }
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Fact {
-    pub fact_id: Uuid,
-    pub fact_name: String,
-    pub fact_description: String,
-    pub start_time: Option<DateTime<Utc>>,
-    pub end_time: Option<DateTime<Utc>>,
-    pub security_level: i32,
-    pub experience_ids: Vec<Uuid>,
-}
 
-impl Fact {
-    pub fn new(
-        fact_name: impl Into<String>,
-        fact_description: impl Into<String>,
-        start_time: Option<DateTime<Utc>>,
-        end_time: Option<DateTime<Utc>>,
-        security_level: i32,
-    ) -> Self {
-        Self {
-            fact_id: Uuid::new_v4(),
-            fact_name: fact_name.into(),
-            fact_description: fact_description.into(),
-            start_time,
-            end_time,
-            security_level,
-            experience_ids: Vec::new(),
-        }
-    }
-}
 
-impl Verifiable for Fact {
-    fn verify(&self) -> Result<(), EntityValidationError> {
-        if self.fact_name.trim().is_empty() {
-            return Err(EntityValidationError::EmptyName);
-        }
-        if !(0..=5).contains(&self.security_level) {
-            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
-        }
-        if let (Some(start), Some(end)) = (self.start_time, self.end_time) {
-            if start > end {
-                return Err(EntityValidationError::TimeInversion {
-                    start_time: start.to_rfc3339(),
-                    end_time: end.to_rfc3339(),
-                });
-            }
-        }
-        Ok(())
-    }
-}
+---
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Link {
-    pub link_id: Uuid,
-    pub link_type: String,
-    pub link_description: String,
-    pub origin_entity_type: EntityType,
-    pub origin_entity_id: Uuid,
-    pub target_entity_type: EntityType,
-    pub target_entity_id: Uuid,
-    pub security_level: i32,
-    pub related_link_ids: Vec<Uuid>,
-}
+### Chapter 4.2: Route Configuration (`src/routes/index.jsx`)
 
-impl Link {
-    pub fn new(
-        link_type: impl Into<String>,
-        link_description: impl Into<String>,
-        origin_entity_type: EntityType,
-        origin_entity_id: Uuid,
-        target_entity_type: EntityType,
-        target_entity_id: Uuid,
-        security_level: i32,
-    ) -> Self {
-        Self {
-            link_id: Uuid::new_v4(),
-            link_type: link_type.into(),
-            link_description: link_description.into(),
-            origin_entity_type,
-            origin_entity_id,
-            target_entity_type,
-            target_entity_id,
-            security_level,
-            related_link_ids: Vec::new(),
-        }
-    }
-}
+* **`index.jsx`**
+* Defines declarative React Router mappings. Wraps operational views (`VisualizerPage`, `EntityDetailPage`) with `<ProtectedRoute>`, ensuring unauthenticated/unloaded requests are bounced back to `/select`. Catch-all fallback (`path="*"`) redirects unknown routes directly to `/select` passing a notification message ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
 
-impl Verifiable for Link {
-    fn verify(&self) -> Result<(), EntityValidationError> {
-        if self.link_type.trim().is_empty() {
-            return Err(EntityValidationError::EmptyName);
-        }
-        if !(0..=5).contains(&self.security_level) {
-            return Err(EntityValidationError::InvalidSecurityLevel { level: self.security_level });
-        }
-        if self.origin_entity_type == self.target_entity_type && self.origin_entity_id == self.target_entity_id {
-            return Err(EntityValidationError::SelfLoopLink { link_id: self.link_id });
-        }
-        Ok(())
-    }
-}
 
-```
+
+---
+
+### Chapter 4.3: IPC Bridge & Mappers (`src/services/`)
+
+* **`src/services/ipcBridge.js`**
+* `validateHasmApp()`: Invokes `validate_hasm_app`.
+* `validateAppVersion()`: Invokes `validate_app_version`.
+* `validateHasmFolderPath(path)`: Invokes `validate_hasm_folder_path`.
+* `checkWorkspaceLock(path)`: Invokes `check_workspace_lock`.
+* `releaseWorkspaceLock(path)`: Invokes `release_workspace_lock`.
+* `loadHasmModelDb(path)`: Invokes `load_hasm_model_db`.
+* `verifyHasmStorage(model)`: Invokes `verify_hasm_storage`.
+* `switchWorkspaceCleanly(currentModelPath)`: Invokes `switch_workspace_cleanly` ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+* `computeVisualizerLayout(filter)`: Invokes `compute_visualizer_layout`.
+* `loadEntityDetail(entityType, entityId)`: Invokes `load_entity_detail`.
+* `saveEntityMetadata(entityType, entityId, payload)`: Invokes `save_entity_metadata`.
+* `checkEntityMtime(entityType, entityId, lastMtimeMs)`: Invokes `check_entity_mtime`.
+* `reloadEntityMarkdown(entityType, entityId)`: Invokes `reload_entity_markdown`.
+* `launchExternalMarkdownApp(entityType, entityId)`: Invokes `launch_external_markdown_app`.
+* `repairMissingEntityFolders(workspacePath, missingEntities)`: Invokes `repair_missing_entity_folders`.
+* `rebootApp(retainPath)`: Invokes `reboot_app`.
+* `exitApp()`: Invokes `exit_app`.
+* `createHasmWorkspace(targetDirectoryPath)`: Invokes `create_hasm_workspace` (`SEQ-08`).
+* `createPerson(payload)`: Invokes `create_person` (`SEQ-08`).
+* `createExperience(payload)`: Invokes `create_experience` (`SEQ-08`).
+* `createFact(payload)`: Invokes `create_fact` (`SEQ-08`).
+* `createLink(payload)`: Invokes `create_link` (`SEQ-08`).
+
+
+* **`src/services/errorMapper.js`**
+* `mapBackendErrorToUserMessage(errorCode, rawMessage)`: Converts backend error codes (`ERR_TIME_INVERSION`, `ERR_MARKDOWN_TIMEOUT`, etc.) into localized UI messages.
+
+
+
+---
+
+### Chapter 4.4: Custom React Hooks (`src/hooks/`)
+
+* **`useTauriInvoke.js`**
+* `useTauriInvoke(commandName, hardTimeoutMs)`: Custom hook encapsulating IPC execution with frontend timeout protection.
+
+
+* **`useTauriListen.js`**
+* `useTauriListen(eventName, onEvent, watchdogThresholdMs, onTimeout)`: Listens to Tauri `emit` streams (`model-load-progress`, `model-verify-progress`, `visualizer-layout-progress`), updates progress UI, and triggers Watchdog timeouts if streaming stalls.
+
+
+* **`useWindowFocus.js`**
+* `useWindowFocus(onFocusCallback)`: Attaches window `focus` event listener to run non-blocking `check_entity_mtime` checks ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md) Ch. 5).
+
+
+* **`useWindowCloseListener.js`**
+* `useWindowCloseListener(activeModelPath, isReadOnly)`: Intercepts `tauri://close-requested` and invokes `releaseWorkspaceLock` before window termination ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md) Ch. 2).
+
+
+* **`useThreeCanvas.js`**
+* `useThreeCanvas(containerRef, renderPayload, onNodeClick, onNodeHover, selectedPalette)`: Instantiates Three.js WebGLRenderer, PerspectiveCamera, Scene, OrbitControls, lighting, mesh geometries, raycasting, and dynamic material color updates ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+
+
+
+---
+
+### Chapter 4.5: State Stores (`src/store/`)
+
+* **`useWorkspaceStore.js`**
+* State container managing `activeModelPath`, `isModelLoaded`, `isVerified` (synced with Rust backend), and `isReadOnly`.
+
+
+* **`useThemeStore.js`**
+* State container managing active color palette (`primary`, `secondary`, `accent`) and applying root CSS variables ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+
+
+* **`useAppConfigStore.js`**
+* State container managing `appConfig` (`version`, `hasmMarkdownBinPath`, etc.).
+
+
+
+---
+
+## Chapter 5: React Pages & UI Components (`src/pages/`, `src/components/`)
+
+### Chapter 5.1: Router Pages (`src/pages/`)
+
+* **`AppBootGatePage.jsx` (`/`)**
+* Runs `validateHasmApp()` and `validateAppVersion()`.
+* Directs flow to `/select` if no CLI path provided, or `/loading-model` if valid path present ([SEQ-01](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)).
+* Navigates to `/error-app` on boot failure ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
+
+
+* **`SelectModelPage.jsx` (`/select`)**
+* Form input & native folder picker for selecting workspace directory.
+* Runs debounced `validateHasmFolderPath(inputPath)`.
+* Displays Toast popup if navigated via `location.state.redirectReason` and clears state ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+* Submits path to navigate to `/loading-model` ([SEQ-01](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)).
+* Supports scaffolding new workspace via native OS Save dialog (`SEQ-08`).
+
+
+* **`LoadingModelPage.jsx` (`/loading-model`)**
+* Displays Info Toast popup if navigated via `location.state.redirectReason` and clears state ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+* Executes `checkWorkspaceLock(path)`. Renders toast on stale lock auto-recovery.
+* Executes `loadHasmModelDb(path)` monitored by 10,000ms Watchdog Timer.
+* Executes `verifyHasmStorage(model)` monitored by 10,000ms Watchdog Timer.
+* Navigates to `/visualizer` on completion, or `/error-model` on failure ([SEQ-02](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)).
+
+
+* **`VisualizerPage.jsx` (`/visualizer`)**
+* Wrapped in `<ProtectedRoute requireVerified="{true}">`.
+* Calls `computeVisualizerLayout(filter)` using `useTauriListen` for progress overlay.
+* Renders Three.js canvas via `useThreeCanvas`.
+* Provides Creation Toolbar (`Create PERSON`, `EXPERIENCE`, `FACT`, `LINK`), filter controls (`Linear`, `Logarithmic`, `SequentialIndex`), and handles node click navigation ([SEQ-03](https://www.google.com/search?q=./12-SEQ-03_Visualizer.md), `SEQ-08`).
+
+
+* **`EntityDetailPage.jsx` (`/entity-detail/:entity_type/:entity_id`)**
+* Wrapped in `<ProtectedRoute requireVerified="{true}">`.
+* Loads ticket metadata and markdown via `loadEntityDetail`.
+* Handles metadata field changes, "Save" (`saveEntityMetadata`), and "Cancel" modals ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)).
+* Invokes `launchExternalMarkdownApp` on "Edit Markdown in HASM App" click ([SEQ-05](https://www.google.com/search?q=./14-SEQ-05_Edit_on_HASM_Markdown.md)).
+* Uses `useWindowFocus` to highlight "Refresh Markdown" button in Amber (modified) or Red (deleted) ([SEQ-04](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md) Ch. 5).
+* Handles manual refresh via `reloadEntityMarkdown`.
+
+
+* **`ErrorAppPage.jsx` (`/error-app`)**
+* Displays system error context.
+* Provides "Retry Validation", "Reboot Application" (`rebootApp` with path retention), and "Exit Application" (`exitApp`) buttons ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
+
+
+* **`ErrorModelPage.jsx` (`/error-model`)**
+* Displays workspace error context and formatted list of appended error reasons (`missing_entities`, `domain_validation_errors`).
+* Provides "Create Missing Folders" button calling `repairMissingEntityFolders`, "Retry Loading Model", and "Select Another Model" buttons ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
+
+
+* **`ErrorMarkdownPage.jsx` (`/error-markdown`)**
+* Displays markdown syntax error context and parser `stderr` output.
+* Provides "Fix in HASM Markdown App" (`launchExternalMarkdownApp`), "Retry Validation" (`reloadEntityMarkdown`), and "Back to Visualizer" buttons ([SEQ-06](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)).
+
+
+
+---
+
+### Chapter 5.2: UI Components (`src/components/`)
+
+* **`common/GlobalNavbar.jsx`**: Persistent top navigation bar displaying active HASM path, lock badge, theme selector dropdown, and "Switch Model" button calling `switchWorkspaceCleanly` ([SEQ-07](https://www.google.com/search?q=./16-SEQ-07_Others.md)).
+* **`common/Toast.jsx`**: Renders temporary notifications (Info, Success, Amber Warning, Red Error).
+* **`common/Modal.jsx`**: Modal dialog for edit cancellations, workspace switching confirmations, or repair confirmations.
+* **`common/CreateEntityModal.jsx`**: Modal dialog for creating new PERSON, EXPERIENCE, or FACT entities (`SEQ-08`).
+* **`common/CreateLinkModal.jsx`**: Modal dialog for connecting nodes via new LINK relations (`SEQ-08`).
+* **`common/ProgressBar.jsx`**: Animated progress bar driven by `ProgressPayload`.
+* **`visualizer/ThreeCanvas.jsx`**: WebGL canvas container element for Three.js viewport.
+* **`visualizer/Tooltip.jsx`**: Floating 2D tooltip component displaying entity metadata on mesh hover.
+* **`visualizer/ControlPanel.jsx`**: Filter control panel for `TimeScaleMode`, security level, and time sliders.
+* **`visualizer/CreationToolbar.jsx`**: Quick action bar triggering entity and link creation modals (`SEQ-03`, `SEQ-08`).
+* **`entity/TicketForm.jsx`**: Form component for ticket metadata editing (name, dates, description, security level).
+* **`entity/RefreshButton.jsx`**: Dynamic refresh button component supporting normal, Amber pulsing, and Red danger visual states.
+
+---
+
+## Chapter 6: Test Script Architecture
+
+### Chapter 6.1: Desktop Integration Tests (`tests/e2e/`)
+
+* **`01_app_launch.spec.js`**: Validates `SEQ-01` boot checks and path selection flows.
+* **`02_model_loading.spec.js`**: Validates `SEQ-02` lock creation, stale lock auto-recovery, window close lock release, and DB load progress streaming.
+* **`03_visualizer.spec.js`**: Validates `SEQ-03` state guards, 3D timeline rendering across `TimeScaleMode` options, raycasting tooltips, and node clicks.
+* **`04_entity_editing.spec.js`**: Validates `SEQ-04` ticket loading, domain validations, SQLite 5,000ms transactions, and window focus `mtime` detection.
+* **`05_external_app.spec.js`**: Validates `SEQ-05` detached child process spawning of `hasm_markdown.exe` with 5,000ms spawn timeouts.
+* **`06_error_recovery.spec.js`**: Validates `SEQ-06` path-retaining reboots and `repair_missing_entity_folders` directory auto-repairs.
+* **`07_global_navigation.spec.js`**: Validates `SEQ-07` clean workspace switching via `switch_workspace_cleanly`, theme color changes, and status navbar updates.
+* **`08_entity_creation.spec.js`**: Validates `SEQ-08` / `EVL-08` new workspace scaffolding via native OS dialog, entity creation (PERSON, EXPERIENCE, FACT, LINK), invariant validations (self-loop prevention), and automatic 3D graph re-layout.
+
+---
+
+### Chapter 6.2: React Unit Tests (`src/**/__tests__/`)
+
+* **`src/routes/__tests__/ProtectedRoute.test.jsx`**: Validates route guard behavior (Barrier 1). Tests that accessing protected routes directly without an active model redirects to `/select` carrying redirection reasons, and accessing while unverified redirects to `/loading-model`.
+* **`src/pages/__tests__/LoadingModelPage.test.jsx`**: Tests progress event handling, Watchdog timeouts, and stale lock toast displays.
+* **`src/pages/__tests__/VisualizerPage.test.jsx`**: Tests filter mode changes, layout progress overlays, and fallback timeouts.
+* **`src/pages/__tests__/EntityDetailPage.test.jsx`**: Tests form dirty checking, unsaved changes modals, and Amber/Red refresh button visual transitions.
+* **`src/pages/__tests__/ErrorPages.test.jsx`**: Tests error context rendering, appended cause list formatting, and repair button state triggers.
+
+---
+
+### Chapter 6.3: Rust Cargo Integration Tests (`src-tauri/tests/`)
+
+* **`src-tauri/tests/app_command_tests.rs`**: Tests `reboot_app` `--path` CLI argument passing and app validation commands.
+* **`src-tauri/tests/model_command_tests.rs`**: Tests `check_workspace_lock`, dead PID detection, stale lock cleanup, `release_workspace_lock`, and `switch_workspace_cleanly`.
+* **`src-tauri/tests/visualizer_tests.rs`**: Tests background worker thread execution, chunked progress event emissions, and Z-axis coordinate math.
+* **`src-tauri/tests/entity_tests.rs`**: Tests `entity.verify()` domain invariants, SQLite transaction rollbacks, and `repair_missing_entity_folders` directory creations.
+* **`src-tauri/tests/entity_creation_tests.rs`**: Tests `create_hasm_workspace` scaffolding, SQLite transaction rollbacks upon I/O errors, and `entity.verify()` domain invariant checks during creation (`SEQ-08` / `EVL-08`).
