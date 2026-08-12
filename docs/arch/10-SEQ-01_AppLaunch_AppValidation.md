@@ -1,28 +1,46 @@
-# SEQ-01: App Launch & App Validation (Architecture Sequence)
+# SEQ-01: App Launch, Validation, and Workspace Creation/Selection (Architecture Sequence)
 
-This document provides the sequence diagram for the startup, initialization, and initial model path selection flow of the HASM Desktop Application.
+This document details the complete sequence for application startup, binary validation, CLI/Context Menu path resolution, manual folder selection, and launching the new HASM workspace scaffolding flow (`SEQ-08`).
 
 ---
 
-## Sequence Diagram
+## 1. Sequence Overview & Key Operations
+
+1. **External App & Version Validation:** Validates `hasm_markdown.exe` binary existence, checks app version, and parses CLI arguments (`--path`).
+
+
+2. **Path Verification:** Checks physical directory existence when launched via CLI/Context Menu.
+
+
+3. **Workspace Selection (Open Existing):** Provides manual workspace selection via debounced input or native OS directory dialog.
+
+
+4. **Workspace Creation Entry Point (Create New):** Triggers the native OS save dialog to specify a target directory path (e.g. `/path/to/MyLife.hasm`), handing off execution to `create_hasm_workspace` (`SEQ-08`).
+
+
+
+---
+
+## 2. Sequence Diagram
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User as User / OS
     participant React as React (App.tsx / SelectPage)
+    participant Dialog as OS Native File Dialog
     participant Router as React Router
     participant Bridge as Tauri IPC Bridge
-    participant Rust as Rust Command (main.rs)
+    participant Rust as Rust Command (main.rs / model_commands.rs)
     participant FS as File System / OS
 
-    User->>React: Launch Application (via exe OR Context Menu)
+    User->>React: Launch Application (via exe, CLI --path, or Context Menu)
     React->>React: Set Initial Loading State<br/>{ isLoading: true, loadState: 0, error: null }
 
     %% ----------------------------------------------------
     %% Check 1: External Markdown App Validation
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
+    rect rgb(15, 23, 42)
         Note over React,Rust: Check 1: Validate External HASM Markdown App
         React->>Bridge: invoke('validate_hasm_markdown_app')
         Bridge->>Rust: IPC: validate_hasm_markdown_app()
@@ -45,7 +63,7 @@ sequenceDiagram
     %% ----------------------------------------------------
     %% Check 2: App Version & Launch Arguments Inspection
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
+    rect rgb(15, 23, 42)
         Note over React,Rust: Check 2: Inspect App Version & CLI Arguments
         React->>Bridge: invoke('validate_app_version')
         Bridge->>Rust: IPC: validate_app_version()
@@ -68,7 +86,7 @@ sequenceDiagram
     %% ----------------------------------------------------
     %% Check 3: Path Existence Verification (If CLI Argument Provided)
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
+    rect rgb(15, 23, 42)
         Note over React,FS: Check 3: Verify Folder Path Existence (Only if CLI Path Provided)
         
         opt isModelSelected == true
@@ -86,50 +104,60 @@ sequenceDiagram
 
             Rust-->>Bridge: Return Ok(())
             Bridge-->>React: Resolve Promise
+            React->>Router: navigate('/loading-model', { state: { path: modelPath } })
+            Note over React,Router: Direct Launch -> Proceed to SEQ-02
         end
 
         React->>React: Set State: { loadState: 3 }
     end
 
     %% ----------------------------------------------------
-    %% Check 4: Manual Path Input & Real-time Validation (If CLI Path NOT Provided)
+    %% Check 4: Workspace Selection OR Creation (SelectModelPage)
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
-        Note over User,FS: Check 4: Manual Selection & Real-time Path Validation
+    rect rgb(15, 23, 42)
+        Note over User,FS: Check 4: Manual Selection OR New Workspace Creation
         
-        alt Booted via Context Menu (Path exists & verified: isModelSelected == true)
-            React->>React: Path verified -> Bypass Select Page
-        else Booted directly via exe (No CLI Path OR Invalid Path: isModelSelected == false)
-            React->>React: Set State: { isLoading: false }
-            React->>Router: navigate('/select')
-            Note over React,Router: Display Select Page
+        React->>React: Set State: { isLoading: false }
+        React->>Router: navigate('/select')
+        Note over React,Router: Display Select Model Page (/select)
+        
+        alt Mode A: Open Existing Workspace
+            User->>React: Click "Browse Existing HASM Model"
+            React->>Dialog: Trigger OS Open Directory Dialog
+            Dialog-->>React: Return selectedDirectoryPath
             
-            loop Real-time Path Validation on Form Input / File Picker (Debounced)
-                User->>React: Input / Select Folder Path in Form
-                React->>Bridge: invoke('validate_hasm_folder_path', { path: inputPath })
-                Bridge->>Rust: IPC: validate_hasm_folder_path(inputPath)
-                Rust->>FS: std::path::Path::new(&inputPath).exists()
-                FS-->>Rust: boolean
-                
-                alt Path Exists & Valid (Within 2000ms)
-                    Rust-->>Bridge: Return Ok(())
-                    Bridge-->>React: Resolve Promise
-                    React->>React: Enable 'Submit' Button & Clear Warnings
-                else Path Invalid OR FS Timeout (>2000ms)
-                    Rust-->>Bridge: Return Err(AppValidationError)
-                    Bridge-->>React: Reject Promise
-                    React->>React: Disable 'Submit' Button & Show Timeout/Invalid Warning
-                end
+            React->>Bridge: invoke('validate_hasm_folder_path', { path: selectedDirectoryPath })
+            Bridge->>Rust: IPC: validate_hasm_folder_path(selectedDirectoryPath)
+            Rust->>FS: Verify path and hasm.db existence
+            
+            alt Path Valid
+                Rust-->>Bridge: Return Ok(())
+                Bridge-->>React: Resolve Promise
+                React->>Router: navigate('/loading-model', { state: { path: selectedDirectoryPath } })
+                Note over React,Router: Proceed to SEQ-02
+            else Path Invalid
+                Rust-->>Bridge: Return Err(AppValidationError)
+                Bridge-->>React: Reject Promise
+                React->>React: Show Toast Error ("Invalid HASM Workspace Folder")
             end
+
+        else Mode B: Create New HASM Model (Scaffolding Flow)
+            User->>React: Click "Create New HASM Model"
+            React->>Dialog: Trigger OS Save Directory Dialog
+            User->>Dialog: Select Target Folder & Name (e.g. "/path/to/MyLife.hasm")
             
-            User->>React: Click 'Submit / Load' Button
-            React->>React: Set State: { modelPath: inputPath, isLoading: true }
+            alt User Cancels Dialog
+                Dialog-->>React: Return Cancelled State
+                React->>React: Remain on /select Page
+            else Target Path Selected
+                Dialog-->>React: Return targetDirectoryPath
+                React->>Bridge: invoke('create_hasm_workspace', { targetDirectoryPath })
+                Note over Bridge,Rust: Hand-off to SEQ-08 Chapter 1 (Scaffolding Sequence)
+                Bridge-->>React: Resolve Promise (WorkspacePathPayload)
+                React->>Router: navigate('/loading-model', { state: { path: targetDirectoryPath } })
+                Note over React,Router: Proceed to SEQ-02
+            end
         end
     end
 
-    %% ----------------------------------------------------
-    %% Final Transition to SEQ-02
-    %% ----------------------------------------------------
-    React->>Router: navigate('/loading-model', { state: { path: modelPath } })
-    Note over React,Router: Guaranteed Valid Model Path -> Proceed to SEQ-02
-    
+```

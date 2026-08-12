@@ -1,6 +1,8 @@
 # System Overview with Screen Flow & React Architecture
 
-This document explains the screen flow design, sequence mapping, React routing, and state architecture across the application lifecycle.
+This document explains the screen flow design, sequence mapping, React routing, state architecture, and complete CRUD / graph-binding lifecycle across the HASM Desktop Application (`hasm-desktop`).
+
+---
 
 ## 1. System Overview Flowchart
 
@@ -30,6 +32,7 @@ flowchart TB
     classDef action fill:#065f46,stroke:#34d399,stroke-width:1.5px,color:#ffffff;
     classDef tauri fill:#581c87,stroke:#c084fc,stroke-width:1.5px,color:#ffffff;
     classDef cond fill:#854d0e,stroke:#facc15,stroke-width:1.5px,color:#ffffff;
+    classDef modal fill:#334155,stroke:#94a3b8,stroke-width:1.5px,color:#ffffff;
 
     %% ----------------------------------------------------
     %% 0. Legend
@@ -37,6 +40,7 @@ flowchart TB
     subgraph Legend["Legend"]
         direction LR
         L_Page["Rectangle: Page"]:::page
+        L_Modal["Dark Rectangle: Modal"]:::modal
         L_Action(["Rounded: Action"]):::action
         L_Tauri[["Double Border: Tauri Invoke"]]:::tauri
         L_Cond{"Rhombus: Condition"}:::cond
@@ -44,19 +48,26 @@ flowchart TB
     end
 
     %% ----------------------------------------------------
-    %% 1. App Boot & Model Loading (SEQ-01 & SEQ-02)
+    %% 1. App Boot, Model Loading & Workspace Scaffolding (SEQ-01, SEQ-02, SEQ-08)
     %% ----------------------------------------------------
-    subgraph BootPhase["1. App Boot & Model Loading"]
+    subgraph BootPhase["1. App Boot, Workspace Selection & Scaffolding"]
         BootAction(["Boot HASM App"]):::action --> ValidateHASMApp[["Tauri: validate_hasm_app"]]:::tauri
         ValidateHASMApp --> AppCheck{"HASM App OK?"}:::cond
         
         AppCheck -->|NG| ErrorHASMApp[/"HASM App Error Page (/error-app)"/]:::error
-        AppCheck -->|OK| DataSelectIF{"Model Selected?"}:::cond
+        AppCheck -->|OK| DataSelectIF{"Model Selected via CLI?"}:::cond
         
         DataSelectIF -->|No| SelectPage["Select Model Page (/select)"]:::page
-        SelectPage --> SelectModelAction(["Select Model Workspace"]):::action
-        SelectModelAction --> LoadingHASMModelPage["Loading Model Page (/loading-model)"]:::page
+        SelectPage --> SelectMode{"Select Mode"}:::cond
         
+        SelectMode -->|Open Existing| OpenModelAction(["Browse Folder / Native Dialog"]):::action
+        SelectMode -->|Create New HASM| CreateModelAction(["Click Create New HASM"]):::action
+        
+        CreateModelAction --> OSDialog["OS Native Save Directory Dialog"]:::modal
+        OSDialog --> ScaffoldWorkspace[["Tauri: create_hasm_workspace (SEQ-08)"]]:::tauri
+        ScaffoldWorkspace --> LoadingHASMModelPage
+        
+        OpenModelAction --> LoadingHASMModelPage["Loading Model Page (/loading-model)"]:::page
         DataSelectIF -->|Yes| LoadingHASMModelPage
         
         LoadingHASMModelPage --> ValidateHASMModel[["Tauri: verify_hasm_storage & load_hasm_model_db"]]:::tauri
@@ -67,10 +78,26 @@ flowchart TB
     end
 
     %% ----------------------------------------------------
-    %% 2. Entity Selection & Markdown Loading (SEQ-03 & SEQ-04)
+    %% 2. Entity Creation & Graph Binding (SEQ-08 & SEQ-03)
     %% ----------------------------------------------------
-    subgraph RoutingPhase["2. Markdown Loading & Validation"]
-        VisualizePage --> ClickEntity(["Click PERSON / EXP / FACT / LINK"]):::action
+    subgraph CreationPhase["2. Interactive Entity & Link Creation"]
+        VisualizePage --> ClickCreate(["Click Create PERSON / EXP / FACT / LINK"]):::action
+        ClickCreate --> CreateModal["Entity / Link Creation Modal"]:::modal
+        
+        CreateModal --> SubmitCreate(["Submit Form"]):::action
+        SubmitCreate --> ExecCreate[["Tauri: create_person / experience / fact / link (SEQ-08)"]]:::tauri
+        
+        ExecCreate --> CreateCheck{"Validation & SQLite Transaction OK?"}:::cond
+        CreateCheck -->|NG| CreateModal
+        CreateCheck -->|OK| RelayoutGraph[["Tauri: compute_visualizer_layout (SEQ-03)"]]:::tauri
+        RelayoutGraph --> VisualizePage
+    end
+
+    %% ----------------------------------------------------
+    %% 3. Entity Selection & Markdown Loading (SEQ-03 & SEQ-04)
+    %% ----------------------------------------------------
+    subgraph RoutingPhase["3. Markdown Loading & Detail Ticket Navigation"]
+        VisualizePage --> ClickEntity(["Click Node / Mesh in 3D Canvas"]):::action
         ClickEntity --> LoadEntityDetail[["Tauri: load_entity_detail & verify markdown"]]:::tauri
         
         LoadEntityDetail --> MarkdownCheck{"Markdown & Model OK?"}:::cond
@@ -79,23 +106,23 @@ flowchart TB
     end
 
     %% ----------------------------------------------------
-    %% 3. Entity Detail Pages (SEQ-04)
+    %% 4. Entity Detail Pages & Metadata Editing (SEQ-04)
     %% ----------------------------------------------------
-    subgraph DetailPages["3. Entity Detail Pages"]
+    subgraph DetailPages["4. Entity Detail Pages"]
         
-        subgraph PersonDetail["3.1. PERSON Detail (/entity-detail/PERSON/:id)"]
+        subgraph PersonDetail["4.1. PERSON Detail (/entity-detail/PERSON/:id)"]
             PD["PERSON Ticket View"]:::page
         end
 
-        subgraph ExpDetail["3.2. EXPERIENCE Detail (/entity-detail/EXPERIENCE/:id)"]
+        subgraph ExpDetail["4.2. EXPERIENCE Detail (/entity-detail/EXPERIENCE/:id)"]
             ED["EXPERIENCE Ticket View"]:::page
         end
 
-        subgraph FactDetail["3.3. FACT Detail (/entity-detail/FACT/:id)"]
+        subgraph FactDetail["4.3. FACT Detail (/entity-detail/FACT/:id)"]
             FD["FACT Ticket View"]:::page
         end
 
-        subgraph LinkDetail["3.4. LINK Detail (/entity-detail/LINK/:id)"]
+        subgraph LinkDetail["4.4. LINK Detail (/entity-detail/LINK/:id)"]
             LD["LINK Ticket View"]:::page
         end
 
@@ -113,9 +140,9 @@ flowchart TB
     end
 
     %% ----------------------------------------------------
-    %% 4. Common Actions (SEQ-04 Ch.5 & SEQ-05)
+    %% 5. Common Actions (SEQ-04 Ch.5 & SEQ-05)
     %% ----------------------------------------------------
-    subgraph CommonActions["4. Common Actions"]
+    subgraph CommonActions["5. Common Actions"]
         LaunchHasmApp(["Edit Markdown in HASM App"]):::action --> LaunchAppCmd[["Tauri: launch_external_markdown_app"]]:::tauri
         LaunchAppCmd -->|Fire-and-Forget Spawn| ExternalAppWindow["hasm_markdown.exe App Window"]:::page
 
@@ -149,14 +176,14 @@ flowchart TB
 
 ## 2. React Routing Architecture (React Router v6)
 
-The React application uses declarative routing mapped directly to the sequence diagrams and lifecycle phases.
+The React application uses declarative routing mapped directly to sequence specifications and lifecycle phases.
 
-| Route Path | Page Component | Sequence Ref | Purpose & Description |
+| Route Path | Page Component / Modal | Sequence Ref | Purpose & Description |
 | --- | --- | --- | --- |
 | `/` | `AppBootGate.tsx` | `SEQ-01` | Initial entry gate. Triggers `validate_hasm_app` and redirects to `/select` or `/loading-model`. |
-| `/select` | `SelectModelPage.tsx` | `SEQ-02` | Workspace selector interface when no active model is selected or when changing models. |
+| `/select` | `SelectModelPage.tsx` | `SEQ-01`, `SEQ-08` | Workspace selector interface. Supports opening existing HASM models or scaffolding new workspaces via native OS Save Dialog. |
 | `/loading-model` | `LoadingModelPage.tsx` | `SEQ-02` | Progress & verification view. Executes `verify_hasm_storage` & `load_hasm_model_db`. |
-| `/visualizer` | `VisualizerPage.tsx` | `SEQ-03` | Three.js 3D graph view. Intercepted by Guards if `HasmModel` is missing or `is_verified == false`. |
+| `/visualizer` | `VisualizerPage.tsx` | `SEQ-03`, `SEQ-08` | Three.js 3D graph view. Includes Creation Toolbar (`Create PERSON`, `EXPERIENCE`, `FACT`, `LINK`) and handles graph re-layout. |
 | `/entity-detail/:entity_type/:entity_id` | `EntityDetailPage.tsx` | `SEQ-04` | JIRA-style detail ticket view for PERSON, EXPERIENCE, FACT, and LINK entities. |
 | `/error-app` | `ErrorAppPage.tsx` | `SEQ-06` | Fallback screen for binary/OS dependency initialization errors. |
 | `/error-model` | `ErrorModelPage.tsx` | `SEQ-06` | Fallback screen for `hasm.db` corruption or workspace directory read errors. |
@@ -164,87 +191,45 @@ The React application uses declarative routing mapped directly to the sequence d
 
 ---
 
-## 3. React State Architecture
-
-To maintain performance, non-blocking UI interactions, and single-source-of-truth across IPC calls, React state is divided into **Global Application State** (Context/Zustand) and **Local Component State**.
-
-### 3.1 Global State (Workspace & Navigation Scope)
-
-```typescript
-interface GlobalHasmState {
-  // Active Workspace Model Info
-  activeModelPath: string | null;
-  isModelLoaded: boolean;
-  isVerified: boolean; // Corresponds to Rust In-Memory HasmModel.is_verified
-
-  // System Configuration (SEQ-01)
-  appConfig: {
-    hasmMarkdownBinPath: string;
-    version: string;
-  } | null;
-
-  // Actions
-  setActiveModelPath: (path: string) => void;
-  invalidateVerification: () => void; // Sets isVerified = false
-}
-
-```
-
-### 3.2 Local Form & Ticket State (`EntityDetailPage.tsx`)
-
-```typescript
-interface EntityDetailLocalState {
-  // Entity Data
-  metadata: EntityMeta | null;
-  markdownBody: string;
-  lastLoadedMtimeMs: number; // Used for window focus mtime comparison
-
-  // Operation Loading Flags (Isolated UI Lock)
-  isEntityLoading: boolean;     // Initial detail page load
-  isEntitySaving: boolean;      // Save metadata to SQLite
-  isMarkdownVerifying: boolean; // Reload/Refresh markdown verification
-
-  // Form State Checking
-  isDirty: boolean;             // True if user edited ticket input fields
-  
-  // External Modification Alerts (SEQ-04 Chapter 5)
-  hasExternalChanges: boolean;  // True if mtime > lastLoadedMtimeMs (Amber style)
-  isMarkdownDeleted: boolean;   // True if main.md missing on disk (Red style)
-}
-
-```
-
----
-
-## 4. Sequence Diagram Reference Index
+## 3. Sequence Diagram Reference Index
 
 Below is the complete index of architectural sequence specifications governing the React frontend, Tauri IPC, and Rust domain engine:
 
-* [SEQ-01: App Launch & App Validation](./10-SEQ-01_AppLaunch_AppValidation.md)
-* **Location:** `1. BootPhase` | **Tauri:** `validate_hasm_app`
-* **Summary:** Application initialization, runtime binary existence checks, and environment setup.
+* [SEQ-01: App Launch & App Validation](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)
+* **Tauri:** `validate_hasm_app`, `validate_app_version`, `validate_hasm_folder_path`
+* **Summary:** App launch, binary checks, CLI path resolution, and native OS folder/save dialog integration.
 
 
-* [SEQ-02: Model Loading](./11-SEQ-02_HASM_Model_Load.md)
-* **Location:** `1. BootPhase` | **Tauri:** `verify_hasm_storage`, `load_hasm_model_db`
-* **Summary:** Workspace selection, directory structure validation, SQLite `hasm.db` loading, and model verification (`is_verified = true`).
+* [SEQ-02: Model Loading](https://www.google.com/search?q=./11-SEQ-02_HASM_Model_Load.md)
+* **Tauri:** `check_workspace_lock`, `release_workspace_lock`, `verify_hasm_storage`, `load_hasm_model_db`
+* **Summary:** Lock file verification, stale lock auto-recovery, `hasm.db` metadata loading, and storage verification.
 
 
-* [SEQ-03: HASM 3D Visualizer & Graph Rendering](./12-SEQ-03_Visualizer.md)
-* **Location:** `1. BootPhase` & `2. RoutingPhase` | **Tauri:** `compute_visualizer_layout`
-* **Summary:** Rust-driven 3D layout calculation (`TimeScaleMode`), Three.js graph rendering, raycasting navigation, and state verification guards.
+* [SEQ-03: HASM 3D Visualizer & Dynamic Creation Controls](https://www.google.com/search?q=./12-SEQ-03_Visualizer.md)
+* **Tauri:** `compute_visualizer_layout`
+* **Summary:** 3D timeline layout computation (`TimeScaleMode`), Three.js graph rendering, creation toolbar triggers, and automatic 3D scene re-rendering.
 
 
-* [SEQ-04: Entity MetaData Editing & Saving](./13-SEQ-04_Entity_Editing.md)
-* **Location:** `3. DetailPages` | **Tauri:** `load_entity_detail`, `save_entity_metadata`, `check_entity_mtime`, `reload_entity_markdown`
-* **Summary:** Ticket view rendering, single-entity domain validation (`entity.verify()`), SQLite metadata persistence (5,000ms hard timeout with `ROLLBACK`), `is_verified = false` invalidation, non-blocking window focus `mtime`/deletion checks, and manual Markdown refresh.
+* [SEQ-04: Entity MetaData Editing & Saving](https://www.google.com/search?q=./13-SEQ-04_Entity_Editing.md)
+* **Tauri:** `load_entity_detail`, `save_entity_metadata`, `check_entity_mtime`, `reload_entity_markdown`
+* **Summary:** Ticket view rendering, domain invariants (`entity.verify()`), SQLite metadata persistence, and window focus `mtime` detection.
 
 
-* [SEQ-05: External Markdown App Invocation](./14-SEQ-05_Edit_on_HASM_Markdown.md)
-* **Location:** `4. CommonActions` | **Tauri:** `launch_external_markdown_app`
-* **Summary:** Non-blocking, Fire-and-Forget process spawning of `hasm_markdown.exe` targeting the entity UUID directory without locking main app state.
+* [SEQ-05: External Markdown App Invocation](https://www.google.com/search?q=./14-SEQ-05_Edit_on_HASM_Markdown.md)
+* **Tauri:** `launch_external_markdown_app`
+* **Summary:** Fire-and-Forget process spawning of `hasm_markdown.exe` targeting the entity UUID directory.
 
 
-* [SEQ-06: Error Fallback & Recovery Flow](./15-SEQ-06_Error_Fallback.md)
-* **Location:** Across all subgraphs | **Tauri:** Recovery re-verifications (`validate_hasm_app`, `reload_entity_markdown`, `exit_app`)
-* **Summary:** Unified error screen handling (`/error-app`, `/error-model`, `/error-markdown`), user retry actions, repair triggers, and safe fallback routing.
+* [SEQ-06: Error Fallback & Recovery Flow](https://www.google.com/search?q=./15-SEQ-06_Error_Fallback.md)
+* **Tauri:** Recovery re-verifications (`validate_hasm_app`, `reload_entity_markdown`, `repair_missing_entity_folders`)
+* **Summary:** Unified error screens (`/error-app`, `/error-model`, `/error-markdown`), auto-repair folder creation, and recovery navigation.
+
+
+* [SEQ-07: Global Navigation & Environment Management](https://www.google.com/search?q=./16-SEQ-07_Others.md)
+* **Tauri:** `switch_workspace_cleanly`
+* **Summary:** Global Navbar, clean workspace switching, 3-color palette customization, and route protection (Barrier 1).
+
+
+* **[SEQ-08: Entity Creation & Link Graph Binding Sequence](https://www.google.com/search?q=./17-SEQ-08_Entity_Creation.md)**
+* **Tauri:** `create_hasm_workspace`, `create_person`, `create_experience`, `create_fact`, `create_link`
+* **Summary:** New workspace directory scaffolding, entity creation with UUID auto-generation, domain invariant checks (`entity.verify()`), atomic SQLite transactions, template `main.md` creation, and 3D graph binding.
