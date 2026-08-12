@@ -1,51 +1,132 @@
 # SEQ-02: Model Loading & Storage Verification (Architecture Sequence)
 
-This document details the complete sequence for checking workspace locks, loading metadata from `hasm.db` into the `HasmModel` Rust domain class with granular progress streaming (`current`, `total`, `percentage`), Watchdog Timeout handling (Pattern B), and executing encapsulated storage verification via `model.verify_storage()`.
+This document details the complete sequence for checking and managing workspace lock files (including stale lock auto-recovery and graceful release on window close), loading metadata from `hasm.db` into the `HasmModel` Rust domain class with granular progress streaming (`current`, `total`, `percentage`), Watchdog Timeout handling (Pattern B), and executing encapsulated storage verification via `model.verify_storage()`.
 
 ---
 
-## Sequence Diagram
+## 1. Data Contracts & Time Constraints
+
+### 1.1 IPC Data Definitions (Rust / TypeScript Interface)
+
+```rust
+// Payload for check_workspace_lock command
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CheckWorkspaceLockRequest {
+    pub path: String,
+}
+
+// Response payload for check_workspace_lock
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LockStatus {
+    pub is_locked: bool,
+    pub holder_pid: Option<u32>,
+    pub is_stale_recovered: bool, // True if a stale lock file from a crashed PID was cleaned
+    pub is_read_only: bool,
+}
+
+// Payload for release_workspace_lock command (invoked explicitly or on window close)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReleaseWorkspaceLockRequest {
+    pub path: String,
+}
+
+// Event payload for progress streaming
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProgressPayload {
+    pub step: String, // "DB_LOAD" | "STORAGE_VERIFY"
+    pub current: usize,
+    pub total: usize,
+    pub percentage: f32,
+    pub message: String,
+}
+
+```
+
+### 1.2 Time Constraints Policy Matrix
+
+| Operation | Timeout Rule | Timeout Value | Timeout Action & Rollback |
+| --- | --- | --- | --- |
+| **Workspace Lock Check & Recovery** (`check_workspace_lock`) | Fixed Hard Timeout | **3,000 ms** | Fail lock acquisition; notify UI and navigate to `/error-model`. |
+| **Database Load Stream** (`load_hasm_model_db`) | Watchdog Timer (Pattern B) | **10,000 ms** (Without event) | Terminate load attempt; reject IPC; navigate to `/error-model`. |
+| **Storage Verification Stream** (`verify_hasm_storage`) | Watchdog Timer (Pattern B) | **10,000 ms** (Without event) | Abort verification; reject IPC; navigate to `/error-model`. |
+| **Workspace Lock Release** (`release_workspace_lock`) | Window Close Sync Lock | **1,000 ms** | Force remove `.hasm/lock` file and terminate app process. |
+
+---
+
+## 2. Lock File Lifecycle & Stale Recovery Rules
+
+1. **Active Lock Check:** When inspecting `.hasm/lock`, Rust reads the recorded Process ID (`holder_pid`).
+2. **Stale Lock Auto-Recovery:** If the recorded `holder_pid` is no longer active in the OS process table (e.g., prior app crash or SIGKILL), Rust removes the stale lock file, logs the cleanup, and acquires a fresh lock (`is_stale_recovered = true`).
+3. **Graceful Release on Window Close (Top-Right "X"):** Tauri's window `tauri://close-requested` event is intercepted. The app executes `release_workspace_lock` (deleting `.hasm/lock`) before exiting the desktop process.
+
+---
+
+## 3. Sequence Architecture Chapters
+
+### Participant Lifecycle Legend
+
+* **User**: End user interacting with `LoadingModelPage.tsx` or closing the application window.
+* **React**: `LoadingModelPage.tsx` / `App.tsx` global event listener.
+* **Router**: `React Router` navigation engine.
+* **Bridge**: `Tauri IPC Bridge / listen()`.
+* **Rust**: `model_loader.rs` in Rust backend.
+* **Model**: `HasmModel` Rust Domain Instance.
+* **FS**: Local File System / Workspace Storage (`.hasm/lock`, `hasm.db`).
+
+---
+
+### Chapter 1: Model Loading & Storage Verification Flow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant React as React (LoadingPage.tsx)
+    participant User as User / OS
+    participant React as React (LoadingModelPage.tsx)
     participant Router as React Router
     participant Bridge as Tauri IPC Bridge / listen()
     participant Rust as Rust Command (model_loader.rs)
     participant Model as HasmModel (Domain Instance)
     participant FS as File System / Workspace
 
-    Note over React,FS: Pre-condition: Navigation from SEQ-01 completed. React receives modelPath via route state.
+    Note over User,FS: Pre-condition: Navigation from SEQ-01 completed. React receives modelPath via route state.
 
     React->>Bridge: Setup Event Listeners:<br/>listen('model-load-progress') & listen('model-verify-progress')
     React->>React: Mount Component & Set Initial State<br/>{ isModelLoading: true, modelProgress: 0, current: 0, total: 0, loadingMessage: "Initializing...", modelError: null }
 
     %% ----------------------------------------------------
-    %% Step 1: Workspace Lock Check (Fixed 3,000ms Timeout)
+    %% Step 1: Workspace Lock Check & Stale Lock Recovery
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
+    rect rgb(15, 23, 42)
         Note over React,FS: Step 1: Check Workspace Lock File (Fixed 3,000ms Hard Timeout)
         React->>Bridge: invoke('check_workspace_lock', { path: modelPath })
         Bridge->>Rust: IPC: check_workspace_lock(path)
         
-        Rust->>FS: Check existence of .hasm/lock
+        Rust->>FS: Read .hasm/lock file
         
         break On Frontend Hard Timeout (>3,000ms without response)
             React->>React: Set State: { modelError: "Lock check timed out", isModelLoading: false }
             React->>Router: navigate('/error-model')
         end
 
-        alt Lock exists (Already opened by another HASM process)
-            FS-->>Rust: Lock File Present
-            Rust-->>Bridge: Return Ok(LockStatus { isLocked: true, holderPid: 1234 })
-            Bridge-->>React: Resolve Promise (isLocked = true)
-            React->>React: Set State: { isReadOnly: true, warning: "Opened in Read-Only Mode" }
-        else Lock absent (First process)
-            FS-->>Rust: Lock File Absent
+        alt Lock file exists on disk
+            FS-->>Rust: Return holder_pid (e.g., 5678)
+            Rust->>Rust: Inspect OS Process Table for holder_pid
+            
+            alt holder_pid is DEAD (Stale Lock from previous crash)
+                Rust->>FS: Remove stale .hasm/lock file
+                Rust->>FS: Create new .hasm/lock with current PID
+                Rust-->>Bridge: Return Ok(LockStatus { is_locked: false, holder_pid: current_pid, is_stale_recovered: true, is_read_only: false })
+                Bridge-->>React: Resolve Promise
+                React->>React: Set State: { isReadOnly: false } & Display Info Toast ("Recovered stale lock file")
+            else holder_pid is ALIVE (Active process using workspace)
+                Rust-->>Bridge: Return Ok(LockStatus { is_locked: true, holder_pid: 5678, is_stale_recovered: false, is_read_only: true })
+                Bridge-->>React: Resolve Promise
+                React->>React: Set State: { isReadOnly: true, warning: "Opened in Read-Only Mode" }
+            end
+        else Lock file absent
             Rust->>FS: Create .hasm/lock with current PID
-            Rust-->>Bridge: Return Ok(LockStatus { isLocked: false })
-            Bridge-->>React: Resolve Promise (isLocked = false)
+            Rust-->>Bridge: Return Ok(LockStatus { is_locked: false, holder_pid: current_pid, is_stale_recovered: false, is_read_only: false })
+            Bridge-->>React: Resolve Promise
             React->>React: Set State: { isReadOnly: false }
         end
     end
@@ -53,7 +134,7 @@ sequenceDiagram
     %% ----------------------------------------------------
     %% Step 2: Load Database into HasmModel (Watchdog Timer Pattern B)
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
+    rect rgb(15, 23, 42)
         Note over React,FS: Step 2: Load hasm.db into HasmModel (Granular Progress & 10,000ms Watchdog Timer)
         React->>React: Start Watchdog Timer (Threshold: 10,000ms without progress event)
         React->>Bridge: invoke('load_hasm_model_db', { path: modelPath })
@@ -129,7 +210,7 @@ sequenceDiagram
     %% ----------------------------------------------------
     %% Step 3: Storage Verification Method (Watchdog Timer Pattern B)
     %% ----------------------------------------------------
-    rect rgb(30, 41, 59)
+    rect rgb(15, 23, 42)
         Note over React,FS: Step 3: Execute model.verify_storage() (10,000ms Watchdog Timer)
         React->>React: Start Watchdog Timer (Threshold: 10,000ms without progress event)
         React->>Bridge: invoke('verify_hasm_storage', { model: hasmModelInstance })
@@ -161,11 +242,53 @@ sequenceDiagram
 
         Rust-->>Bridge: Return Ok(VerificationResult)
         Bridge-->>React: Resolve Promise (result)
+        React->>Rust: Call model.set_verified() -> Set in-memory is_verified = true
         React->>React: Clear Step 3 Watchdog Timer & Update State: { modelProgress: 100.0, loadingMessage: "Complete", isModelLoading: false }
     end
 
     %% ----------------------------------------------------
-    %% Final Transition to Main Application Workspace
+    %% Final Transition to 3D Visualizer Workspace
     %% ----------------------------------------------------
-    React->>Router: navigate('/workspace', { state: { modelData: hasmModelInstance, isReadOnly, modelWarnings: result.unreferenced_entities } })
-    Note over React,Router: Transition to Main Dashboard / Graph Viewer (`SEQ-03`)
+    React->>Router: navigate('/visualizer', { state: { modelData: hasmModelInstance, isReadOnly, modelWarnings: result.unreferenced_entities } })
+    Note over React,Router: Transition to 3D Visualizer (`SEQ-03`)
+
+```
+
+---
+
+### Chapter 2: Lock Release Handling on App Window Close (Top-Right "X")
+
+This chapter specifies the graceful shutdown sequence when the user closes the app via the window close button ("X") or system shortcut.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / OS
+    participant React as React (App.tsx Window Listener)
+    participant Bridge as Tauri IPC Bridge / WindowEvent
+    participant Rust as Rust Handler (app_lifecycle.rs)
+    participant FS as File System (.hasm/lock)
+
+    Note over User,FS: User clicks Window Close Button ("X") or presses Alt+F4 / Cmd+Q.
+
+    User->>Bridge: Trigger Tauri Window Event: "tauri://close-requested"
+    Bridge->>React: Window Close Event Listener Intercepted
+    
+    rect rgb(15, 23, 42)
+        Note over React,FS: Graceful Lock Release Execution (< 1,000ms)
+        
+        opt Workspace was opened in Read-Write mode (isReadOnly == false)
+            React->>Bridge: invoke('release_workspace_lock', { path: activeModelPath })
+            Bridge->>Rust: IPC: release_workspace_lock(path)
+            
+            Rust->>FS: Remove .hasm/lock file associated with current PID
+            FS-->>Rust: File Removed
+            Rust-->>Bridge: Return Ok(())
+            Bridge-->>React: Resolve Promise
+        end
+
+        Rust->>Rust: Flush SQLite connection pools & close handles
+        Rust->>User: Terminate Desktop Process Cleanly
+    end
+
+```
