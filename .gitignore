@@ -7,18 +7,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Coverage reports
+coverage/
+*.lcov
+
 node_modules
 dist
 dist-ssr
 *.local
 src-tauri/target/
 src-tauri/gen/schemas/
+target/
+
+# Environment files
+.env
+.env.*
+!.env.example
 
 # Git LFS local objects
 .git/lfs/tmp/
 
 # OS files
 Thumbs.db
+Desktop.ini
 
 # Editor directories and files
 .vscode/*
