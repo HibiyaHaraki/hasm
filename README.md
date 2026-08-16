@@ -7,6 +7,12 @@ The HASM Model Editor is a small desktop app for opening that model, browsing it
 
 HASM keeps model data close to the files that describe it: folders hold entity Markdown, while a local SQLite database helps the app browse and save structured metadata. 📁🗃️
 
+## Repository status and contribution policy
+
+Thank you for your interest in this repository and for taking the time to explore the project. HASM is currently in an early stage of development, and its maturity remains limited. The project is being developed gradually and intentionally, step by step, at a pace that is appropriate for its current stage.
+
+At this time, external contributions are not being accepted. The repository is being shaped and refined independently by the maintainer, and the current focus is on establishing a stable foundation before broader collaboration is considered. We sincerely appreciate your interest and kindly ask that you respect this direction while the project continues to evolve.
+
 The editor is designed for a simple loop:
 
 - 📂 Open a model folder
