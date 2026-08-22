@@ -97,3 +97,4 @@ pub enum VisualizerError {
 * **[REQ-03-FUNC-301] Pointer Raycasting:** Hovering over 3D meshes MUST perform raycasting at throttled intervals (100ms) to display 2D floating tooltips with entity metadata.
 * **[REQ-03-FUNC-302] Entity Click Navigation:** Clicking any 3D node or line mesh MUST trigger React Router navigation to `/entity-detail/:entity_type/:entity_id`.
 * **[REQ-03-FUNC-303] Parent Branch Connectors:** For every `parent_experience_ids` entry, Rust MUST return a connector geometry from the parent branch to the child branch; a child with multiple parents MUST produce multiple merge connectors.
+* **[REQ-03-FUNC-304] Scene Navigation:** The Three.js canvas MUST provide orbit, pan, and zoom controls without disabling stationary node hover or click navigation.

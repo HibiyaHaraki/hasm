@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const NODE_COLORS = {
   PERSON: "#d6b25e",
@@ -20,6 +21,15 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(width, height);
   container.appendChild(renderer.domElement);
+  renderer.domElement.style.touchAction = "none";
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0, 5);
+  controls.enableDamping = false;
+  controls.enablePan = true;
+  controls.minDistance = 4;
+  controls.maxDistance = 80;
+  controls.update();
 
   scene.add(new THREE.AmbientLight(theme.textColor, 1.5));
   const keyLight = new THREE.DirectionalLight(theme.mainColor, 2);
@@ -82,12 +92,14 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
     renderer.render(scene, camera);
   };
   window.addEventListener("resize", resize);
+  controls.addEventListener("change", () => renderer.render(scene, camera));
   renderer.render(scene, camera);
 
   return () => {
     window.removeEventListener("resize", resize);
     renderer.domElement.removeEventListener("pointermove", handleMove);
     renderer.domElement.removeEventListener("click", handleClick);
+    controls.dispose();
     nodes.forEach((node) => { node.geometry.dispose(); node.material.dispose(); });
     renderer.dispose();
     if (renderer.domElement.parentNode === container) {

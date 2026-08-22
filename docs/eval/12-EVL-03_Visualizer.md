@@ -20,6 +20,7 @@ These integration tests verify end-to-end user flows for entering `/visualizer`,
 | **TC-03-E2E-004** | `REQ-03-FUNC-201``REQ-03-FUNC-202` | Positive (Filter Update) | Switch Time Scale Mode to `SequentialIndex` | 1. Render 3D view.2. Switch `TimeScaleMode` dropdown to `SequentialIndex`. | 1. Triggers `compute_visualizer_layout`.2. Lightweight progress overlay displays.3. Z-coordinates re-render with equal chronological commit spacing. |
 | **TC-03-E2E-005** | `REQ-03-FUNC-301``REQ-03-FUNC-302` | Positive (Interactivity) | Hover and Click 3D Node Mesh | 1. Hover mouse pointer over a FACT commit node.2. Click the node. | 1. Floating 2D tooltip displays node metadata.2. Clicking navigates to `/entity-detail/FACT/:fact_id`. |
 | **TC-03-E2E-006** | `REQ-03-FUNC-110` | Positive (Development) | Open Workspace Development Graph Action | 1. Open `/select`.<br/>2. Click **Test 3D commit graph**.<br/>3. Observe resulting workspace and route. | 1. A populated temporary package has `hasm.db`, all entity folders, non-empty Markdown, and assets.<br/>2. Routes directly to `/visualizer`. |
+| **TC-03-E2E-007** | `REQ-03-FUNC-304` | Positive (Navigation) | Canvas Orbit, Pan, and Zoom | 1. Open the visualizer.<br/>2. Use wheel, left-drag, and right-drag over the canvas. | 1. Wheel zooms the camera.<br/>2. Left-drag orbits and right-drag pans without page scrolling or canvas failure. |
 
 ---
 

@@ -24,6 +24,10 @@ The current coordinate policy is intentionally isolated in `src-tauri/src/hasm/v
 
 The persisted model currently represents child relationships through each child’s `parent_experience_ids`; no duplicated `child_ids` column is required.
 
+### Scene Navigation
+
+The Three.js canvas uses `OrbitControls`: mouse wheel zooms, left-drag orbits the camera, right-drag pans, and touch input supports orbit/pinch navigation. Node raycasting remains active for stationary hover and click selection.
+
 ### Development Graph Package
 
 The Open Workspace page (`/select`) includes **Test 3D commit graph** for development. It invokes `create_visualizer_demo_workspace`, which recreates a populated temporary HASM package containing `hasm.db`, all entity folders, non-empty `main.md` files, and `assets/` directories. The package contains a root EXPERIENCE, a derived research branch, a writing branch with two parents (merge), and five dated FACT commits before routing directly to `/visualizer`.

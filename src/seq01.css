@@ -31,7 +31,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .visualizer-toolbar label { margin: 0; display: grid; gap: 5px; font-size: 0.82rem; }
 .visualizer-toolbar select, .visualizer-toolbar input { color: var(--theme-input-text); background: var(--theme-input-bg); border: 1px solid var(--theme-border); padding: 6px; }
 .graph-stage { position: relative; min-height: 520px; overflow: hidden; border: 1px solid var(--theme-border); background: var(--theme-textbackground); }
-.graph-canvas, .graph-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.graph-canvas, .graph-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
 .graph-progress, .graph-warning, .graph-notice { position: absolute; z-index: 2; margin: 14px; padding: 10px; border: 1px solid var(--theme-border); background: var(--theme-soft); }
 .graph-progress { inset: auto 0 0 0; margin: 0; border-width: 1px 0 0; }
 .graph-progress progress { width: 100%; accent-color: var(--theme-primary); }
