@@ -6,6 +6,17 @@ Tests are structured across three distinct test levels: **Desktop App Level (E2E
 
 Automated React and IPC coverage for this specification runs through `npm run test:eval-03`; Rust layout coverage runs through `cargo test visualizer_commands` from `src-tauri`. The browser geometry smoke test is skipped by default and runs only when `HASM_RUN_VISUALIZER_GEOMETRY=1` is set.
 
+## Automated Test Inventory
+
+| Test IDs covered | Executable test file / command | CI job |
+| --- | --- | --- |
+| `TC-03-REACT-001` to `TC-03-REACT-004`, visualizer guards, node-to-ticket route handoff | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| SEQ-03 IPC contract | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-E2E-001` canvas smoke | `test/visualizer-geometry.test.js`, opt-in with `HASM_RUN_VISUALIZER_GEOMETRY=1` | Skipped by default |
+| `TC-03-RUST-005` to `TC-03-RUST-007` | `src-tauri/src/hasm/visualizer_commands.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
+
+Desktop rows requiring an installed GUI driver remain acceptance scenarios.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)

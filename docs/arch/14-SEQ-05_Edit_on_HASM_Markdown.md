@@ -6,6 +6,10 @@ This document provides the detailed architectural specification for invoking the
 * **Key Tauri Function:** `launch_external_markdown_app`
 * **Description:** Demonstrates resolving an entity's directory path, spawning the dedicated `hasm_markdown.exe` application as a detached child process without locking the HASM UI, enforcing a strict 5,000ms process spawn timeout, and providing user feedback instructing them to use the "Refresh Markdown" action (`SEQ-04` Chapter 5) after completing external edits.
 
+## Build and Runtime Contract
+
+`npm run build:markdown` builds the corrected `src-tauri/hasm_markdown` submodule and copies its release output `hasm_markdown.exe` to `src-tauri/binaries/hasm_markdown.exe`. Distribution builds package that staged file as a Tauri resource. SEQ-01 validates the packaged resource in distribution builds; SEQ-05 resolves the resource first and uses the same staged file as a development fallback.
+
 ---
 
 ## 1. Data Contracts & Time Constraints

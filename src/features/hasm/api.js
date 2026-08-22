@@ -88,3 +88,4 @@ export function createVisualizerDemoWorkspace() {
 export function loadEntityDetail(modelRoot, entityType, entityId) { return invoke("load_entity_detail", { modelRoot, entityType, entityId }); }
 export function checkEntityMtime(modelRoot, entityType, entityId, lastLoadedMtimeMs) { return invoke("check_entity_mtime", { modelRoot, entityType, entityId, lastLoadedMtimeMs }); }
 export function reloadEntityMarkdown(modelRoot, entityType, entityId) { return invoke("reload_entity_markdown", { modelRoot, entityType, entityId }); }
+export function launchExternalMarkdownApp(modelRoot, entityType, entityId) { return invoke("launch_external_markdown_app", { modelRoot, entityType, entityId }); }

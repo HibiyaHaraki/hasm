@@ -1,10 +1,20 @@
-
-Automated Rust coverage runs through `cargo test entity_editor_commands`; it loads, reloads, detects deletion, and persists metadata for PERSON, EXPERIENCE, FACT, and LINK using a populated workspace package.
 # EVAL-04: Entity MetaData Editing & Saving Test Specification
 
 This document defines the comprehensive test matrix, acceptance criteria, and traceability mapping for validating the Entity MetaData Editing & Saving workflow, single-entity domain validations, SQLite persistence transactions with dynamic/fixed timeouts, window-focus `mtime` and file existence checks, manual Markdown refreshes, missing/deleted file exception routing, and route navigation guards (`SEQ-04` / `REQ-04`).
 
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Component & Form State)**, and **Tauri Level (Rust Domain Engine & Database Contract)**.
+
+Automated React and IPC coverage runs through `npm run test:eval-04`. Automated Rust coverage runs through `cargo test entity_editor_commands`; it loads, reloads, detects deletion, and persists metadata for PERSON, EXPERIENCE, FACT, and LINK using a populated workspace package.
+
+## Automated Test Inventory
+
+| Test IDs covered | Executable test file / command | CI job |
+| --- | --- | --- |
+| `TC-04-REACT-001`, `TC-04-REACT-007`, `TC-04-REACT-009`, `TC-04-E2E-004` route return | `test/seq04.test.jsx` via `npm run test:eval-04` | Frontend: EVAL-04 React and IPC tests |
+| All four typed save invokes plus load/mtime/reload invoke contracts | `test/eval-04-ipc.test.js` via `npm run test:eval-04` | Frontend: EVAL-04 React and IPC tests |
+| `TC-04-RUST-005`, `TC-04-RUST-009`, all-entity load/reload/persist coverage | `src-tauri/src/hasm/entity_editor_commands.rs` via `cargo test entity_editor_commands` | Rust: EVAL-04 Rust entity editor tests |
+
+Rows for domain validation, transaction rollback, and full desktop interactions remain acceptance scenarios pending their dedicated implementation.
 
 ---
 

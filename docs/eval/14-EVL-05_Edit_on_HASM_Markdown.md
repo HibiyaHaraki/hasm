@@ -4,6 +4,19 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Component & Form State)**, and **Tauri Level (Rust Domain Engine & Process Command Contract)**.
 
+Automated React and IPC coverage runs through `npm run test:eval-05`; Rust command-path coverage runs through `cargo test external_editor_commands` from `src-tauri`. The packaged binary is staged by `npm run build:markdown` before distribution builds.
+
+## Automated Test Inventory
+
+| Test IDs covered | Executable test file / command | CI job |
+| --- | --- | --- |
+| `TC-05-REACT-001` to `TC-05-REACT-005` | `test/seq05.test.jsx` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
+| SEQ-05 launch IPC argument contract | `test/eval-05-ipc.test.js` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
+| `TC-05-RUST-001` to `TC-05-RUST-004` target-path, payload, and missing-resource checks | `src-tauri/src/hasm/external_editor_commands.rs` via `cargo test external_editor_commands` | Rust: EVAL-05 Rust external editor tests |
+| Markdown binary build/staging contract | `npm run build:markdown` and `Test-Path src-tauri/binaries/hasm_markdown.exe` | Frontend: Build frontend |
+
+`TC-05-RUST-005` timeout injection, `TC-05-RUST-006` database-handle monitoring, and live detached-process/multi-instance desktop rows are acceptance scenarios; CI intentionally does not launch desktop editor windows.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)

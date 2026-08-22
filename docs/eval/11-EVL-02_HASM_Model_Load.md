@@ -6,6 +6,16 @@ Tests are structured across three distinct test levels: **Desktop App Level (E2E
 
 Automated React and IPC coverage for this specification runs through `npm run test:eval-02`; the Rust command coverage runs through `cargo test model_commands` from `src-tauri`.
 
+## Automated Test Inventory
+
+| Test IDs covered | Executable test file / command | CI job |
+| --- | --- | --- |
+| `TC-02-REACT-001` to `TC-02-REACT-005`, active-lock and missing-storage route cases | `test/seq02.test.jsx` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
+| SEQ-02 IPC contracts | `test/eval-02-ipc.test.js` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
+| `TC-02-RUST-001` to `TC-02-RUST-006` | `src-tauri/src/hasm/model_commands.rs` via `cargo test model_commands` | Rust: EVAL-02 Rust model loading tests |
+
+Desktop rows are acceptance scenarios; they are not yet automated with a packaged Tauri E2E driver.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)
