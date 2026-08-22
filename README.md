@@ -84,7 +84,31 @@ npm run build
 npm run tauri:build
 ```
 
-`npm run build` builds the `hasm_markdown` submodule in release mode and stages its output as `src-tauri/binaries/hasm_markdown.exe` before building the frontend. `npm run tauri:build` packages that staged executable with the desktop application.
+`npm run build` now performs three steps in sequence:
+
+1. Runs `npm run sync:tauri-icons` to copy HASM logo PNG files from `hasm_logo/logo/hasm/` into `src-tauri/icons/`, then generates required platform icon files (`icon.ico`, `icon.icns`) from the same source.
+2. Builds the `hasm_markdown` submodule in release mode and stages `src-tauri/binaries/hasm_markdown.exe`.
+3. Builds the frontend.
+
+`npm run tauri:build` re-runs icon sync for CI safety and then packages the desktop application.
+
+## Test commands
+
+Run all sequence-aligned evaluation tests:
+
+```bash
+npm run test:seq-md
+```
+
+Run a specific sequence test set:
+
+```bash
+npm run test:seq-md-01
+npm run test:seq-md-02
+npm run test:seq-md-03
+npm run test:seq-md-04
+npm run test:seq-md-05
+```
 
 ## Project structure 📁
 
@@ -98,7 +122,13 @@ src/
 src-tauri/
 ├── src/hasm/                # Rust commands, services, types, and definitions
 ├── src/hasm_logger/         # Rust logging support
+├── icons/                   # Generated Tauri icon assets (synced from hasm_logo)
 └── Cargo.toml              # Rust dependencies and build settings
+hasm_logo/
+└── logo/hasm/               # Source logo assets used to generate app icons
+scripts/
+├── build-hasm-markdown.ps1  # Builds and stages hasm_markdown executable
+└── sync-tauri-icons.ps1     # Copies logos and generates Tauri icon files
 docs/
 ├── arch/                    # Architecture and sequence plans
 ├── req/                     # Requirements
