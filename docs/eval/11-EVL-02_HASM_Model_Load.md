@@ -4,6 +4,8 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Component & Window Event State)**, and **Tauri Level (Rust Domain Engine & Lock File I/O)**.
 
+Automated React and IPC coverage for this specification runs through `npm run test:eval-02`; the Rust command coverage runs through `cargo test model_commands` from `src-tauri`.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)
@@ -44,4 +46,5 @@ These unit and integration tests verify Rust command interfaces, OS process tabl
 | **TC-02-RUST-002** | `REQ-02-RULE-002``REQ-02-FUNC-105` | Positive (Stale Cleanup) | `check_workspace_lock` | 1. Create `.hasm/lock` with non-existent PID `999999`.2. Invoke `check_workspace_lock`. | 1. Identifies PID `999999` as dead.2. Deletes stale lock file.3. Writes new `.hasm/lock` with current PID.4. Returns `Ok(LockStatus { is_stale_recovered: true, is_locked: false })`. |
 | **TC-02-RUST-003** | `REQ-02-RULE-003``REQ-02-FUNC-109` | Positive (Lock Release) | `release_workspace_lock` | 1. Create `.hasm/lock` with current PID.2. Invoke `release_workspace_lock`. | 1. Deletes `.hasm/lock` file from workspace.2. Returns `Ok(())`. |
 | **TC-02-RUST-004** | `REQ-02-FUNC-103` | Positive (Active Lock) | `check_workspace_lock` | 1. Write current process PID to `.hasm/lock`.2. Invoke `check_workspace_lock` from separate test thread simulating another instance. | 1. Detects PID as active in OS process table.2. Returns `Ok(LockStatus { is_locked: true, is_read_only: true })`. |
-| **TC-02-RUST-005** | `REQ-02-RULE-006``REQ-02-FUNC-301``REQ-02-FUNC-305` | Positive (Storage Check) | `verify_hasm_storage` | 1. Load mock `HasmModel` with complete folder structure.2. Invoke `verify_hasm_storage`. | 1. Returns `Ok(VerificationResult)` with `missing_entities = []`.2. Sets in-memory `model.is_verified = true`. |
+| **TC-02-RUST-005** | `REQ-02-RULE-006``REQ-02-FUNC-301``REQ-02-FUNC-305` | Positive (Storage Check) | `verify_hasm_storage` | 1. Load a populated fixture `hasm.db` with PERSON, EXPERIENCE, FACT, and LINK records.<br/>2. Create matching non-empty `main.md` and `assets/` directories.<br/>3. Invoke storage verification. | 1. Every persisted entity has a matching Markdown file.<br/>2. Verification reports no missing or unreferenced entities. |
+| **TC-02-RUST-006** | `REQ-02-RULE-006``REQ-02-FUNC-304` | Negative (Storage Check) | Populated workspace fixture | 1. Seed `hasm.db` with PERSON, EXPERIENCE, FACT, and LINK records.<br/>2. Create each matching `main.md` and `assets/` folder.<br/>3. Delete the FACT Markdown file. | 1. Fixture contains non-empty database records and storage before deletion.<br/>2. Verification reports `FACT/{UUID}/main.md` as missing. |

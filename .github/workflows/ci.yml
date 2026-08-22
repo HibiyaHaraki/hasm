@@ -43,8 +43,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: EVAL-01 React tests
-        run: npm run test:seq-md-01
+      - name: EVAL-01 React and IPC tests
+        run: npm run test:eval-01
+
+      - name: EVAL-02 React and IPC tests
+        run: npm run test:eval-02
 
       - name: Build frontend
         run: npm run build
@@ -88,3 +91,7 @@ jobs:
       - name: EVAL-01 Rust command tests
         working-directory: src-tauri
         run: cargo test app_commands
+
+      - name: EVAL-02 Rust model loading tests
+        working-directory: src-tauri
+        run: cargo test model_commands

@@ -63,6 +63,10 @@ pub struct ProgressPayload {
 
 ## 3. Sequence Architecture Chapters
 
+### Implemented Module Mapping
+
+The current implementation owns the SEQ-02 backend IPC in `src-tauri/src/hasm/model_commands.rs` and the frontend lifecycle in `src/pages/LoadingModelPage.jsx`. The Rust loader returns the existing serialized `ModelDatabase` payload, and the frontend transfers that verified payload to `/visualizer`. Tests create a populated temporary `hasm.db` with PERSON, EXPERIENCE, FACT, and LINK rows plus non-empty matching `main.md` and `assets/` folders; no empty workspace fixture is used.
+
 ### Participant Lifecycle Legend
 
 * **User**: End user interacting with `LoadingModelPage.tsx` or closing the application window.

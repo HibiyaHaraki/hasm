@@ -8,6 +8,7 @@
 // ###################################################
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export function validateHasmMarkdownApp() {
   return invoke("validate_hasm_markdown_app");
@@ -54,4 +55,24 @@ export function saveEntityDetail(entityType, modelRoot, detail) {
   };
 
   return invoke(commands[entityType], { modelRoot, detail });
+}
+
+export function subscribeToTauriEvent(eventName, handler) {
+  return listen(eventName, handler);
+}
+
+export function checkWorkspaceLock(path) {
+  return invoke("check_workspace_lock", { path });
+}
+
+export function releaseWorkspaceLock(path) {
+  return invoke("release_workspace_lock", { path });
+}
+
+export function loadHasmModelDb(path) {
+  return invoke("load_hasm_model_db", { path });
+}
+
+export function verifyHasmStorage(path, model) {
+  return invoke("verify_hasm_storage", { path, model });
 }

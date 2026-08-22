@@ -128,6 +128,12 @@ mod tests {
             "path": "C:/workspace",
             "version": "0.1.0"
         }));
+
+        let error = validation_error("ERR_MARKDOWN_APP_INVALID", "Missing Markdown app");
+        assert_eq!(serde_json::to_value(error).unwrap(), json!({
+            "code": "ERR_MARKDOWN_APP_INVALID",
+            "message": "Missing Markdown app"
+        }));
     }
 
     #[test]
@@ -154,6 +160,12 @@ mod tests {
         assert_eq!(error.code, "ERR_TARGET_PATH_NOT_FOUND");
 
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn treats_malicious_path_text_as_a_literal_path() {
+        let error = validate_hasm_folder_path("C:\\valid; rm -rf".to_string()).unwrap_err();
+        assert_eq!(error.code, "ERR_TARGET_PATH_NOT_FOUND");
     }
 
     #[test]
