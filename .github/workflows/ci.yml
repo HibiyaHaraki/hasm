@@ -27,6 +27,13 @@ jobs:
       - name: Update submodules
         run: git submodule update --init --recursive
 
+      - name: Pull Git LFS objects for repository and submodules
+        shell: pwsh
+        run: |
+          git lfs install --local
+          git lfs pull
+          git submodule foreach --recursive 'git lfs install --local; git lfs pull'
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -58,6 +65,13 @@ jobs:
 
       - name: Update submodules
         run: git submodule update --init --recursive
+
+      - name: Pull Git LFS objects for repository and submodules
+        shell: pwsh
+        run: |
+          git lfs install --local
+          git lfs pull
+          git submodule foreach --recursive 'git lfs install --local; git lfs pull'
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
