@@ -33,7 +33,7 @@ hasm-desktop/
 │       ├── commands/            # Tauri IPC Commands Facade Layer
 │       │   ├── mod.rs
 │       │   ├── app_commands.rs  # SEQ-01, SEQ-06
-│       │   ├── model_commands.rs# SEQ-02, SEQ-07
+│       ├── hasm/model_commands.rs # SEQ-02 workspace lock and model load IPC
 │       │   ├── visualizer_commands.rs # SEQ-03
 │       │   └── entity_commands.rs    # SEQ-04, SEQ-05, SEQ-06
 │       ├── domain/              # Core Domain Models & Invariants
@@ -129,12 +129,12 @@ hasm-desktop/
 
 ---
 
-### Chapter 2.3: Model Commands (`src-tauri/src/commands/model_commands.rs`)
+### Chapter 2.3: Model Commands (`src-tauri/src/hasm/model_commands.rs`)
 
-* `check_workspace_lock(path: String) -> Result<LockStatus, ModelLoadingError>`: Inspects `.hasm/lock`, checks OS process table for `holder_pid`, performs stale lock recovery if dead, and returns lock/read-only status ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
-* `release_workspace_lock(path: String) -> Result<(), ModelLoadingError>`: Deletes `.hasm/lock` file for current workspace ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
-* `load_hasm_model_db(app_handle: AppHandle, path: String) -> Result<HasmModel, ModelLoadingError>`: Opens `hasm.db`, queries entity records, builds in-memory `HasmModel`, and streams progress via `model-load-progress` ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
-* `verify_hasm_storage(app_handle: AppHandle, model: HasmModel) -> Result<VerificationResult, ModelLoadingError>`: Executes `model.verify_storage()`, streams progress via `model-verify-progress`, sets `is_verified = true` on success, or rejects with missing entity details ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
+* `check_workspace_lock(path: String) -> Result<LockStatus, String>`: Inspects `.hasm/lock`, checks the OS process table for `holder_pid`, performs stale lock recovery if dead, and returns lock/read-only status ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
+* `release_workspace_lock(path: String) -> Result<(), String>`: Deletes `.hasm/lock` file for the current workspace ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
+* `load_hasm_model_db(app_handle: AppHandle, path: String) -> Result<ModelDatabase, String>`: Loads the existing populated workspace database and streams deterministic `model-load-progress` milestones for PERSON, EXPERIENCE, FACT, and LINK ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
+* `verify_hasm_storage(app_handle: AppHandle, path: String, model: ModelDatabase) -> Result<VerificationResult, String>`: Validates that every persisted entity description path resolves to a physical `main.md`, streams `model-verify-progress`, and rejects when a required file is missing ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
 * `switch_workspace_cleanly(current_model_path: String) -> Result<(), ModelLoadingError>`: Releases active workspace lock, flushes SQLite pools, and resets in-memory `HasmModel` to `None` before returning to `/select` ([SEQ-07](./16-SEQ-07_Others.md)).
 
 ---

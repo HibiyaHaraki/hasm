@@ -22,6 +22,32 @@ pub struct AppVersionResponse {
     pub version: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LockStatus {
+    pub is_locked: bool,
+    pub holder_pid: Option<u32>,
+    pub is_stale_recovered: bool,
+    pub is_read_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressPayload {
+    pub step: String,
+    pub current: usize,
+    pub total: usize,
+    pub percentage: f32,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationResult {
+    pub missing_entities: Vec<String>,
+    pub unreferenced_entities: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySummary {

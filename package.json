@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test:seq-md-01": "vitest run test/seq01.test.jsx",
+    "test:seq-md-02": "vitest run test/seq02.test.jsx",
     "build:markdown": "powershell -ExecutionPolicy Bypass -File ./scripts/build-hasm-markdown.ps1",
     "tauri:build": "npm run build && tauri build --config src-tauri/tauri.distribution.conf.json"
   },

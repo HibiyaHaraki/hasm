@@ -5,6 +5,7 @@
 
 pub mod commands;
 pub mod app_commands;
+pub mod model_commands;
 pub mod definitions;
 pub mod service;
 pub mod types;
