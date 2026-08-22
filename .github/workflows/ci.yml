@@ -55,6 +55,9 @@ jobs:
       - name: EVAL-04 React and IPC tests
         run: npm run test:eval-04
 
+      - name: EVAL-05 React and IPC tests
+        run: npm run test:eval-05
+
       - name: Build frontend
         run: npm run build
 
@@ -109,3 +112,7 @@ jobs:
       - name: EVAL-04 Rust entity editor tests
         working-directory: src-tauri
         run: cargo test entity_editor_commands
+
+      - name: EVAL-05 Rust external editor tests
+        working-directory: src-tauri
+        run: cargo test external_editor_commands

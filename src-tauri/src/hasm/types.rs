@@ -109,6 +109,13 @@ pub struct CheckMtimePayload {
     pub current_mtime_ms: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchExternalAppPayload {
+    pub target_dir_path: String,
+    pub executable_path: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySummary {

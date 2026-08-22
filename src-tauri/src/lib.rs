@@ -31,6 +31,7 @@ pub fn run() {
             hasm::entity_editor_commands::load_entity_detail,
             hasm::entity_editor_commands::check_entity_mtime,
             hasm::entity_editor_commands::reload_entity_markdown,
+            hasm::external_editor_commands::launch_external_markdown_app,
             hasm::commands::open_hasm_model,
             hasm::commands::read_model_database,
             hasm::commands::get_person_detail,

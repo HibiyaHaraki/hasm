@@ -11,6 +11,7 @@ This specification defines the functional, data, time constraint, and error hand
 * **[REQ-05-RULE-003] Directory Target Parameter:** The spawned `hasm_markdown.exe` process MUST accept a single argument specifying the entity's target UUID directory path (`{workspace}/{entityType}/{entityId}/`).
 * **[REQ-05-RULE-004] Database Non-Interference:** The `hasm_markdown.exe` process MUST operate solely on file system Markdown content and MUST NOT attempt direct access, lock, or modification of `hasm.db`.
 * **[REQ-05-RULE-005] Process Spawn Timeout:** Spawning the `hasm_markdown.exe` process MUST enforce a hard timeout of **5,000ms**.
+* **[REQ-05-RULE-006] Submodule Build Contract:** The HASM build MUST stage the corrected `hasm_markdown` submodule release executable as `src-tauri/binaries/hasm_markdown.exe` before a distribution build or external editor invocation test.
 
 ---
 

@@ -9,4 +9,4 @@
 	url = https://github.com/HibiyaHaraki/hasm_logger
 [submodule "src-tauri/hasm_markdown"]
 	path = src-tauri/hasm_markdown
-	url = git@github.com:HibiyaHaraki/hasm.git
+	url = git@github.com:HibiyaHaraki/hasm_markdown.git
