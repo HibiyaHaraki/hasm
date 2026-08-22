@@ -25,10 +25,12 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "../hasm_logo/logo/hasm/hasm_favicon.png",
-      "../hasm_logo/logo/hasm/hasm_logo_transparent.png",
+      "icons/icon.ico",
       "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/hasm_favicon.png",
+      "icons/hasm_logo_transparent.png",
+      "icons/hasm_logo_light_bg.png",
+      "icons/hasm_logo_dark_bg.png"
     ]
   }
 }
