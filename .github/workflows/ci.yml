@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: EVAL-01 React tests
+        run: npm run test:seq-md-01
+
       - name: Build frontend
         run: npm run build
 
@@ -67,3 +70,7 @@ jobs:
       - name: Cargo check
         working-directory: src-tauri
         run: cargo check
+
+      - name: EVAL-01 Rust command tests
+        working-directory: src-tauri
+        run: cargo test app_commands
