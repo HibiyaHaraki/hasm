@@ -261,7 +261,7 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
     let fact_id = parse_uuid(entity_id)?;
     let row = connection
         .query_row(
-            "SELECT fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids
+            "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
              FROM fact WHERE fact_id = ?1",
             [fact_id.to_string()],
             |row| {
@@ -272,19 +272,21 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             },
         )
         .optional()
         .map_err(|error| error.to_string())?;
 
-    if let Some((fact_id, fact_name, description_path, experience_ids, person_ids, link_ids)) =
+    if let Some((fact_id, fact_name, occurred_at, description_path, experience_ids, person_ids, link_ids)) =
         row
     {
         info!("get_fact_detail success: entity_id={}", entity_id);
         return Ok(Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_name,
+            occurred_at,
             fact_description_path: description_path.clone(),
             experience_ids: parse_json_uuid_array(&experience_ids),
             person_ids: parse_json_uuid_array(&person_ids),
@@ -524,6 +526,7 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
             CREATE TABLE IF NOT EXISTS fact (
                 fact_id UUID PRIMARY KEY,
                 fact_name TEXT NOT NULL DEFAULT '',
+                occurred_at TEXT NOT NULL DEFAULT '',
                 fact_description_path TEXT NOT NULL DEFAULT '',
                 experience_ids TEXT NOT NULL DEFAULT '[]',
                 person_ids TEXT NOT NULL DEFAULT '[]',
@@ -537,7 +540,9 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
                 related_ids TEXT NOT NULL DEFAULT '[]'
             );",
         )
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    let _ = connection.execute("ALTER TABLE fact ADD COLUMN occurred_at TEXT NOT NULL DEFAULT ''", []);
+    Ok(())
 }
 
 fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<(), String> {
@@ -685,10 +690,11 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
 
     connection
         .execute(
-            "INSERT INTO fact (fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(fact_id) DO UPDATE SET
                 fact_name = excluded.fact_name,
+                     occurred_at = excluded.occurred_at,
                 fact_description_path = excluded.fact_description_path,
                 experience_ids = excluded.experience_ids,
                 person_ids = excluded.person_ids,
@@ -696,6 +702,7 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
             params![
                 detail.fact_id.to_string(),
                 detail.fact_name,
+                detail.occurred_at,
                 description_path,
                 to_json_uuid_array(&detail.experience_ids),
                 to_json_uuid_array(&detail.person_ids),
@@ -825,7 +832,7 @@ fn list_experiences(connection: &Connection) -> Result<Vec<EntitySummary>, Strin
 fn list_facts(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT fact_id, fact_name, person_ids, link_ids
+            "SELECT fact_id, fact_name, occurred_at, person_ids, link_ids
              FROM fact ORDER BY COALESCE(NULLIF(fact_name, ''), fact_id)",
         )
         .map_err(|error| error.to_string())?;
@@ -837,16 +844,18 @@ fn list_facts(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut items = Vec::new();
     for row in rows {
-        let (fact_id, fact_name, person_ids, link_ids) = row.map_err(|error| error.to_string())?;
+        let (fact_id, fact_name, occurred_at, person_ids, link_ids) = row.map_err(|error| error.to_string())?;
         let fact = Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_name,
+            occurred_at,
             fact_description_path: String::new(),
             experience_ids: Vec::new(),
             person_ids: parse_json_uuid_array(&person_ids),
@@ -1001,7 +1010,7 @@ fn load_experiences(connection: &Connection, model_root: &Path) -> Result<Vec<Ex
 fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids
+            "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
              FROM fact ORDER BY COALESCE(NULLIF(fact_name, ''), fact_id)",
         )
         .map_err(|error| error.to_string())?;
@@ -1015,18 +1024,20 @@ fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, S
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut facts = Vec::new();
     for row in rows {
-        let (fact_id, fact_name, description_path, experience_ids, person_ids, link_ids) =
+        let (fact_id, fact_name, occurred_at, description_path, experience_ids, person_ids, link_ids) =
             row.map_err(|error| error.to_string())?;
 
         facts.push(Fact {
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_name,
+            occurred_at,
             fact_description_path: description_path.clone(),
             experience_ids: parse_json_uuid_array(&experience_ids),
             person_ids: parse_json_uuid_array(&person_ids),

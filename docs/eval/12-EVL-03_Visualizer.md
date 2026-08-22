@@ -4,6 +4,8 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Three.js Canvas & Progress State)**, and **Tauri Level (Rust Domain Engine & Worker Thread Layout)**.
 
+Automated React and IPC coverage for this specification runs through `npm run test:eval-03`; Rust layout coverage runs through `cargo test visualizer_commands` from `src-tauri`. The browser geometry smoke test is skipped by default and runs only when `HASM_RUN_VISUALIZER_GEOMETRY=1` is set.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)
@@ -17,6 +19,8 @@ These integration tests verify end-to-end user flows for entering `/visualizer`,
 | **TC-03-E2E-003** | `REQ-03-RULE-001``REQ-03-FUNC-103` | Negative (Unverified) | Visualizer Access With Unverified Model | 1. Set in-memory model flag `is_verified = false`.2. Navigate to `/visualizer`. | 1. Rust intercepts with `ERR_MODEL_NOT_VERIFIED`.2. React Router redirects to `/loading-model` passing `{ returnTo: '/visualizer' }`. |
 | **TC-03-E2E-004** | `REQ-03-FUNC-201``REQ-03-FUNC-202` | Positive (Filter Update) | Switch Time Scale Mode to `SequentialIndex` | 1. Render 3D view.2. Switch `TimeScaleMode` dropdown to `SequentialIndex`. | 1. Triggers `compute_visualizer_layout`.2. Lightweight progress overlay displays.3. Z-coordinates re-render with equal chronological commit spacing. |
 | **TC-03-E2E-005** | `REQ-03-FUNC-301``REQ-03-FUNC-302` | Positive (Interactivity) | Hover and Click 3D Node Mesh | 1. Hover mouse pointer over a FACT commit node.2. Click the node. | 1. Floating 2D tooltip displays node metadata.2. Clicking navigates to `/entity-detail/FACT/:fact_id`. |
+| **TC-03-E2E-006** | `REQ-03-FUNC-110` | Positive (Development) | Open Workspace Development Graph Action | 1. Open `/select`.<br/>2. Click **Test 3D commit graph**.<br/>3. Observe resulting workspace and route. | 1. A populated temporary package has `hasm.db`, all entity folders, non-empty Markdown, and assets.<br/>2. Routes directly to `/visualizer`. |
+| **TC-03-E2E-007** | `REQ-03-FUNC-304` | Positive (Navigation) | Canvas Orbit, Pan, and Zoom | 1. Open the visualizer.<br/>2. Use wheel, left-drag, and right-drag over the canvas. | 1. Wheel zooms the camera.<br/>2. Left-drag orbits and right-drag pans without page scrolling or canvas failure. |
 
 ---
 
@@ -30,6 +34,7 @@ These unit and component tests focus on `VisualizerPage.tsx`, Watchdog Timer pro
 | **TC-03-REACT-002** | `REQ-03-RULE-004``REQ-03-FUNC-107` | Negative (Watchdog) | `VisualizerPage.tsx` | 1. Invoke `compute_visualizer_layout`.2. Simulate zero progress events for >10,000ms. | 1. Watchdog Timer fires.2. Sets `renderError = "Layout calculation stalled"`.3. React Router navigates to `/error-model`. |
 | **TC-03-REACT-003** | `REQ-03-RULE-005``REQ-03-FUNC-203` | Negative (Filter Timeout) | `VisualizerPage.tsx` | 1. Change time scale filter.2. Simulate Watchdog timeout (>10,000ms). | 1. Displays error toast ("Filter update timed out. Reverting view.").2. Retains previous 3D scene state without canvas crash. |
 | **TC-03-REACT-004** | `REQ-03-FUNC-109` | Positive (Warning Toast) | `VisualizerPage.tsx` | 1. Resolve `compute_visualizer_layout` returning `RenderPayload` with `warnings = ["Unreferenced folder detected"]`. | 1. Renders warning toast/banner displaying unreferenced storage folder message. |
+| **TC-03-REACT-005** | `REQ-03-FUNC-110` | Positive (Development) | `SelectModelPage.tsx` | 1. Click **Test 3D commit graph**.<br/>2. Mock the populated demo payload. | 1. Calls `create_visualizer_demo_workspace` exactly once.<br/>2. Navigates to `/visualizer`. |
 
 ---
 
@@ -44,3 +49,5 @@ These unit and integration tests verify Rust background worker thread execution 
 | **TC-03-RUST-003** | `REQ-03-RULE-001``REQ-03-FUNC-102` | Negative (No Model) | `compute_visualizer_layout` | 1. Ensure `HASM_MODEL` mutex is `None`.2. Invoke `compute_visualizer_layout`. | 1. Rejects with `Err(VisualizerError::NoActiveModel)`. |
 | **TC-03-RUST-004** | `REQ-03-RULE-001``REQ-03-FUNC-103` | Negative (Unverified) | `compute_visualizer_layout` | 1. Set `HASM_MODEL.is_verified = false`.2. Invoke `compute_visualizer_layout`. | 1. Rejects with `Err(VisualizerError::ModelNotVerified)`. |
 | **TC-03-RUST-005** | `REQ-03-RULE-002` | Positive (Z-Axis Math) | `compute_visualizer_layout` | 1. Run layout calculation testing `Linear`, `Logarithmic`, and `SequentialIndex` modes. | 1. Correctly calculates Z-coordinates according to selected mathematical mode formulas. |
+| **TC-03-RUST-006** | `REQ-03-RULE-006``REQ-03-RULE-007``REQ-03-FUNC-303` | Positive (Topology) | `compute_visualizer_layout` | 1. Seed parent and child EXPERIENCE records plus FACTs with ordered `occurred_at` timestamps.<br/>2. Compute `SequentialIndex` layout. | 1. Earlier FACT receives lower Z than later FACT.<br/>2. Each EXPERIENCE trunk is straight.<br/>3. A `BRANCH_JOIN` connector exists for the declared parent-child relationship. |
+| **TC-03-RUST-007** | `REQ-03-FUNC-110` | Positive (Development) | `create_visualizer_demo_workspace` | 1. Invoke the development demo command.<br/>2. Inspect generated workspace. | 1. Returns a non-empty model with 3 EXPERIENCE records and 5 dated FACT records.<br/>2. `hasm.db`, Markdown files, and assets exist. |

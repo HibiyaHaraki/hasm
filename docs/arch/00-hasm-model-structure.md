@@ -76,6 +76,7 @@ erDiagram
         TEXT fact_id PK "UUID"
         TEXT fact_name
         TEXT fact_description
+        TEXT occurred_at "ISO8601 occurrence timestamp"
         TEXT start_time "ISO8601 Datetime"
         TEXT end_time "ISO8601 Datetime"
         INTEGER security_level
@@ -151,6 +152,7 @@ Concrete events or occurrences anchored in time.
 * **`fact_id`** (*UUID, Primary Key*): Unique identifier for the fact.
 * **`fact_name`** (*TEXT*): Short summary of the fact.
 * **`fact_description`** (*TEXT*): Detailed factual description.
+* **`occurred_at`** (*TEXT*): ISO8601 occurrence timestamp used to order FACT commits along the visualizer Z-axis.
 * **`start_time`** (*TEXT*): ISO8601 timestamp for event start.
 * **`end_time`** (*TEXT*): ISO8601 timestamp for event completion (optional).
 * **`security_level`** (*INTEGER*): Access control level.

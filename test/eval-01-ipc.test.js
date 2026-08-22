@@ -12,9 +12,11 @@ describe("EVAL-01 Tauri IPC bridge contracts", () => {
     api.validateHasmMarkdownApp();
     api.validateAppVersion();
     api.validateHasmFolderPath("C:/workspace");
+    api.createVisualizerDemoWorkspace();
 
     expect(invoke).toHaveBeenNthCalledWith(1, "validate_hasm_markdown_app");
     expect(invoke).toHaveBeenNthCalledWith(2, "validate_app_version");
     expect(invoke).toHaveBeenNthCalledWith(3, "validate_hasm_folder_path", { path: "C:/workspace" });
+    expect(invoke).toHaveBeenNthCalledWith(4, "create_visualizer_demo_workspace");
   });
 });

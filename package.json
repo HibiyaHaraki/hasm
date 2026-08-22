@@ -11,9 +11,11 @@
     "tauri": "tauri",
     "test:eval-01": "vitest run test/seq01.test.jsx test/eval-01-ipc.test.js",
     "test:eval-02": "vitest run test/seq02.test.jsx test/eval-02-ipc.test.js",
+    "test:eval-03": "vitest run test/seq03.test.jsx test/eval-03-ipc.test.js test/visualizer-geometry.test.js",
     "test:seq-md-01": "npm run test:eval-01",
     "test:seq-md-02": "npm run test:eval-02",
-    "test:seq-md": "npm run test:eval-01 && npm run test:eval-02",
+    "test:seq-md-03": "npm run test:eval-03",
+    "test:seq-md": "npm run test:eval-01 && npm run test:eval-02 && npm run test:eval-03",
     "build:markdown": "powershell -ExecutionPolicy Bypass -File ./scripts/build-hasm-markdown.ps1",
     "tauri:build": "npm run build && tauri build --config src-tauri/tauri.distribution.conf.json"
   },
@@ -22,7 +24,8 @@
     "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

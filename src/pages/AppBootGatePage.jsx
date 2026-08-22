@@ -17,7 +17,6 @@ function messageFrom(error) {
 function AppBootGatePage() {
   const navigate = useNavigate();
   const [loadState, setLoadState] = useState(0);
-
   useEffect(() => {
     let active = true;
 

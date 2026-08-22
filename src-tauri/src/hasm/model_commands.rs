@@ -164,11 +164,11 @@ mod tests {
         connection.execute_batch(&format!(
             "CREATE TABLE person (person_id TEXT PRIMARY KEY, person_name TEXT, person_description_path TEXT, birthday TEXT, die TEXT, link_ids TEXT);
              CREATE TABLE experience (experience_id TEXT PRIMARY KEY, person_id TEXT, experience_name TEXT, experience_description_path TEXT, parent_experience_ids TEXT, link_ids TEXT);
-             CREATE TABLE fact (fact_id TEXT PRIMARY KEY, fact_name TEXT, fact_description_path TEXT, experience_ids TEXT, person_ids TEXT, link_ids TEXT);
+             CREATE TABLE fact (fact_id TEXT PRIMARY KEY, fact_name TEXT, occurred_at TEXT, fact_description_path TEXT, experience_ids TEXT, person_ids TEXT, link_ids TEXT);
              CREATE TABLE link (link_id TEXT PRIMARY KEY, link_name TEXT, link_type TEXT, link_description_path TEXT, related_ids TEXT);
              INSERT INTO person VALUES ('{PERSON_ID}', 'Ada', 'PERSON/{PERSON_ID}/main.md', '1815-12-10', '', '[\"{LINK_ID}\"]');
              INSERT INTO experience VALUES ('{EXPERIENCE_ID}', '{PERSON_ID}', 'Research', 'EXPERIENCE/{EXPERIENCE_ID}/main.md', '[]', '[]');
-             INSERT INTO fact VALUES ('{FACT_ID}', 'Publication', 'FACT/{FACT_ID}/main.md', '[\"{EXPERIENCE_ID}\"]', '[\"{PERSON_ID}\"]', '[\"{LINK_ID}\"]');
+             INSERT INTO fact VALUES ('{FACT_ID}', 'Publication', '2026-01-15', 'FACT/{FACT_ID}/main.md', '[\"{EXPERIENCE_ID}\"]', '[\"{PERSON_ID}\"]', '[\"{LINK_ID}\"]');
              INSERT INTO link VALUES ('{LINK_ID}', 'Mentors', 'relationship', 'LINK/{LINK_ID}/main.md', '[\"{PERSON_ID}\", \"{FACT_ID}\"]');"
         )).unwrap();
         root

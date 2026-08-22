@@ -49,6 +49,9 @@ jobs:
       - name: EVAL-02 React and IPC tests
         run: npm run test:eval-02
 
+      - name: EVAL-03 React and IPC tests
+        run: npm run test:eval-03
+
       - name: Build frontend
         run: npm run build
 
@@ -95,3 +98,7 @@ jobs:
       - name: EVAL-02 Rust model loading tests
         working-directory: src-tauri
         run: cargo test model_commands
+
+      - name: EVAL-03 Rust visualizer tests
+        working-directory: src-tauri
+        run: cargo test visualizer_commands

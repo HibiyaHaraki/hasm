@@ -48,6 +48,48 @@ pub struct VerificationResult {
     pub unreferenced_entities: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayoutFilterRequest {
+    pub time_scale_mode: String,
+    pub z_scale_factor: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Node3dGeometry {
+    pub id: String,
+    pub entity_type: String,
+    pub label: String,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Line3dGeometry {
+    pub id: String,
+    pub line_type: String,
+    pub from: [f32; 3],
+    pub to: [f32; 3],
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderPayload {
+    pub nodes_3d: Vec<Node3dGeometry>,
+    pub lines_3d: Vec<Line3dGeometry>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VisualizerDemoPayload {
+    pub path: String,
+    pub model: ModelDatabase,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySummary {
