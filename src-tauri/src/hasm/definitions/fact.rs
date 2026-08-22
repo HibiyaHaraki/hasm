@@ -11,6 +11,7 @@ use uuid::Uuid;
 pub struct Fact {
     pub fact_id: Uuid,
     pub fact_name: String,
+    pub occurred_at: String,
     pub fact_description_path: String,
     pub experience_ids: Vec<Uuid>,
     pub person_ids: Vec<Uuid>,

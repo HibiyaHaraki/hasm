@@ -80,3 +80,7 @@ export function verifyHasmStorage(path, model) {
 export function computeVisualizerLayout(model, filter) {
   return invoke("compute_visualizer_layout", { model, filter });
 }
+
+export function createVisualizerDemoWorkspace() {
+  return invoke("create_visualizer_demo_workspace");
+}

@@ -19,7 +19,7 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(width, height);
-  container.replaceChildren(renderer.domElement);
+  container.appendChild(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(theme.textColor, 1.5));
   const keyLight = new THREE.DirectionalLight(theme.mainColor, 2);
@@ -90,6 +90,8 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
     renderer.domElement.removeEventListener("click", handleClick);
     nodes.forEach((node) => { node.geometry.dispose(); node.material.dispose(); });
     renderer.dispose();
-    container.replaceChildren();
+    if (renderer.domElement.parentNode === container) {
+      container.removeChild(renderer.domElement);
+    }
   };
 }

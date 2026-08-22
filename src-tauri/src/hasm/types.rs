@@ -85,6 +85,13 @@ pub struct RenderPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct VisualizerDemoPayload {
+    pub path: String,
+    pub model: ModelDatabase,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EntitySummary {
     pub id: String,
     pub title: String,

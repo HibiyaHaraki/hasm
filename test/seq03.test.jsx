@@ -7,6 +7,7 @@ import * as api from "../src/features/hasm/api";
 const { createCommitGraph } = vi.hoisted(() => ({ createCommitGraph: vi.fn(() => () => {}) }));
 vi.mock("../src/features/hasm/api", () => ({
   computeVisualizerLayout: vi.fn(),
+  createVisualizerDemoWorkspace: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
 vi.mock("../src/features/visualizer/threeCommitGraph", () => ({ createCommitGraph }));

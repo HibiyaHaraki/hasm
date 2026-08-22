@@ -13,6 +13,21 @@ The HASM 3D Visualizer represents life experiences and activities in a three-dim
 * **LINK (Relationships):** Relationships between FACTs or other entities are rendered as thin 3D splines or connecting lines spanning through the 3D space.
 * **Creation Toolbar:** Persistent 3D control bar providing direct access to **`Create PERSON`**, **`Create EXPERIENCE`**, **`Create FACT`**, and **`Create LINK`** modals.
 
+### Coordinate Policy
+
+The current coordinate policy is intentionally isolated in `src-tauri/src/hasm/visualizer_commands.rs` for later mathematical revision.
+
+1. **Z-axis is time:** FACTs are globally sorted by persisted `FACT.occurred_at` (ISO8601). Earlier dates receive lower Z coordinates.
+2. **Time scale:** `Linear` scales the calendar delta from the earliest FACT, `Logarithmic` applies $\log_{10}(\Delta t + 1)$, and `SequentialIndex` assigns equal spacing after chronological sorting.
+3. **Straight EXPERIENCE trunks:** every EXPERIENCE receives a fixed `(x, y)` coordinate. Its branch is a straight line parallel to Z; ordinary commits do not bend it.
+4. **Branching and merging:** `parent_experience_ids` declares each incoming parent. The renderer derives child relationships by scanning these arrays. A `BRANCH_JOIN` line connects each parent trunk to the child trunk at the child’s first FACT Z coordinate. Multiple parents produce multiple merge connectors at that shared time plane.
+
+The persisted model currently represents child relationships through each child’s `parent_experience_ids`; no duplicated `child_ids` column is required.
+
+### Development Graph Package
+
+The Open Workspace page (`/select`) includes **Test 3D commit graph** for development. It invokes `create_visualizer_demo_workspace`, which recreates a populated temporary HASM package containing `hasm.db`, all entity folders, non-empty `main.md` files, and `assets/` directories. The package contains a root EXPERIENCE, a derived research branch, a writing branch with two parents (merge), and five dated FACT commits before routing directly to `/visualizer`.
+
 
 
 ---

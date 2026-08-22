@@ -16,6 +16,8 @@ This specification defines the functional, data, time constraint, progress strea
 * **[REQ-03-RULE-003] Non-Blocking Background Computation:** Layout calculation for large datasets MUST be executed on a background Rust worker thread (`tokio::task::spawn_blocking`) without freezing the main application or Tauri UI thread.
 * **[REQ-03-RULE-004] Watchdog Progress Protection:** Long-running layout calculations MUST emit `visualizer-layout-progress` events at least once every **10,000ms**. Failure to receive events within this threshold MUST trigger a Watchdog Timeout.
 * **[REQ-03-RULE-005] Non-Destructive Filter Reversion:** If a filter or time scale update times out or fails, the 3D Canvas MUST retain or revert to the last successfully rendered 3D scene state and inform the user via a toast notification.
+* **[REQ-03-RULE-006] Chronological Commit Placement:** FACT nodes MUST be sorted by persisted `occurred_at` before Z-coordinate calculation. A FACT with an earlier valid ISO8601 timestamp MUST not receive a greater Z coordinate than a later FACT under the same filter.
+* **[REQ-03-RULE-007] Straight Branch Topology:** Each EXPERIENCE MUST occupy a stable `(x, y)` branch position and render as a straight Z-parallel trunk. Parent-to-child relationships MUST be derived from `parent_experience_ids` and rendered as explicit branch/merge connector lines at the child branch’s first commit Z coordinate.
 
 ---
 
@@ -50,6 +52,11 @@ pub struct RenderPayload {
     pub warnings: Vec<String>,
 }
 
+// FACT metadata used by chronological commit placement
+pub struct Fact {
+    pub occurred_at: String, // ISO8601 timestamp
+}
+
 // [REQ-03-DATA-004] Visualizer Error Payload Enum
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VisualizerError {
@@ -76,14 +83,17 @@ pub enum VisualizerError {
 * **[REQ-03-FUNC-107] Watchdog Timeout Trigger:** If 10,000ms elapses without receiving a progress event, React MUST abort waiting, set `renderError = "Layout calculation stalled"`, and navigate to `/error-model`.
 * **[REQ-03-FUNC-108] Three.js Scene Initialization:** Upon resolving `RenderPayload`, React MUST hide the loading progress overlay and instantiate Three.js geometries, lights, and camera positioning.
 * **[REQ-03-FUNC-109] Model Warning Rendering:** If `RenderPayload.warnings` is non-empty (e.g., unreferenced storage folders), React MUST render a warning toast/banner.
+* **[REQ-03-FUNC-110] Development Graph Action:** The Open Workspace page (`/select`) MUST offer a development action that creates a populated temporary HASM package and routes to `/visualizer` with a verified model payload.
 
 ### Chapter 2: Filter & TimeScale Control Interactions
 
 * **[REQ-03-FUNC-201] Dynamic Filter Re-calculation:** Changing time sliders, `time_scale_mode`, or `z_scale_factor` MUST trigger `compute_visualizer_layout` with updated parameters.
 * **[REQ-03-FUNC-202] Filter Progress Overlay Display:** Filter updates MUST display a lightweight non-modal progress bar overlay driven by `visualizer-layout-progress` events.
 * **[REQ-03-FUNC-203] Filter Timeout Handling:** If a filter update exceeds the 10,000ms Watchdog threshold, React MUST display an error toast ("Filter update timed out. Reverting view.") and preserve the previous 3D scene state.
+* **[REQ-03-FUNC-204] Chronological Filter Re-layout:** Changing a time-scale mode MUST retain FACT chronological ordering while recalculating Z coordinates.
 
 ### Chapter 3 & 4: Interactivity & Entity Detail Navigation
 
 * **[REQ-03-FUNC-301] Pointer Raycasting:** Hovering over 3D meshes MUST perform raycasting at throttled intervals (100ms) to display 2D floating tooltips with entity metadata.
 * **[REQ-03-FUNC-302] Entity Click Navigation:** Clicking any 3D node or line mesh MUST trigger React Router navigation to `/entity-detail/:entity_type/:entity_id`.
+* **[REQ-03-FUNC-303] Parent Branch Connectors:** For every `parent_experience_ids` entry, Rust MUST return a connector geometry from the parent branch to the child branch; a child with multiple parents MUST produce multiple merge connectors.

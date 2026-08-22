@@ -12,6 +12,7 @@ vi.mock("../src/features/hasm/api", () => ({
   subscribeToTauriEvent: vi.fn(),
   verifyHasmStorage: vi.fn(),
   validateAppVersion: vi.fn(),
+  createVisualizerDemoWorkspace: vi.fn(),
   validateHasmFolderPath: vi.fn(),
   validateHasmMarkdownApp: vi.fn(),
   withTimeout: (promise) => promise,

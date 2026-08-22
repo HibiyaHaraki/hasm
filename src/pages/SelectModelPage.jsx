@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { validateHasmFolderPath, withTimeout } from "../features/hasm/api";
+import { createVisualizerDemoWorkspace, validateHasmFolderPath, withTimeout } from "../features/hasm/api";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
 
 const logger = createLogger("select-model");
@@ -10,6 +10,7 @@ function SelectModelPage() {
   const location = useLocation();
   const [inputPath, setInputPath] = useState("");
   const [validation, setValidation] = useState({ status: "idle", message: location.state?.validationError || "" });
+  const [demoLoading, setDemoLoading] = useState(false);
   const submittingRef = useRef(false);
 
   useEffect(() => {
@@ -48,6 +49,21 @@ function SelectModelPage() {
     navigate("/loading-model", { state: { path: inputPath.trim() } });
   }
 
+  async function openVisualizerDemo() {
+    if (demoLoading) return;
+    setDemoLoading(true);
+    try {
+      const demo = await createVisualizerDemoWorkspace();
+      logger.info("[SEQ-MD-03][DEMO] opening populated visualizer workspace");
+      navigate("/visualizer", { state: { path: demo.path, model: demo.model, isVerified: true } });
+    } catch (error) {
+      logger.error("[SEQ-MD-03][DEMO] failed to create visualizer workspace", error);
+      setValidation({ status: "invalid", message: error?.message || "Could not create the visualizer test workspace." });
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
   return (
     <main className="selection-layout">
       <section className="selection-panel">
@@ -62,6 +78,7 @@ function SelectModelPage() {
           </div>
           <p className="validation-message" role="status" data-status={validation.status}>{validation.message}</p>
         </form>
+        <button type="button" className="demo-visualizer-button" onClick={openVisualizerDemo} disabled={demoLoading}>{demoLoading ? "Creating test graph..." : "Test 3D commit graph"}</button>
       </section>
     </main>
   );

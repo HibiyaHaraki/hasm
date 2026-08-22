@@ -22,6 +22,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .validation-message { min-height: 1.75em; margin: 10px 0 0; color: var(--theme-danger); }
 .validation-message[data-status="checking"] { color: var(--theme-muted); }
 .error-panel { border-color: var(--theme-danger); }
+.demo-visualizer-button { margin-top: 8px; border-color: var(--theme-secondary); color: var(--theme-text); background: transparent; }
 .model-progress { width: 100%; height: 10px; accent-color: var(--theme-primary); }
 .model-notice { padding: 10px; border-left: 3px solid var(--theme-secondary); color: var(--theme-muted); }
 .visualizer-page { min-height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 18px; gap: 14px; }
@@ -30,7 +31,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .visualizer-toolbar label { margin: 0; display: grid; gap: 5px; font-size: 0.82rem; }
 .visualizer-toolbar select, .visualizer-toolbar input { color: var(--theme-input-text); background: var(--theme-input-bg); border: 1px solid var(--theme-border); padding: 6px; }
 .graph-stage { position: relative; min-height: 520px; overflow: hidden; border: 1px solid var(--theme-border); background: var(--theme-textbackground); }
-.graph-stage canvas { display: block; width: 100%; height: 100%; }
+.graph-canvas, .graph-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .graph-progress, .graph-warning, .graph-notice { position: absolute; z-index: 2; margin: 14px; padding: 10px; border: 1px solid var(--theme-border); background: var(--theme-soft); }
 .graph-progress { inset: auto 0 0 0; margin: 0; border-width: 1px 0 0; }
 .graph-progress progress { width: 100%; accent-color: var(--theme-primary); }
