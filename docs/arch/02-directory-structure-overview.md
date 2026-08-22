@@ -121,7 +121,7 @@ hasm-desktop/
 
 ### Chapter 2.2: App Commands (`src-tauri/src/commands/app_commands.rs`)
 
-* `validate_hasm_app() -> Result<AppConfigPayload, AppValidationError>`: Checks binary existence and test-executes `hasm_markdown.exe` ([SEQ-01](./10-SEQ-01_AppLaunch_AppValidation.md)).
+* `validate_hasm_markdown_app() -> Result<(), AppValidationError>`: Checks packaged `hasm_markdown.exe` existence ([SEQ-01](./10-SEQ-01_AppLaunch_AppValidation.md)).
 * `validate_app_version() -> Result<AppVersionResponse, AppValidationError>`: Inspects package version and parses CLI arguments for `--path` ([SEQ-01](./10-SEQ-01_AppLaunch_AppValidation.md)).
 * `validate_hasm_folder_path(path: String) -> Result<(), AppValidationError>`: Validates folder path existence on disk ([SEQ-01](./10-SEQ-01_AppLaunch_AppValidation.md)).
 * `reboot_app(retain_path: Option<String>) -> Result<(), AppLaunchError>`: Spawns a new app instance carrying `--path {retain_path}` argument and terminates current process ([SEQ-06](./15-SEQ-06_Error_Fallback.md)).

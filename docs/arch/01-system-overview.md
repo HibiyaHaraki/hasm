@@ -51,7 +51,7 @@ flowchart TB
     %% 1. App Boot, Model Loading & Workspace Scaffolding (SEQ-01, SEQ-02, SEQ-08)
     %% ----------------------------------------------------
     subgraph BootPhase["1. App Boot, Workspace Selection & Scaffolding"]
-        BootAction(["Boot HASM App"]):::action --> ValidateHASMApp[["Tauri: validate_hasm_app"]]:::tauri
+        BootAction(["Boot HASM App"]):::action --> ValidateHASMApp[["Tauri: validate_hasm_markdown_app"]]:::tauri
         ValidateHASMApp --> AppCheck{"HASM App OK?"}:::cond
         
         AppCheck -->|NG| ErrorHASMApp[/"HASM App Error Page (/error-app)"/]:::error
@@ -196,7 +196,7 @@ The React application uses declarative routing mapped directly to sequence speci
 Below is the complete index of architectural sequence specifications governing the React frontend, Tauri IPC, and Rust domain engine:
 
 * [SEQ-01: App Launch & App Validation](https://www.google.com/search?q=./10-SEQ-01_AppLaunch_AppValidation.md)
-* **Tauri:** `validate_hasm_app`, `validate_app_version`, `validate_hasm_folder_path`
+* **Tauri:** `validate_hasm_markdown_app`, `validate_app_version`, `validate_hasm_folder_path`
 * **Summary:** App launch, binary checks, CLI path resolution, and native OS folder/save dialog integration.
 
 

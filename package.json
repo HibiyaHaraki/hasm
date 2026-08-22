@@ -7,17 +7,25 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:seq-md-01": "vitest run test/seq01.test.jsx",
+    "build:markdown": "powershell -ExecutionPolicy Bypass -File ./scripts/build-hasm-markdown.ps1",
+    "tauri:build": "npm run build:markdown && tauri build --config src-tauri/tauri.distribution.conf.json"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2"
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^30.0.1",
     "vite": "^8.2.1",
-    "@tauri-apps/cli": "^2"
+    "vitest": "^4.1.11"
   }
 }
