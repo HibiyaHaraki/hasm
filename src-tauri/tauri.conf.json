@@ -25,9 +25,8 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
+      "../hasm_logo/logo/hasm/hasm_favicon.png",
+      "../hasm_logo/logo/hasm/hasm_logo_transparent.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ]
