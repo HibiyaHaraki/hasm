@@ -41,3 +41,8 @@ Desktop.ini
 *.njsproj
 *.sln
 *.sw?
+
+# Auto-generated Tauri icon assets (synced from hasm_logo)
+src-tauri/icons/*.png
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns
