@@ -19,6 +19,10 @@ The HASM 3D Visualizer represents life experiences and activities in a three-dim
 
 ## 2. Sequence Architecture Chapters
 
+### Implemented Module Mapping
+
+The current implementation separates the visualizer into `src/features/visualizer/layoutFilter.js` for filter state, `src/features/visualizer/threeCommitGraph.js` for Three.js scene ownership and node interaction, and `src/pages/VisualizerPage.jsx` for IPC, progress, watchdog, and routing. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; coordinate policy is intentionally isolated there for later revision.
+
 ### Chapter 1: Initial View Load, State Validation Guards & Async Progress Streaming
 
 Triggered automatically when the user navigates to `/visualizer`. Spawns a background worker thread for layout calculation and emits `visualizer-layout-progress` events.

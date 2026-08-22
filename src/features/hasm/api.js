@@ -76,3 +76,7 @@ export function loadHasmModelDb(path) {
 export function verifyHasmStorage(path, model) {
   return invoke("verify_hasm_storage", { path, model });
 }
+
+export function computeVisualizerLayout(model, filter) {
+  return invoke("compute_visualizer_layout", { model, filter });
+}

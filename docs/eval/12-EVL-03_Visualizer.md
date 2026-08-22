@@ -4,6 +4,8 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Three.js Canvas & Progress State)**, and **Tauri Level (Rust Domain Engine & Worker Thread Layout)**.
 
+Automated React and IPC coverage for this specification runs through `npm run test:eval-03`; Rust layout coverage runs through `cargo test visualizer_commands` from `src-tauri`. The browser geometry smoke test is skipped by default and runs only when `HASM_RUN_VISUALIZER_GEOMETRY=1` is set.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)

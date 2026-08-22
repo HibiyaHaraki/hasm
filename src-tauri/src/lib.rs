@@ -26,6 +26,7 @@ pub fn run() {
             hasm::model_commands::release_workspace_lock,
             hasm::model_commands::load_hasm_model_db,
             hasm::model_commands::verify_hasm_storage,
+            hasm::visualizer_commands::compute_visualizer_layout,
             hasm::commands::open_hasm_model,
             hasm::commands::read_model_database,
             hasm::commands::get_person_detail,
