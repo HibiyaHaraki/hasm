@@ -12,7 +12,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { DEFAULT_COLOR_PATTERN, getThemeVariables } from "./hasm_color_pattern/src/index.js";
 import AppBootGatePage from "./pages/AppBootGatePage";
 import ErrorAppPage from "./pages/ErrorAppPage";
-import EntityDetailPlaceholderPage from "./pages/EntityDetailPlaceholderPage";
+import EntityDetailPage from "./pages/EntityDetailPage";
 import ErrorModelPage from "./pages/ErrorModelPage";
 import LoadingModelPage from "./pages/LoadingModelPage";
 import SelectModelPage from "./pages/SelectModelPage";
@@ -51,7 +51,7 @@ function App() {
           <Route path="/error-app" element={<ErrorAppPage />} />
           <Route path="/error-model" element={<ErrorModelPage />} />
           <Route path="/visualizer" element={<VisualizerPage />} />
-          <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPlaceholderPage />} />
+          <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} />
           <Route path="*" element={<AppBootGatePage />} />
         </Routes>
       </BrowserRouter>
