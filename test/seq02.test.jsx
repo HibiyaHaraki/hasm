@@ -80,6 +80,37 @@ describe("SEQ-02 model loading and storage verification", () => {
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });
 
+  it("TC-02-REACT-001 displays stale-lock recovery while the populated model loads", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: true });
+    api.loadHasmModelDb.mockReturnValue(new Promise(() => {}));
+
+    renderLoading();
+
+    expect(await screen.findByText("Recovered stale lock file from previous process crash.")).toBeInTheDocument();
+  });
+
+  it("TC-02-E2E-004 displays read-only mode for an active workspace lock", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: true, isStaleRecovered: false });
+    api.loadHasmModelDb.mockReturnValue(new Promise(() => {}));
+
+    renderLoading();
+
+    expect(await screen.findByText("Opened in Read-Only Mode")).toBeInTheDocument();
+  });
+
+  it("TC-02-E2E-005 routes missing populated workspace storage to the model error page", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockResolvedValue(fixtureModel);
+    api.verifyHasmStorage.mockRejectedValue(new Error("ERR_MISSING_STORAGE_FOLDER: FACT/fixture/main.md"));
+
+    renderLoading();
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-model");
+  });
+
   it("TC-02-REACT-004 routes a stalled database load to the model error page", async () => {
     vi.useFakeTimers();
     api.subscribeToTauriEvent.mockResolvedValue(() => {});

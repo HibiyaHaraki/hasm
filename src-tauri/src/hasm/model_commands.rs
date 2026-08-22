@@ -224,4 +224,19 @@ mod tests {
         assert_eq!(missing, vec![format!("FACT/{FACT_ID}/main.md")]);
         fs::remove_dir_all(root).unwrap();
     }
+
+    #[test]
+    fn identifies_unreferenced_markdown_folders_in_a_populated_workspace_fixture() {
+        let root = fixture_workspace();
+        let model = service::read_model_database(&root.to_string_lossy()).unwrap();
+        let extra = root.join("PERSON").join("55555555-5555-5555-5555-555555555555");
+        fs::create_dir_all(extra.join("assets")).unwrap();
+        fs::write(extra.join("main.md"), "# Unreferenced\n\nFixture content.").unwrap();
+
+        assert_eq!(
+            find_unreferenced_entity_folders(&root, &expected_markdown_paths(&model)).unwrap(),
+            vec!["PERSON/55555555-5555-5555-5555-555555555555/main.md"]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 }

@@ -4,6 +4,8 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Component & Window Event State)**, and **Tauri Level (Rust Domain Engine & Lock File I/O)**.
 
+Automated React and IPC coverage for this specification runs through `npm run test:eval-02`; the Rust command coverage runs through `cargo test model_commands` from `src-tauri`.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)

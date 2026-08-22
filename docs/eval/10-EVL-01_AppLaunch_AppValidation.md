@@ -3,6 +3,8 @@
 This document defines the comprehensive test matrix, acceptance criteria, and traceability mapping for validating the startup and initialization flow (`SEQ-01` / `REQ-01`).
 Tests are structured across three test levels: **Desktop App Level (E2E / Integration)**, **React Level (Frontend Unit/Component)**, and **Tauri Level (Rust Unit/IPC)**.
 
+Automated React and IPC coverage for this specification runs through `npm run test:eval-01`; the Rust command coverage runs through `cargo test app_commands` from `src-tauri`.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)
@@ -57,5 +59,5 @@ These unit and integration tests verify the Rust backend functions, CLI parsing 
 | **TC-01-RUST-005** | `REQ-01-FUNC-402`<br/>`REQ-01-FUNC-503` | Positive (Normal) | `validate_hasm_folder_path` | 1. Call `validate_hasm_folder_path("C:/existing_temp_dir")`. | 1. Existing directory returns `Ok(())`. |
 | **TC-01-RUST-006** | `REQ-01-FUNC-202` | Negative (Reject / Err) | `validate_hasm_markdown_app` (Missing) | 1. Execute `validate_hasm_markdown_app()` when the target binary is missing. | 1. Returns `Err(AppValidationError)` with code `ERR_MARKDOWN_APP_INVALID`. |
 | **TC-01-RUST-007** | `REQ-01-FUNC-402`<br/>`REQ-01-FUNC-503` | Negative (Reject / Err) | `validate_hasm_folder_path` (Non-existent) | 1. Call `validate_hasm_folder_path("C:/invalid_path_xyz")`. | 1. Non-existent directory returns `Err(AppValidationError)` with `ERR_TARGET_PATH_NOT_FOUND`. |
-| **TC-01-RUST-008** | `REQ-01-FUNC-402` | Negative (Security / Injection) | `validate_hasm_folder_path` (Security) | 1. Pass malformed/null-byte paths (e.g. `C:\path\0bad`). | 1. Function handles invalid string input safely.<br/>2. Returns `Err(AppValidationError)` without panic or unhandled exception. |
+| **TC-01-RUST-008** | `REQ-01-FUNC-402` | Negative (Security / Injection) | `validate_hasm_folder_path` (Security) | 1. Pass a command-like path string (e.g. `C:\valid; rm -rf`). | 1. Function treats input as a literal path.<br/>2. Returns `Err(AppValidationError)` without shell execution or panic. |
 | **TC-01-RUST-009** | `REQ-01-FUNC-207` | Positive / Security | Development Markdown Validation Override | 1. Set `SKIP_MARKDOWN_APP_VALIDATION_IN_DEVELOPMENT` to `true` in Rust source.<br/>2. Repeat in a release build. | 1. Debug build skips Check 1 successfully.<br/>2. Release build ignores the flag and still requires `hasm_markdown.exe`. |

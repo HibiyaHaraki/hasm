@@ -43,11 +43,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: EVAL-01 React tests
-        run: npm run test:seq-md-01
+      - name: EVAL-01 React and IPC tests
+        run: npm run test:eval-01
 
-      - name: EVAL-02 React tests
-        run: npm run test:seq-md-02
+      - name: EVAL-02 React and IPC tests
+        run: npm run test:eval-02
 
       - name: Build frontend
         run: npm run build
