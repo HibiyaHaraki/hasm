@@ -4,6 +4,7 @@
 //! Root module exports for HASM backend domain.
 
 pub mod commands;
+pub mod app_commands;
 pub mod definitions;
 pub mod service;
 pub mod types;

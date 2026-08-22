@@ -81,8 +81,10 @@ Build for production:
 
 ```bash
 npm run build
-npm run tauri build
+npm run tauri:build
 ```
+
+`npm run build` builds the `hasm_markdown` submodule in release mode and stages its output as `src-tauri/binaries/hasm_markdown.exe` before building the frontend. `npm run tauri:build` packages that staged executable with the desktop application.
 
 ## Project structure 📁
 

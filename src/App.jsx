@@ -7,11 +7,28 @@
 // Description : Mounts the HASM model flow experience.
 // ###################################################
 
-import HasmModelFlow from "./features/hasm/HasmModelFlow";
-import "./App.css";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { DEFAULT_COLOR_PATTERN, getThemeVariables } from "./hasm_color_pattern/src/index.js";
+import AppBootGatePage from "./pages/AppBootGatePage";
+import ErrorAppPage from "./pages/ErrorAppPage";
+import LoadingModelPage from "./pages/LoadingModelPage";
+import SelectModelPage from "./pages/SelectModelPage";
+import "./seq01.css";
 
 function App() {
-  return <HasmModelFlow />;
+  return (
+    <div className="seq01-app" style={getThemeVariables(DEFAULT_COLOR_PATTERN)}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<AppBootGatePage />} />
+          <Route path="/select" element={<SelectModelPage />} />
+          <Route path="/loading-model" element={<LoadingModelPage />} />
+          <Route path="/error-app" element={<ErrorAppPage />} />
+          <Route path="*" element={<AppBootGatePage />} />
+        </Routes>
+      </BrowserRouter>
+    </div>
+  );
 }
 
 export default App;

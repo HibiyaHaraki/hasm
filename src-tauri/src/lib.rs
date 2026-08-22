@@ -19,6 +19,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // Step 3. Register frontend-invokable command handlers.
         .invoke_handler(tauri::generate_handler![
+            hasm::app_commands::validate_hasm_markdown_app,
+            hasm::app_commands::validate_app_version,
+            hasm::app_commands::validate_hasm_folder_path,
             hasm::commands::open_hasm_model,
             hasm::commands::read_model_database,
             hasm::commands::get_person_detail,
