@@ -56,7 +56,7 @@ function VisualizerPage() {
           sceneRef.current,
           payload,
           theme,
-          (node) => navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: { path: state.path } }),
+          (node) => navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: { path: state.path, model, isVerified: state?.isVerified !== false } }),
           (node, event) => setRenderState((current) => ({ ...current, tooltip: node ? { ...node, x: event.clientX, y: event.clientY } : null })),
         );
         hasRenderedLayoutRef.current = true;

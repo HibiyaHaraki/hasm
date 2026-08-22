@@ -16,7 +16,8 @@ const model = { people: [{ personId: "person-1" }], experiences: [{ experienceId
 const payload = { nodes3d: [], lines3d: [], warnings: [] };
 
 function LocationProbe() {
-  return <output data-testid="location">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.state?.model ? ":model" : ""}</output>;
 }
 
 function renderVisualizer(state = { model, path: "C:/fixture.hasm", isVerified: true }) {
@@ -78,6 +79,6 @@ describe("SEQ-03 visualizer lifecycle", () => {
   it("TC-04-E2E-001 navigates a visualizer node to its entity ticket", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {}); api.computeVisualizerLayout.mockResolvedValue(payload); renderVisualizer();
     await vi.waitFor(() => expect(selectNode).toHaveBeenCalled()); selectNode.mock.calls.at(-1)[0]({ entityType: "FACT", id: "fact-1" });
-    expect(await screen.findByTestId("location")).toHaveTextContent("/entity-detail/FACT/fact-1");
+    expect(await screen.findByTestId("location")).toHaveTextContent("/entity-detail/FACT/fact-1:model");
   });
 });
