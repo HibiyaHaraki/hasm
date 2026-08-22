@@ -4,23 +4,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import VisualizerPage from "../src/pages/VisualizerPage";
 import * as api from "../src/features/hasm/api";
 
-const { createCommitGraph } = vi.hoisted(() => ({ createCommitGraph: vi.fn(() => () => {}) }));
+const { createCommitGraph, selectNode } = vi.hoisted(() => ({ createCommitGraph: vi.fn(() => () => {}), selectNode: vi.fn() }));
 vi.mock("../src/features/hasm/api", () => ({
   computeVisualizerLayout: vi.fn(),
   createVisualizerDemoWorkspace: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
-vi.mock("../src/features/visualizer/threeCommitGraph", () => ({ createCommitGraph }));
+vi.mock("../src/features/visualizer/threeCommitGraph", () => ({ createCommitGraph: (...args) => { selectNode(args[3]); return createCommitGraph(...args); } }));
 
 const model = { people: [{ personId: "person-1" }], experiences: [{ experienceId: "experience-1" }], facts: [{ factId: "fact-1" }], links: [] };
 const payload = { nodes3d: [], lines3d: [], warnings: [] };
 
 function LocationProbe() {
-  return <output data-testid="location">{useLocation().pathname}</output>;
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.state?.model ? ":model" : ""}</output>;
 }
 
 function renderVisualizer(state = { model, path: "C:/fixture.hasm", isVerified: true }) {
-  return render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state }]}><Routes><Route path="/visualizer" element={<VisualizerPage />} /><Route path="/select" element={<LocationProbe />} /><Route path="/loading-model" element={<LocationProbe />} /><Route path="/error-model" element={<LocationProbe />} /></Routes></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state }]}><Routes><Route path="/visualizer" element={<VisualizerPage />} /><Route path="/entity-detail/:entityType/:entityId" element={<LocationProbe />} /><Route path="/select" element={<LocationProbe />} /><Route path="/loading-model" element={<LocationProbe />} /><Route path="/error-model" element={<LocationProbe />} /></Routes></MemoryRouter>);
 }
 
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
@@ -73,5 +74,11 @@ describe("SEQ-03 visualizer lifecycle", () => {
     cleanup();
     renderVisualizer({ model, path: "C:/fixture.hasm", isVerified: false });
     expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+  });
+
+  it("TC-04-E2E-001 navigates a visualizer node to its entity ticket", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {}); api.computeVisualizerLayout.mockResolvedValue(payload); renderVisualizer();
+    await vi.waitFor(() => expect(selectNode).toHaveBeenCalled()); selectNode.mock.calls.at(-1)[0]({ entityType: "FACT", id: "fact-1" });
+    expect(await screen.findByTestId("location")).toHaveTextContent("/entity-detail/FACT/fact-1:model");
   });
 });

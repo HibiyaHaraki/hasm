@@ -177,8 +177,10 @@ mod tests {
 
 #[tauri::command]
 pub fn create_visualizer_demo_workspace() -> Result<VisualizerDemoPayload, String> {
-    let root = std::env::temp_dir().join("hasm-visualizer-demo");
-    if root.exists() { fs::remove_dir_all(&root).map_err(|error| error.to_string())?; }
+    let root = std::env::temp_dir().join(format!(
+        "hasm-visualizer-demo-{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|error| error.to_string())?.as_nanos()
+    ));
     let person_id = "11111111-1111-1111-1111-111111111111";
     let root_experience_id = "22222222-2222-2222-2222-222222222221";
     let research_experience_id = "22222222-2222-2222-2222-222222222222";

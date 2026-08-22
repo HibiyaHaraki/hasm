@@ -92,6 +92,25 @@ pub struct VisualizerDemoPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EntityDetailPayload {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub name: String,
+    pub markdown_body: String,
+    pub loaded_mtime_ms: u64,
+    pub detail: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckMtimePayload {
+    pub is_modified: bool,
+    pub is_deleted: bool,
+    pub current_mtime_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EntitySummary {
     pub id: String,
     pub title: String,

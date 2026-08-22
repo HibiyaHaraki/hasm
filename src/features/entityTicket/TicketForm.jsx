@@ -1,0 +1,3 @@
+export function TicketForm({ value, onChange, onSave, onCancel, saving }) {
+  return <form className="ticket-form" onSubmit={onSave}><label>Summary<input value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} /></label><div className="ticket-actions"><button type="submit" disabled={saving}>Save</button><button type="button" onClick={onCancel}>Cancel</button></div></form>;
+}

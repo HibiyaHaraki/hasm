@@ -1,3 +1,5 @@
+
+Automated Rust coverage runs through `cargo test entity_editor_commands`; it loads, reloads, detects deletion, and persists metadata for PERSON, EXPERIENCE, FACT, and LINK using a populated workspace package.
 # EVAL-04: Entity MetaData Editing & Saving Test Specification
 
 This document defines the comprehensive test matrix, acceptance criteria, and traceability mapping for validating the Entity MetaData Editing & Saving workflow, single-entity domain validations, SQLite persistence transactions with dynamic/fixed timeouts, window-focus `mtime` and file existence checks, manual Markdown refreshes, missing/deleted file exception routing, and route navigation guards (`SEQ-04` / `REQ-04`).
