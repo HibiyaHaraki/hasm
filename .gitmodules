@@ -10,3 +10,6 @@
 [submodule "src-tauri/hasm_markdown"]
 	path = src-tauri/hasm_markdown
 	url = git@github.com:HibiyaHaraki/hasm_markdown.git
+[submodule "hasm_logo"]
+	path = hasm_logo
+	url = git@github.com:HibiyaHaraki/hasm_logo.git
