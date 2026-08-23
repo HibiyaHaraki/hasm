@@ -60,6 +60,17 @@ function LoadingModelPage() {
         const verification = await verifyHasmStorage(path, model);
         window.clearTimeout(watchdogRef.current);
         if (active) {
+          const totalEntities =
+            (model.people?.length || 0) +
+            (model.experiences?.length || 0) +
+            (model.facts?.length || 0) +
+            (model.links?.length || 0);
+
+          if (totalEntities === 0) {
+            navigate("/initialize-model", { replace: true, state: { path } });
+            return;
+          }
+
           logger.info("[SEQ-MD-02][LOAD] workspace loaded and verified");
           navigate("/visualizer", { replace: true, state: { path, model, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities } });
         }

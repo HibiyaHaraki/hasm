@@ -138,7 +138,7 @@ sequenceDiagram
 
         alt Scaffolding Failed or Timed Out
             FS-->>Rust: I/O or SQLite Init Error
-            Rust->>FS: Rollback: Delete directory {targetDirectoryPath}/
+            Rust->>FS: Rollback: Remove newly created workspace or scaffolded artifacts
             Rust-->>Bridge: Return Err(WorkspaceCreationError)
             Bridge-->>React: Reject Promise
             React->>React: Set Loading State { isCreatingWorkspace: false }
@@ -153,11 +153,18 @@ sequenceDiagram
 
 ```
 
+After workspace creation, if `load_hasm_model_db` returns zero entities (`PERSON+EXPERIENCE+FACT+LINK == 0`), the frontend routes to `/initialize-model` before `/visualizer`. The initialization page collects the minimum required input (`person_name`) and invokes `create_person` with:
+
+- `security_level = 1`
+- `create_life_experience = true`
+
+This guarantees a non-empty model for first visualizer load.
+
 ---
 
 ### Chapter 2: Entity Creation & File Scaffolding (`create_person / experience / fact`)
 
-Triggered when the user clicks **"Create PERSON"**, **"Create EXPERIENCE"**, or **"Create FACT"** in the Visualizer (`/visualizer`) or Global Toolbar. Validates input, writes SQLite records, scaffolds `{ENTITY_TYPE}/{UUID}/main.md`, updates Rust memory, and invalidates verification state (`is_verified = false`).
+Triggered from a **dedicated Entity Creation page** (`/entity-create`) opened by the **"Create New Entity"** button on the Visualizer (`/visualizer`). Each entity type uses a split frontend component so form design can evolve independently. The backend validates input, writes SQLite records, scaffolds `{ENTITY_TYPE}/{UUID}/main.md`, updates Rust memory, and invalidates verification state (`is_verified = false`).
 
 ```mermaid
 sequenceDiagram

@@ -16,6 +16,7 @@ pub fn run() {
     // Step 1. Build Tauri app container.
     tauri::Builder::default()
         // Step 2. Register plugins used by desktop runtime.
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         // Step 3. Register frontend-invokable command handlers.
         .invoke_handler(tauri::generate_handler![
@@ -26,6 +27,11 @@ pub fn run() {
             hasm::model_commands::release_workspace_lock,
             hasm::model_commands::load_hasm_model_db,
             hasm::model_commands::verify_hasm_storage,
+            hasm::entity_creation_commands::create_hasm_workspace,
+            hasm::entity_creation_commands::create_person,
+            hasm::entity_creation_commands::create_experience,
+            hasm::entity_creation_commands::create_fact,
+            hasm::entity_creation_commands::create_link,
             hasm::visualizer_commands::compute_visualizer_layout,
             hasm::visualizer_commands::create_visualizer_demo_workspace,
             hasm::entity_editor_commands::load_entity_detail,

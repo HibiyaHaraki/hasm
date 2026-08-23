@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { createVisualizerDemoWorkspace, validateHasmFolderPath, withTimeout } from "../features/hasm/api";
+import {
+  createHasmWorkspace,
+  createVisualizerDemoWorkspace,
+  pickWorkspaceDirectory,
+  validateHasmFolderPath,
+  withTimeout,
+} from "../features/hasm/api";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
 
 const logger = createLogger("select-model");
@@ -10,6 +16,7 @@ function SelectModelPage() {
   const location = useLocation();
   const [inputPath, setInputPath] = useState("");
   const [validation, setValidation] = useState({ status: "idle", message: location.state?.validationError || "" });
+  const [workspaceCreateLoading, setWorkspaceCreateLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const submittingRef = useRef(false);
 
@@ -64,6 +71,33 @@ function SelectModelPage() {
     }
   }
 
+  async function createNewWorkspace() {
+    if (workspaceCreateLoading) return;
+    setWorkspaceCreateLoading(true);
+    try {
+      const selectedPath = await pickWorkspaceDirectory("NewLife.hasm");
+      if (!selectedPath) {
+        setValidation({ status: "idle", message: "" });
+        return;
+      }
+      const created = await withTimeout(
+        createHasmWorkspace(selectedPath),
+        3000,
+        "Workspace scaffolding timed out.",
+      );
+      logger.info("[SEQ-MD-08][WORKSPACE] workspace created from select page", created.path);
+      navigate("/loading-model", { state: { path: created.path } });
+    } catch (error) {
+      logger.error("[SEQ-MD-08][WORKSPACE] failed to create workspace", error);
+      setValidation({
+        status: "invalid",
+        message: error?.message || "Failed to scaffold new workspace.",
+      });
+    } finally {
+      setWorkspaceCreateLoading(false);
+    }
+  }
+
   return (
     <main className="selection-layout">
       <section className="selection-panel">
@@ -79,6 +113,14 @@ function SelectModelPage() {
           <p className="validation-message" role="status" data-status={validation.status}>{validation.message}</p>
         </form>
         <button type="button" className="demo-visualizer-button" onClick={openVisualizerDemo} disabled={demoLoading}>{demoLoading ? "Creating test graph..." : "Test 3D commit graph"}</button>
+        <button
+          type="button"
+          className="demo-visualizer-button"
+          onClick={createNewWorkspace}
+          disabled={workspaceCreateLoading}
+        >
+          {workspaceCreateLoading ? "Creating workspace..." : "Create New HASM"}
+        </button>
       </section>
     </main>
   );

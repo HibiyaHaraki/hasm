@@ -38,4 +38,14 @@ impl Link {
             format!("{} relation", self.link_type)
         }
     }
+
+    pub fn verify(&self) -> Result<(), String> {
+        if self.link_type.trim().is_empty() {
+            return Err("EntityValidationError::EmptyLinkType".to_string());
+        }
+        if self.related_ids.len() >= 2 && self.related_ids[0] == self.related_ids[1] {
+            return Err("EntityValidationError::SelfLoopLink".to_string());
+        }
+        Ok(())
+    }
 }

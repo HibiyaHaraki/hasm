@@ -39,4 +39,14 @@ impl Person {
             format!("{} {}", self.birthday.trim(), self.die.trim()).trim().to_string()
         }
     }
+
+    pub fn verify(&self, security_level: i32) -> Result<(), String> {
+        if self.person_name.trim().is_empty() {
+            return Err("EntityValidationError::EmptyName".to_string());
+        }
+        if !(0..=5).contains(&security_level) {
+            return Err("EntityValidationError::InvalidSecurityLevel".to_string());
+        }
+        Ok(())
+    }
 }

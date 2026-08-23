@@ -7,7 +7,13 @@ import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
   checkWorkspaceLock: vi.fn(),
+  createHasmWorkspace: vi.fn(),
+  createPerson: vi.fn(),
+  createExperience: vi.fn(),
+  createFact: vi.fn(),
+  createLink: vi.fn(),
   loadHasmModelDb: vi.fn(),
+  pickWorkspaceDirectory: vi.fn(),
   releaseWorkspaceLock: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
   verifyHasmStorage: vi.fn(),
@@ -36,6 +42,7 @@ function renderLoading(path = "C:/fixture.hasm") {
       <Routes>
         <Route path="/loading-model" element={<LoadingModelPage />} />
         <Route path="/visualizer" element={<LocationProbe />} />
+        <Route path="/initialize-model" element={<LocationProbe />} />
         <Route path="/error-model" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -110,6 +117,17 @@ describe("SEQ-02 model loading and storage verification", () => {
     renderLoading();
 
     expect(await screen.findByTestId("location")).toHaveTextContent("/error-model");
+  });
+
+  it("TC-08-E2E-INIT-001 routes an empty new model to initialization before visualizer", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockResolvedValue({ people: [], experiences: [], facts: [], links: [] });
+    api.verifyHasmStorage.mockResolvedValue({ missingEntities: [], unreferencedEntities: [] });
+
+    renderLoading();
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/initialize-model");
   });
 
   it("TC-02-REACT-004 routes a stalled database load to the model error page", async () => {

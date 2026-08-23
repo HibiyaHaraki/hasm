@@ -35,4 +35,14 @@ impl Experience {
     pub fn subtitle(&self) -> String {
         format!("Owner {}", self.person_id)
     }
+
+    pub fn verify(&self, security_level: i32) -> Result<(), String> {
+        if self.experience_name.trim().is_empty() {
+            return Err("EntityValidationError::EmptyName".to_string());
+        }
+        if !(0..=5).contains(&security_level) {
+            return Err("EntityValidationError::InvalidSecurityLevel".to_string());
+        }
+        Ok(())
+    }
 }

@@ -7,7 +7,7 @@
 * **`REQ-08-001` (Native Save Directory Picker):** The application shall open an OS native save directory dialog when initiating a new HASM model creation from `/select`, allowing the user to choose an absolute destination directory (e.g., `/path/to/MyLife.hasm`).
 * **`REQ-08-002` (Atomic Workspace Scaffolding):**
 * Invoking `create_hasm_workspace` shall atomically generate the base `.hasm` directory, required entity subdirectories (`PERSON/`, `EXPERIENCE/`, `FACT/`, `LINK/`), initialize `hasm.db` with SQLite schemas/junction tables, and write the `.hasm/lock` process tracking file.
-* If scaffolding fails or times out, the backend shall roll back by deleting the partially generated directory and return `ERR_WORKSPACE_CREATION_FAILED`.
+* If scaffolding fails or times out, the backend shall roll back by removing newly generated workspace content/artifacts and return `ERR_WORKSPACE_CREATION_FAILED`.
 
 
 
@@ -25,6 +25,8 @@
 * **`REQ-08-013` (Interactive LINK Graph Binding & Invariant Guards):**
 * `create_link` shall validate that `link_type` is non-empty and reject creation if `origin_entity_id == target_entity_id` (self-loop forbidden).
 * It shall verify that both source and target entities physically exist in `HasmModel` memory before executing SQLite insertions into `LINK`.
+* **`REQ-08-014` (Dedicated Entity Creation Route):** The Visualizer page shall provide a "Create New Entity" action that navigates to a dedicated `/entity-create` route. Frontend forms for PERSON / EXPERIENCE / FACT / LINK shall be split by component so each entity creation design can evolve independently.
+* **`REQ-08-015` (Minimum Bootstrap Before First Visualizer Load):** When a newly created workspace contains zero entities, the frontend shall route to `/initialize-model` and collect only minimum required input (`person_name`). The app shall call `create_person` with fixed bootstrap defaults (`security_level=1`, `create_life_experience=true`) before navigating to `/visualizer`.
 
 
 
