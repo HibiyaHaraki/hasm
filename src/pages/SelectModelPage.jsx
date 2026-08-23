@@ -14,6 +14,7 @@ const logger = createLogger("select-model");
 function SelectModelPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectReason = location.state?.redirectReason || "";
   const [inputPath, setInputPath] = useState("");
   const [validation, setValidation] = useState({ status: "idle", message: location.state?.validationError || "" });
   const [workspaceCreateLoading, setWorkspaceCreateLoading] = useState(false);
@@ -21,9 +22,22 @@ function SelectModelPage() {
   const submittingRef = useRef(false);
 
   useEffect(() => {
+    if (!redirectReason) {
+      return;
+    }
+    setValidation({ status: "invalid", message: redirectReason });
+    navigate("/select", { replace: true, state: {} });
+  }, [navigate, redirectReason]);
+
+  useEffect(() => {
     const path = inputPath.trim();
     if (!path) {
-      setValidation({ status: "idle", message: "" });
+      setValidation((current) => {
+        if (current.status === "invalid" && current.message) {
+          return current;
+        }
+        return { status: "idle", message: "" };
+      });
       return undefined;
     }
 

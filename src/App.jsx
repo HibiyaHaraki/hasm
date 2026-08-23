@@ -7,8 +7,11 @@
 // Description : Mounts the HASM model flow experience.
 // ###################################################
 
-import { useEffect } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import GlobalNavbar from "./features/navigation/GlobalNavbar";
+import ProtectedRoute from "./features/navigation/ProtectedRoute";
+import { ThemeProvider } from "./features/theme/ThemeContext";
 import { DEFAULT_COLOR_PATTERN, getThemeVariables } from "./hasm_color_pattern/src/index.js";
 import AppBootGatePage from "./pages/AppBootGatePage";
 import EntityCreatePage from "./pages/EntityCreatePage";
@@ -42,22 +45,54 @@ function CloseLockListener() {
 }
 
 function App() {
+  const [activePatternId, setActivePatternId] = useState(DEFAULT_COLOR_PATTERN);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("hasm-theme-pattern");
+    if (saved) {
+      setActivePatternId(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("hasm-theme-pattern", activePatternId);
+  }, [activePatternId]);
+
+  const themeStyle = useMemo(() => getThemeVariables(activePatternId), [activePatternId]);
+
   return (
-    <div className="seq01-app" style={getThemeVariables(DEFAULT_COLOR_PATTERN)}>
+    <div className="seq01-app" style={themeStyle}>
       <BrowserRouter>
-        <CloseLockListener />
-        <Routes>
-          <Route path="/" element={<AppBootGatePage />} />
-          <Route path="/select" element={<SelectModelPage />} />
-          <Route path="/loading-model" element={<LoadingModelPage />} />
-          <Route path="/initialize-model" element={<ModelInitializationPage />} />
-          <Route path="/error-app" element={<ErrorAppPage />} />
-          <Route path="/error-model" element={<ErrorModelPage />} />
-          <Route path="/visualizer" element={<VisualizerPage />} />
-          <Route path="/entity-create" element={<EntityCreatePage />} />
-          <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} />
-          <Route path="*" element={<AppBootGatePage />} />
-        </Routes>
+        <ThemeProvider value={{ activePatternId, setActivePatternId }}>
+          <CloseLockListener />
+          <GlobalNavbar />
+          <Routes>
+            <Route path="/" element={<AppBootGatePage />} />
+            <Route path="/select" element={<SelectModelPage />} />
+            <Route path="/loading-model" element={<LoadingModelPage />} />
+            <Route path="/initialize-model" element={<ModelInitializationPage />} />
+            <Route path="/error-app" element={<ErrorAppPage />} />
+            <Route path="/error-model" element={<ErrorModelPage />} />
+            <Route element={<ProtectedRoute requireVerified={true} />}>
+              <Route path="/visualizer" element={<VisualizerPage />} />
+              <Route path="/entity-create" element={<EntityCreatePage />} />
+              <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} />
+            </Route>
+            <Route
+              path="*"
+              element={(
+                <Navigate
+                  to="/select"
+                  replace
+                  state={{
+                    redirectReason: "指定されたページが存在しません。",
+                    redirectType: "warning",
+                  }}
+                />
+              )}
+            />
+          </Routes>
+        </ThemeProvider>
       </BrowserRouter>
     </div>
   );

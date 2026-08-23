@@ -15,6 +15,7 @@ vi.mock("../src/features/hasm/api", () => ({
   loadHasmModelDb: vi.fn(),
   pickWorkspaceDirectory: vi.fn(),
   releaseWorkspaceLock: vi.fn(),
+  switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
   verifyHasmStorage: vi.fn(),
   validateAppVersion: vi.fn(),

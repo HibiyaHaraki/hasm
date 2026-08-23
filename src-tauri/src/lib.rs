@@ -25,6 +25,7 @@ pub fn run() {
             hasm::app_commands::validate_hasm_folder_path,
             hasm::model_commands::check_workspace_lock,
             hasm::model_commands::release_workspace_lock,
+            hasm::model_commands::switch_workspace_cleanly,
             hasm::model_commands::load_hasm_model_db,
             hasm::model_commands::verify_hasm_storage,
             hasm::entity_creation_commands::create_hasm_workspace,

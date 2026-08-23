@@ -13,6 +13,7 @@ vi.mock("../src/features/hasm/api", () => ({
   createFact: vi.fn(),
   createLink: vi.fn(),
   loadHasmModelDb: vi.fn(),
+  switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
 vi.mock("../src/features/visualizer/threeCommitGraph", () => ({
