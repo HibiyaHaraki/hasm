@@ -22,6 +22,15 @@ export function validateHasmFolderPath(path) {
   return invoke("validate_hasm_folder_path", { path });
 }
 
+export async function pickWorkspaceDirectory(defaultPath = "NewLife.hasm") {
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  return save({ defaultPath });
+}
+
+export function createHasmWorkspace(targetDirectoryPath) {
+  return invoke("create_hasm_workspace", { targetDirectoryPath });
+}
+
 export function withTimeout(promise, timeoutMs, message) {
   let timeoutId;
   const timeout = new Promise((_, reject) => {
@@ -83,6 +92,22 @@ export function computeVisualizerLayout(model, filter) {
 
 export function createVisualizerDemoWorkspace() {
   return invoke("create_visualizer_demo_workspace");
+}
+
+export function createPerson(path, payload) {
+  return invoke("create_person", { path, payload });
+}
+
+export function createExperience(path, payload) {
+  return invoke("create_experience", { path, payload });
+}
+
+export function createFact(path, payload) {
+  return invoke("create_fact", { path, payload });
+}
+
+export function createLink(path, payload) {
+  return invoke("create_link", { path, payload });
 }
 
 export function loadEntityDetail(modelRoot, entityType, entityId) { return invoke("load_entity_detail", { modelRoot, entityType, entityId }); }

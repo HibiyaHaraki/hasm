@@ -8,6 +8,11 @@ const { createCommitGraph, selectNode } = vi.hoisted(() => ({ createCommitGraph:
 vi.mock("../src/features/hasm/api", () => ({
   computeVisualizerLayout: vi.fn(),
   createVisualizerDemoWorkspace: vi.fn(),
+  createPerson: vi.fn(),
+  createExperience: vi.fn(),
+  createFact: vi.fn(),
+  createLink: vi.fn(),
+  loadHasmModelDb: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
 vi.mock("../src/features/visualizer/threeCommitGraph", () => ({ createCommitGraph: (...args) => { selectNode(args[3]); return createCommitGraph(...args); } }));

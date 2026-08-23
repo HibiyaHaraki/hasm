@@ -11,6 +11,8 @@ import { useEffect } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { DEFAULT_COLOR_PATTERN, getThemeVariables } from "./hasm_color_pattern/src/index.js";
 import AppBootGatePage from "./pages/AppBootGatePage";
+import EntityCreatePage from "./pages/EntityCreatePage";
+import ModelInitializationPage from "./pages/ModelInitializationPage";
 import ErrorAppPage from "./pages/ErrorAppPage";
 import EntityDetailPage from "./pages/EntityDetailPage";
 import ErrorModelPage from "./pages/ErrorModelPage";
@@ -48,9 +50,11 @@ function App() {
           <Route path="/" element={<AppBootGatePage />} />
           <Route path="/select" element={<SelectModelPage />} />
           <Route path="/loading-model" element={<LoadingModelPage />} />
+          <Route path="/initialize-model" element={<ModelInitializationPage />} />
           <Route path="/error-app" element={<ErrorAppPage />} />
           <Route path="/error-model" element={<ErrorModelPage />} />
           <Route path="/visualizer" element={<VisualizerPage />} />
+          <Route path="/entity-create" element={<EntityCreatePage />} />
           <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} />
           <Route path="*" element={<AppBootGatePage />} />
         </Routes>

@@ -23,6 +23,16 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .validation-message[data-status="checking"] { color: var(--theme-muted); }
 .error-panel { border-color: var(--theme-danger); }
 .demo-visualizer-button { margin-top: 8px; border-color: var(--theme-secondary); color: var(--theme-text); background: transparent; }
+.entity-create-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.entity-create-panel { width: min(760px, 100%); padding: clamp(24px, 5vw, 48px); border: 1px solid var(--theme-border); background: var(--theme-soft); box-shadow: 14px 14px 0 color-mix(in srgb, var(--theme-primary) 14%, transparent); }
+.entity-type-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+.entity-type-chip { border: 1px solid var(--theme-border); background: transparent; color: var(--theme-text); }
+.entity-type-chip.active { border-color: var(--theme-primary); background: var(--theme-primary); color: var(--theme-textbackground); }
+.entity-create-form { display: grid; gap: 12px; }
+.entity-create-form label { margin: 0; display: grid; gap: 6px; }
+.entity-create-form select { border: 1px solid var(--theme-border); padding: 10px; color: var(--theme-input-text); background: var(--theme-input-bg); }
+.entity-create-checkbox { display: flex !important; align-items: center; gap: 8px; }
+.entity-create-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .model-progress { width: 100%; height: 10px; accent-color: var(--theme-primary); }
 .model-notice { padding: 10px; border-left: 3px solid var(--theme-secondary); color: var(--theme-muted); }
 .visualizer-page { min-height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 18px; gap: 14px; }

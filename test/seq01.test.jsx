@@ -6,11 +6,19 @@ import SelectModelPage from "../src/pages/SelectModelPage";
 import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
+  createHasmWorkspace: vi.fn(),
+  createPerson: vi.fn(),
+  createExperience: vi.fn(),
+  createFact: vi.fn(),
+  createLink: vi.fn(),
+  loadHasmModelDb: vi.fn(),
+  pickWorkspaceDirectory: vi.fn(),
   validateHasmMarkdownApp: vi.fn(),
   validateAppVersion: vi.fn(),
   createVisualizerDemoWorkspace: vi.fn(),
   validateHasmFolderPath: vi.fn(),
   withTimeout: vi.fn((promise) => promise),
+  subscribeToTauriEvent: vi.fn(),
 }));
 
 function LocationProbe() {
@@ -156,5 +164,16 @@ describe("SEQ-01 app launch validation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Test 3D commit graph" }));
     expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
     expect(api.createVisualizerDemoWorkspace).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-08-E2E-001 creates a workspace and routes to loading-model", async () => {
+    api.pickWorkspaceDirectory.mockResolvedValue("C:/NewLife.hasm");
+    api.createHasmWorkspace.mockResolvedValue({ path: "C:/NewLife.hasm" });
+    renderSelect();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create New HASM" }));
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+    expect(api.createHasmWorkspace).toHaveBeenCalledWith("C:/NewLife.hasm");
   });
 });

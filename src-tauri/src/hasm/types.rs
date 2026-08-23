@@ -6,6 +6,7 @@
 use crate::hasm::definitions::{Experience, Fact, Link, Person};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -145,4 +146,60 @@ pub struct ModelDatabase {
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {
     pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacePathPayload {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePersonRequest {
+    pub person_name: String,
+    pub person_description: String,
+    pub security_level: i32,
+    pub create_life_experience: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateExperienceRequest {
+    pub experience_name: String,
+    pub experience_description: String,
+    pub security_level: i32,
+    pub parent_experience_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateFactRequest {
+    pub fact_name: String,
+    pub fact_description: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub security_level: i32,
+    pub experience_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateLinkRequest {
+    pub link_type: String,
+    pub link_description: String,
+    pub origin_entity_type: String,
+    pub origin_entity_id: Uuid,
+    pub target_entity_type: String,
+    pub target_entity_id: Uuid,
+    pub security_level: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct EntityCreationPayload {
+    pub entity_type: String,
+    pub entity_id: Uuid,
+    pub target_dir_path: String,
+    pub created_at_ms: u64,
 }
