@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { computeVisualizerLayout, subscribeToTauriEvent } from "../features/hasm/api";
+import { useTheme } from "../features/theme/ThemeContext";
 import { DEFAULT_LAYOUT_FILTER, nextLayoutFilter, TIME_SCALE_MODES } from "../features/visualizer/layoutFilter";
 import { createCommitGraph } from "../features/visualizer/threeCommitGraph";
-import { DEFAULT_COLOR_PATTERN, getPatternById } from "../hasm_color_pattern/src/index.js";
+import { getPatternById } from "../hasm_color_pattern/src/index.js";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
 
 const WATCHDOG_MS = 10000;
@@ -13,6 +14,7 @@ function VisualizerPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const model = state?.model;
+  const { activePatternId } = useTheme();
   const sceneRef = useRef(null);
   const disposeSceneRef = useRef(() => {});
   const watchdogRef = useRef();
@@ -51,7 +53,7 @@ function VisualizerPage() {
         window.clearTimeout(watchdogRef.current);
         if (!active || !sceneRef.current) return;
         disposeSceneRef.current();
-        const theme = getPatternById(DEFAULT_COLOR_PATTERN).colors;
+        const theme = getPatternById(activePatternId).colors;
         disposeSceneRef.current = createCommitGraph(
           sceneRef.current,
           payload,
@@ -73,7 +75,7 @@ function VisualizerPage() {
       setRenderState((current) => ({ ...current, progress: progress.percentage, message: progress.message }));
     }).then((listener) => { unlisten = listener; renderLayout(hasRenderedLayoutRef.current); }).catch((error) => fail(error, false));
     return () => { active = false; window.clearTimeout(watchdogRef.current); unlisten(); disposeSceneRef.current(); };
-  }, [filter, model, navigate, state?.isVerified, state?.path]);
+  }, [activePatternId, filter, model, navigate, state?.isVerified, state?.path]);
 
   return <main className="visualizer-page"><header className="visualizer-toolbar"><div><p className="sequence-label">HASM / SEQ-03</p><h1>Commit graph</h1></div><label>Time scale<select value={filter.timeScaleMode} onChange={(event) => setFilter(nextLayoutFilter(filter, "timeScaleMode", event.target.value))}>{TIME_SCALE_MODES.map((mode) => <option key={mode}>{mode}</option>)}</select></label><label>Z scale<input type="range" min="0.5" max="2" step="0.5" value={filter.zScaleFactor} onChange={(event) => setFilter(nextLayoutFilter(filter, "zScaleFactor", event.target.value))} /></label><button type="button" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>Create New Entity</button></header><section className="graph-stage" aria-label="HASM 3D commit graph"><div className="graph-canvas" ref={sceneRef} />{renderState.loading ? <div className="graph-progress"><p>{renderState.message}</p><progress value={renderState.progress} max="100">{renderState.progress}%</progress></div> : null}{renderState.warning ? <p className="graph-warning">{renderState.warning}</p> : null}{renderState.notice ? <p className="graph-notice">{renderState.notice}</p> : null}{renderState.tooltip ? <div className="graph-tooltip" style={{ left: renderState.tooltip.x, top: renderState.tooltip.y }}>{renderState.tooltip.entityType}: {renderState.tooltip.label}</div> : null}</section></main>;
 }

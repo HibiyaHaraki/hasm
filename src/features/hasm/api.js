@@ -78,6 +78,10 @@ export function releaseWorkspaceLock(path) {
   return invoke("release_workspace_lock", { path });
 }
 
+export function switchWorkspaceCleanly(currentModelPath, isReadOnly = false) {
+  return invoke("switch_workspace_cleanly", { currentModelPath, isReadOnly });
+}
+
 export function loadHasmModelDb(path) {
   return invoke("load_hasm_model_db", { path });
 }

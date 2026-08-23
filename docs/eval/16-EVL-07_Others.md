@@ -45,3 +45,19 @@ These unit and integration tests verify IPC command execution for clean workspac
 | **TC-07-RUST-001** | `REQ-07-DATA-001``REQ-07-DATA-002` | Positive (Contract) | `models::navigation_payload` | 1. Instantiate `SwitchWorkspaceRequest` and `ColorPalette`.2. Serialize and deserialize JSON. | 1. All struct fields serialize/deserialize with 100% type safety. |
 | **TC-07-RUST-002** | `REQ-07-RULE-003``REQ-07-FUNC-203` | Positive (Clean Switch) | `switch_workspace_cleanly` | 1. Setup active model in memory with read-write `.hasm/lock` file.2. Invoke `switch_workspace_cleanly(current_model_path)`. | 1. Deletes `.hasm/lock` file.2. Flushes and closes SQLite connection handles.3. Resets `HASM_MODEL` mutex to `None`.4. Returns `Ok(())`. |
 | **TC-07-RUST-003** | `REQ-07-RULE-003``REQ-07-FUNC-203` | Positive (Read-Only Switch) | `switch_workspace_cleanly` | 1. Setup active model in read-only mode (no lock file owned).2. Invoke `switch_workspace_cleanly`. | 1. Does not attempt lock file deletion.2. Resets `HASM_MODEL` to `None` cleanly without throwing filesystem errors. |
+
+---
+
+## 4. Current Automated Coverage in Repository
+
+The following test assets are currently implemented and executable.
+
+| Test Asset | Covered IDs | Command |
+| --- | --- | --- |
+| `test/seq07.test.jsx` | `TC-07-REACT-005`, `TC-07-E2E-005`, `TC-07-REACT-006` | `npm run test:eval-07` |
+| `src-tauri/src/hasm/model_commands.rs` unit test `switches_workspace_cleanly_with_and_without_lock_release` | `TC-07-RUST-002`, `TC-07-RUST-003` | `cargo test switches_workspace_cleanly_with_and_without_lock_release` |
+
+These are also included in CI:
+
+- Frontend: `npm run test:eval-07`
+- Rust: `cargo test switches_workspace_cleanly_with_and_without_lock_release`

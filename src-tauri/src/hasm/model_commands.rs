@@ -55,6 +55,15 @@ pub fn release_workspace_lock(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) -> Result<(), String> {
+    if !is_read_only {
+        release_workspace_lock(current_model_path)?;
+    }
+    info!("[SEQ-MD-07][SWITCH] workspace switched cleanly");
+    Ok(())
+}
+
+#[tauri::command]
 pub fn load_hasm_model_db(app: AppHandle, path: String) -> Result<ModelDatabase, String> {
     emit_progress(&app, "DB_LOAD", 0, 4, "Opening workspace database")?;
     let model = service::read_model_database(&path)?;
@@ -185,6 +194,26 @@ mod tests {
         fs::write(root.join(LOCK_DIRECTORY).join(LOCK_FILENAME), "999999").unwrap();
         assert!(check_workspace_lock(root_string.clone()).unwrap().is_stale_recovered);
         release_workspace_lock(root_string).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn switches_workspace_cleanly_with_and_without_lock_release() {
+        let root = fixture_workspace();
+        let root_string = root.to_string_lossy().to_string();
+
+        check_workspace_lock(root_string.clone()).unwrap();
+        let lock_path = root.join(LOCK_DIRECTORY).join(LOCK_FILENAME);
+        assert!(lock_path.is_file());
+
+        switch_workspace_cleanly(root_string.clone(), false).unwrap();
+        assert!(!lock_path.exists());
+
+        check_workspace_lock(root_string.clone()).unwrap();
+        assert!(lock_path.exists());
+        switch_workspace_cleanly(root_string.clone(), true).unwrap();
+        assert!(lock_path.exists());
+
         fs::remove_dir_all(root).unwrap();
     }
 

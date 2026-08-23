@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import EntityDetailPage from "../src/pages/EntityDetailPage";
 
-const api = vi.hoisted(() => ({ loadEntityDetail: vi.fn(), checkEntityMtime: vi.fn(), reloadEntityMarkdown: vi.fn(), saveEntityDetail: vi.fn(), launchExternalMarkdownApp: vi.fn() }));
+const api = vi.hoisted(() => ({ loadEntityDetail: vi.fn(), checkEntityMtime: vi.fn(), reloadEntityMarkdown: vi.fn(), saveEntityDetail: vi.fn(), launchExternalMarkdownApp: vi.fn(), switchWorkspaceCleanly: vi.fn() }));
 vi.mock("../src/features/hasm/api", () => api);
 const detail = { name: "Original", markdownBody: "# Detail", loadedMtimeMs: 10, detail: { factName: "Original" } };
 function renderTicket() { return render(<MemoryRouter initialEntries={[{ pathname: "/entity-detail/FACT/id-1", state: { path: "C:/demo", model: {}, isVerified: true } }]}><Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /></Routes></MemoryRouter>); }
