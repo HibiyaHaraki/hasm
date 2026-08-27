@@ -32,19 +32,19 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
     let mut lines = Vec::new();
     let branch_positions = calculate_branch_positions(model);
     let mut experience_fact_zs: HashMap<_, Vec<f32>> = HashMap::new();
+    let person_name_by_id: HashMap<_, _> = model.people.iter().map(|person| (person.person_id, person.person_name.clone())).collect();
 
     for experience in &model.experiences {
         let [x, y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
-        nodes.push(Node3dGeometry { id: experience.experience_id.to_string(), entity_type: "EXPERIENCE".to_string(), label: experience.experience_name.clone(), x, y, z: 0.0 });
+        let person_name = person_name_by_id.get(&experience.person_id).cloned();
+        nodes.push(Node3dGeometry { id: experience.experience_id.to_string(), entity_type: "EXPERIENCE".to_string(), label: experience.experience_name.clone(), x, y, z: 0.0, person_name });
     }
 
     let mut facts = model.facts.iter().collect::<Vec<_>>();
     facts.sort_by(|left, right| left.occurred_at.cmp(&right.occurred_at).then_with(|| left.fact_id.cmp(&right.fact_id)));
     let earliest_time = facts.first().and_then(|fact| time_key(&fact.occurred_at)).unwrap_or(0);
-    let mut maximum_z = z_step;
     for (index, fact) in facts.iter().enumerate() {
         let z = fact_z(&filter.time_scale_mode, index, time_key(&fact.occurred_at).unwrap_or(earliest_time), earliest_time, z_step);
-        maximum_z = maximum_z.max(z);
         let mut reflected_experiences = HashSet::new();
         for experience_id in &fact.experience_ids {
             collect_experience_and_ancestors(*experience_id, model, &mut reflected_experiences);
@@ -52,7 +52,7 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
         for experience_id in reflected_experiences {
             if let Some([x, y]) = branch_positions.get(&experience_id).copied() {
                 experience_fact_zs.entry(experience_id).or_default().push(z);
-                nodes.push(Node3dGeometry { id: fact.fact_id.to_string(), entity_type: "FACT".to_string(), label: fact.fact_name.clone(), x, y, z });
+                nodes.push(Node3dGeometry { id: fact.fact_id.to_string(), entity_type: "FACT".to_string(), label: fact.fact_name.clone(), x, y, z, person_name: None });
             }
         }
     }
@@ -72,20 +72,6 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
                 let merge_control = midpoint_control([x, y, last_fact_z], [*parent_x, *parent_y, last_fact_z]);
                 lines.push(Line3dGeometry { id: format!("merge-{}-{parent_id}", experience.experience_id), line_type: "BRANCH_MERGE".to_string(), from: [x, y, last_fact_z], to: [*parent_x, *parent_y, last_fact_z], control_points: Some(vec![merge_control]) });
             }
-        }
-    }
-
-    for (index, person) in model.people.iter().enumerate() {
-        let x = -6.0;
-        let y = index as f32 * 4.0;
-        nodes.push(Node3dGeometry { id: person.person_id.to_string(), entity_type: "PERSON".to_string(), label: person.person_name.clone(), x, y, z: 0.0 });
-        lines.push(Line3dGeometry { id: format!("life-{}", person.person_id), line_type: "PERSON_LIFELINE".to_string(), from: [x, y, 0.0], to: [x, y, maximum_z + z_step], control_points: None });
-        for experience in model.experiences.iter().filter(|experience| experience.person_id == person.person_id) {
-            let [experience_x, experience_y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
-            let Some(branch_z) = experience_fact_zs.get(&experience.experience_id).and_then(|values| values.iter().copied().reduce(f32::min)) else {
-                continue;
-            };
-            lines.push(Line3dGeometry { id: format!("life-{}-{}", person.person_id, experience.experience_id), line_type: "PERSON_EXPERIENCE_BRANCH".to_string(), from: [x, y, branch_z], to: [experience_x, experience_y, branch_z], control_points: Some(vec![midpoint_control([x, y, branch_z], [experience_x, experience_y, branch_z])]) });
         }
     }
 
@@ -299,6 +285,23 @@ mod tests {
         assert!(PathBuf::from(&demo.path).join("hasm.db").is_file());
         assert!(PathBuf::from(&demo.path).join("FACT/33333333-3333-3333-3333-333333333335/main.md").is_file());
         fs::remove_dir_all(demo.path).unwrap();
+    }
+
+    #[test]
+    fn attaches_owning_person_name_to_experience_nodes_and_skips_person_lines() {
+        let person_id = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+        let experience_id = Uuid::parse_str("22222222-2222-2222-2222-222222222225").unwrap();
+        let model = ModelDatabase {
+            people: vec![crate::hasm::definitions::Person { person_id, person_name: "Ada".to_string(), person_description_path: String::new(), birthday: String::new(), die: String::new(), link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            experiences: vec![crate::hasm::definitions::Experience { experience_id, person_id, experience_name: "Life stream".to_string(), experience_description_path: String::new(), parent_experience_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            facts: vec![],
+            links: vec![],
+        };
+        let payload = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        let experience_node = payload.nodes_3d.iter().find(|node| node.id == experience_id.to_string()).unwrap();
+        assert_eq!(experience_node.person_name.as_deref(), Some("Ada"));
+        assert!(!payload.nodes_3d.iter().any(|node| node.entity_type == "PERSON"));
+        assert!(!payload.lines_3d.iter().any(|line| line.line_type == "PERSON_LIFELINE" || line.line_type == "PERSON_EXPERIENCE_BRANCH"));
     }
 
     fn experience(experience_id: Uuid, name: &str, parent_experience_ids: Vec<Uuid>) -> crate::hasm::definitions::Experience {

@@ -65,6 +65,8 @@ pub struct Node3dGeometry {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub person_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
