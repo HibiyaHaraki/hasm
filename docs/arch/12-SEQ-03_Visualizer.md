@@ -8,7 +8,8 @@ This document details the visual concept, 3D space mapping logic, state validati
 
 The HASM 3D Visualizer represents life experiences and activities in a three-dimensional space by leveraging a **Git Branch & Commit metaphor**:
 
-* **EXPERIENCE (Git Branches):** Each `EXPERIENCE` entity is rendered as a continuous parallel line fixed on the **XY plane** and extending along the **Z-axis**.
+* **PERSON (Life Lines):** Each `PERSON` entity is rendered as one straight, Z-parallel life line without a separate node mesh. Hovering or clicking the line identifies the PERSON. A smooth curve branches from this line to each EXPERIENCE owned by that person.
+* **EXPERIENCE (Git Branches):** Each `EXPERIENCE` entity is rendered as a continuous parallel line fixed on the **XY plane** and extending along the **Z-axis**, without a separate node mesh. Hovering or clicking the line identifies the EXPERIENCE.
 * **FACT (Git Commits):** Each `FACT` entity is rendered as a 3D node (commit point) stationed directly on its parent `EXPERIENCE` branch at a specific Z-coordinate calculated from its time metadata.
 * **LINK (Relationships):** Relationships between FACTs or other entities are rendered as thin 3D splines or connecting lines spanning through the 3D space.
 * **Creation Toolbar:** Persistent 3D control bar providing direct access to **`Create PERSON`**, **`Create EXPERIENCE`**, **`Create FACT`**, and **`Create LINK`** modals.
@@ -19,8 +20,9 @@ The current coordinate policy is intentionally isolated in `src-tauri/src/hasm/v
 
 1. **Z-axis is time:** FACTs are globally sorted by persisted `FACT.occurred_at` (ISO8601). Earlier dates receive lower Z coordinates.
 2. **Time scale:** `Linear` scales the calendar delta from the earliest FACT, `Logarithmic` applies $\log_{10}(\Delta t + 1)$, and `SequentialIndex` assigns equal spacing after chronological sorting.
-3. **Straight EXPERIENCE trunks:** every EXPERIENCE receives a fixed `(x, y)` coordinate. Its branch is a straight line parallel to Z; ordinary commits do not bend it.
-4. **Branching and merging:** `parent_experience_ids` declares each incoming parent. The renderer derives child relationships by scanning these arrays. A `BRANCH_JOIN` line connects each parent trunk to the child trunk at the child’s first FACT Z coordinate. Multiple parents produce multiple merge connectors at that shared time plane.
+3. **Relationship-aware XY layout:** every PERSON and EXPERIENCE receives a fixed `(x, y)` coordinate. For an EXPERIENCE at parent depth $d$, $x = 6d$. Its desired lane is $y = \operatorname{mean}(y_{parent}) + 4(i - (n - 1)/2)$, where $i$ is its stable sibling index among $n$ related siblings; a deterministic nearest-free-lane step prevents overlap. PERSON life lines span the whole visible timeline. Each EXPERIENCE trunk is straight and parallel to Z, beginning at its first FACT and ending at its final FACT; an EXPERIENCE without a FACT has no trunk.
+4. **Smooth branching and merging:** `parent_experience_ids` declares each incoming parent. At the child EXPERIENCE's first FACT Z coordinate, a curved `BRANCH_OUT` connector runs from every parent trunk to the child trunk. At its final FACT Z coordinate, a curved `BRANCH_MERGE` connector returns to every parent. Multiple parents produce both connectors per parent.
+5. **Recursive FACT reflection:** a FACT is placed on every directly related EXPERIENCE and all of that EXPERIENCE's recursive ancestors, so child commits remain visible on their parent timelines.
 
 The persisted model currently represents child relationships through each child’s `parent_experience_ids`; no duplicated `child_ids` column is required.
 

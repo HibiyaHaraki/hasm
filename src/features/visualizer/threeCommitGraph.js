@@ -40,16 +40,34 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
   grid.rotation.x = Math.PI / 2;
   scene.add(grid);
 
+  const nodeById = new Map(payload.nodes3d.map((node) => [node.id, node]));
+  const timelineLines = [];
+  const lineMeshes = [];
   payload.lines3d.forEach((line) => {
-    const geometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(...line.from),
-      new THREE.Vector3(...line.to),
-    ]);
-    scene.add(new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: line.lineType === "BRANCH" ? theme.secondaryColor : theme.mainColor })));
+    const from = new THREE.Vector3(...line.from);
+    const to = new THREE.Vector3(...line.to);
+    const points = line.controlPoints?.length
+      ? new THREE.QuadraticBezierCurve3(from, new THREE.Vector3(...line.controlPoints[0]), to).getPoints(24)
+      : [from, to];
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const color = line.lineType === "BRANCH" || line.lineType === "PERSON_LIFELINE" ? theme.secondaryColor : theme.mainColor;
+    const mesh = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color }));
+    const nodeId = line.lineType === "BRANCH"
+      ? line.id.replace("branch-", "")
+      : line.lineType === "PERSON_LIFELINE"
+        ? line.id.replace("life-", "")
+        : null;
+    const node = nodeId ? nodeById.get(nodeId) : null;
+    if (node) {
+      mesh.userData = node;
+      timelineLines.push(mesh);
+    }
+    lineMeshes.push(mesh);
+    scene.add(mesh);
   });
 
-  const nodes = payload.nodes3d.map((node) => {
-    const geometry = node.entityType === "FACT" ? new THREE.SphereGeometry(0.38, 20, 16) : new THREE.BoxGeometry(0.58, 0.58, 0.58);
+  const nodes = payload.nodes3d.filter((node) => node.entityType === "FACT").map((node) => {
+    const geometry = new THREE.SphereGeometry(0.38, 20, 16);
     const material = new THREE.MeshStandardMaterial({ color: NODE_COLORS[node.entityType] || theme.mainColor, roughness: 0.45, metalness: 0.15 });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(node.x, node.y, node.z);
@@ -59,6 +77,7 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
   });
 
   const raycaster = new THREE.Raycaster();
+  raycaster.params.Line.threshold = 0.3;
   const pointer = new THREE.Vector2();
   let lastHoverAt = 0;
   const pointerPosition = (event) => {
@@ -66,18 +85,18 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   };
-  const intersectNode = (event) => {
+  const intersectEntity = (event) => {
     pointerPosition(event);
     raycaster.setFromCamera(pointer, camera);
-    return raycaster.intersectObjects(nodes)[0]?.object.userData;
+    return raycaster.intersectObjects([...nodes, ...timelineLines])[0]?.object.userData;
   };
   const handleMove = (event) => {
     if (performance.now() - lastHoverAt < 100) return;
     lastHoverAt = performance.now();
-    onHover(intersectNode(event) || null, event);
+    onHover(intersectEntity(event) || null, event);
   };
   const handleClick = (event) => {
-    const node = intersectNode(event);
+    const node = intersectEntity(event);
     if (node) onSelect(node);
   };
   renderer.domElement.addEventListener("pointermove", handleMove);
@@ -101,6 +120,7 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover) 
     renderer.domElement.removeEventListener("click", handleClick);
     controls.dispose();
     nodes.forEach((node) => { node.geometry.dispose(); node.material.dispose(); });
+    lineMeshes.forEach((line) => { line.geometry.dispose(); line.material.dispose(); });
     renderer.dispose();
     if (renderer.domElement.parentNode === container) {
       container.removeChild(renderer.domElement);
