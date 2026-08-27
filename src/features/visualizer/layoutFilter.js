@@ -1,5 +1,5 @@
 export const DEFAULT_LAYOUT_FILTER = {
-  timeScaleMode: "Linear",
+  timeScaleMode: "SequentialIndex",
   zScaleFactor: 1,
 };
 

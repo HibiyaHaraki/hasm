@@ -4,7 +4,7 @@ use crate::hasm::service;
 use crate::hasm::types::{LayoutFilterRequest, Line3dGeometry, ModelDatabase, Node3dGeometry, RenderPayload, VisualizerDemoPayload};
 use log::info;
 use rusqlite::Connection;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
@@ -30,51 +30,137 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
     let z_step = z_step(&filter.time_scale_mode, filter.z_scale_factor);
     let mut nodes = Vec::new();
     let mut lines = Vec::new();
-    let mut branch_positions = HashMap::new();
-    let mut first_commit_z = HashMap::new();
+    let branch_positions = calculate_branch_positions(model);
+    let mut experience_fact_zs: HashMap<_, Vec<f32>> = HashMap::new();
+    let person_name_by_id: HashMap<_, _> = model.people.iter().map(|person| (person.person_id, person.person_name.clone())).collect();
 
-    for (index, experience) in model.experiences.iter().enumerate() {
-        let x = index as f32 * 6.0;
-        let y = experience.parent_experience_ids.len() as f32 * 2.0;
-        branch_positions.insert(experience.experience_id, [x, y]);
-        nodes.push(Node3dGeometry { id: experience.experience_id.to_string(), entity_type: "EXPERIENCE".to_string(), label: experience.experience_name.clone(), x, y, z: 0.0 });
+    for experience in &model.experiences {
+        let [x, y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
+        let person_name = person_name_by_id.get(&experience.person_id).cloned();
+        nodes.push(Node3dGeometry { id: experience.experience_id.to_string(), entity_type: "EXPERIENCE".to_string(), label: experience.experience_name.clone(), x, y, z: 0.0, person_name });
     }
 
     let mut facts = model.facts.iter().collect::<Vec<_>>();
     facts.sort_by(|left, right| left.occurred_at.cmp(&right.occurred_at).then_with(|| left.fact_id.cmp(&right.fact_id)));
     let earliest_time = facts.first().and_then(|fact| time_key(&fact.occurred_at)).unwrap_or(0);
-    let mut maximum_z = z_step;
     for (index, fact) in facts.iter().enumerate() {
         let z = fact_z(&filter.time_scale_mode, index, time_key(&fact.occurred_at).unwrap_or(earliest_time), earliest_time, z_step);
-        maximum_z = maximum_z.max(z);
-        let branch_id = fact.experience_ids.first().copied();
-        let [x, y] = branch_id.and_then(|id| branch_positions.get(&id).copied()).unwrap_or([0.0, 0.0]);
-        if let Some(id) = branch_id { first_commit_z.entry(id).or_insert(z); }
-        nodes.push(Node3dGeometry { id: fact.fact_id.to_string(), entity_type: "FACT".to_string(), label: fact.fact_name.clone(), x, y, z });
-    }
-
-    for experience in &model.experiences {
-        let [x, y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
-        lines.push(Line3dGeometry { id: format!("branch-{}", experience.experience_id), line_type: "BRANCH".to_string(), from: [x, y, 0.0], to: [x, y, maximum_z + z_step] });
-        let join_z = first_commit_z.get(&experience.experience_id).copied().unwrap_or(z_step);
-        for parent_id in &experience.parent_experience_ids {
-            if let Some([parent_x, parent_y]) = branch_positions.get(parent_id) {
-                lines.push(Line3dGeometry { id: format!("join-{parent_id}-{}", experience.experience_id), line_type: "BRANCH_JOIN".to_string(), from: [*parent_x, *parent_y, join_z], to: [x, y, join_z] });
+        let mut reflected_experiences = HashSet::new();
+        for experience_id in &fact.experience_ids {
+            collect_experience_and_ancestors(*experience_id, model, &mut reflected_experiences);
+        }
+        for experience_id in reflected_experiences {
+            if let Some([x, y]) = branch_positions.get(&experience_id).copied() {
+                experience_fact_zs.entry(experience_id).or_default().push(z);
+                nodes.push(Node3dGeometry { id: fact.fact_id.to_string(), entity_type: "FACT".to_string(), label: fact.fact_name.clone(), x, y, z, person_name: None });
             }
         }
     }
 
-    for (index, person) in model.people.iter().enumerate() {
-        nodes.push(Node3dGeometry { id: person.person_id.to_string(), entity_type: "PERSON".to_string(), label: person.person_name.clone(), x: -5.0, y: index as f32 * 2.0, z: 0.0 });
+    for experience in &model.experiences {
+        let [x, y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
+        let Some(fact_zs) = experience_fact_zs.get(&experience.experience_id) else {
+            continue;
+        };
+        let first_fact_z = fact_zs.iter().copied().reduce(f32::min).unwrap_or(z_step);
+        let last_fact_z = fact_zs.iter().copied().reduce(f32::max).unwrap_or(first_fact_z);
+        lines.push(Line3dGeometry { id: format!("branch-{}", experience.experience_id), line_type: "BRANCH".to_string(), from: [x, y, first_fact_z], to: [x, y, last_fact_z], control_points: None });
+        for parent_id in &experience.parent_experience_ids {
+            if let Some([parent_x, parent_y]) = branch_positions.get(parent_id) {
+                let branch_control = midpoint_control([*parent_x, *parent_y, first_fact_z], [x, y, first_fact_z]);
+                lines.push(Line3dGeometry { id: format!("branch-{parent_id}-{}", experience.experience_id), line_type: "BRANCH_OUT".to_string(), from: [*parent_x, *parent_y, first_fact_z], to: [x, y, first_fact_z], control_points: Some(vec![branch_control]) });
+                let merge_control = midpoint_control([x, y, last_fact_z], [*parent_x, *parent_y, last_fact_z]);
+                lines.push(Line3dGeometry { id: format!("merge-{}-{parent_id}", experience.experience_id), line_type: "BRANCH_MERGE".to_string(), from: [x, y, last_fact_z], to: [*parent_x, *parent_y, last_fact_z], control_points: Some(vec![merge_control]) });
+            }
+        }
     }
 
     for (index, link) in model.links.iter().enumerate() {
         let source = nodes.get(index % nodes.len()).map(|node| [node.x, node.y, node.z]).unwrap_or([0.0, 0.0, 0.0]);
         let target = nodes.get((index + 1) % nodes.len()).map(|node| [node.x, node.y, node.z]).unwrap_or([0.0, 0.0, z_step]);
-        lines.push(Line3dGeometry { id: link.link_id.to_string(), line_type: "LINK".to_string(), from: source, to: target });
+        lines.push(Line3dGeometry { id: link.link_id.to_string(), line_type: "LINK".to_string(), from: source, to: target, control_points: None });
     }
 
     RenderPayload { nodes_3d: nodes, lines_3d: lines, warnings: Vec::new() }
+}
+
+fn calculate_branch_positions(model: &ModelDatabase) -> HashMap<uuid::Uuid, [f32; 2]> {
+    const GENERATION_GAP: f32 = 6.0;
+    const SIBLING_GAP: f32 = 4.0;
+    let mut depths = HashMap::new();
+    for experience in &model.experiences {
+        experience_depth(experience.experience_id, model, &mut depths, &mut HashSet::new());
+    }
+
+    let mut ordered_ids = model.experiences.iter().map(|experience| experience.experience_id).collect::<Vec<_>>();
+    ordered_ids.sort_by_key(|id| depths.get(id).copied().unwrap_or(0));
+    let mut positions = HashMap::new();
+    let mut lanes_by_depth: HashMap<usize, Vec<f32>> = HashMap::new();
+
+    for experience_id in ordered_ids {
+        let Some(experience) = model.experiences.iter().find(|item| item.experience_id == experience_id) else {
+            continue;
+        };
+        let depth = depths.get(&experience_id).copied().unwrap_or(0);
+        let parent_lanes = experience.parent_experience_ids.iter().filter_map(|parent_id| positions.get(parent_id).map(|position: &[f32; 2]| position[1])).collect::<Vec<_>>();
+        let parent_center = if parent_lanes.is_empty() { 0.0 } else { parent_lanes.iter().sum::<f32>() / parent_lanes.len() as f32 };
+        let sibling_ids = model.experiences.iter().filter(|item| item.parent_experience_ids.iter().any(|parent_id| experience.parent_experience_ids.contains(parent_id))).map(|item| item.experience_id).collect::<Vec<_>>();
+        let sibling_index = sibling_ids.iter().position(|id| *id == experience_id).unwrap_or(0);
+        let desired_y = parent_center + (sibling_index as f32 - (sibling_ids.len().saturating_sub(1) as f32 / 2.0)) * SIBLING_GAP;
+        let y = nearest_available_lane(desired_y, lanes_by_depth.entry(depth).or_default(), SIBLING_GAP);
+        positions.insert(experience_id, [depth as f32 * GENERATION_GAP, y]);
+    }
+
+    positions
+}
+
+fn experience_depth(experience_id: uuid::Uuid, model: &ModelDatabase, depths: &mut HashMap<uuid::Uuid, usize>, visiting: &mut HashSet<uuid::Uuid>) -> usize {
+    if let Some(depth) = depths.get(&experience_id) {
+        return *depth;
+    }
+    if !visiting.insert(experience_id) {
+        return 0;
+    }
+    let depth = model.experiences.iter().find(|experience| experience.experience_id == experience_id)
+        .map(|experience| experience.parent_experience_ids.iter().map(|parent_id| experience_depth(*parent_id, model, depths, visiting) + 1).max().unwrap_or(0))
+        .unwrap_or(0);
+    visiting.remove(&experience_id);
+    depths.insert(experience_id, depth);
+    depth
+}
+
+fn nearest_available_lane(desired_y: f32, occupied_lanes: &mut Vec<f32>, gap: f32) -> f32 {
+    for step in 0..=occupied_lanes.len() {
+        let offset = step as f32 * gap;
+        for candidate in [desired_y + offset, desired_y - offset] {
+            if occupied_lanes.iter().all(|lane| (candidate - lane).abs() >= gap) {
+                occupied_lanes.push(candidate);
+                return candidate;
+            }
+        }
+    }
+    unreachable!("a free lane is always available beyond the occupied lanes")
+}
+
+fn collect_experience_and_ancestors(experience_id: uuid::Uuid, model: &ModelDatabase, collected: &mut HashSet<uuid::Uuid>) {
+    if !collected.insert(experience_id) {
+        return;
+    }
+    if let Some(experience) = model.experiences.iter().find(|experience| experience.experience_id == experience_id) {
+        for parent_id in &experience.parent_experience_ids {
+            collect_experience_and_ancestors(*parent_id, model, collected);
+        }
+    }
+}
+
+fn midpoint_control(from: [f32; 3], to: [f32; 3]) -> [f32; 3] {
+    let dx = to[0] - from[0];
+    let dy = to[1] - from[1];
+    [
+        (from[0] + to[0]) / 2.0 - dy * 0.18,
+        (from[1] + to[1]) / 2.0 + dx * 0.18,
+        from[2],
+    ]
 }
 
 fn time_key(value: &str) -> Option<i64> {
@@ -153,7 +239,42 @@ mod tests {
         let early = payload.nodes_3d.iter().find(|node| node.id == early_id.to_string()).unwrap();
         let late = payload.nodes_3d.iter().find(|node| node.id == late_id.to_string()).unwrap();
         assert!(early.z < late.z);
-        assert!(payload.lines_3d.iter().any(|line| line.line_type == "BRANCH_JOIN" && line.from[2] == line.to[2]));
+        assert!(payload.lines_3d.iter().any(|line| line.line_type == "BRANCH_OUT" && line.control_points.is_some()));
+        assert!(payload.lines_3d.iter().any(|line| line.line_type == "BRANCH_MERGE" && line.control_points.is_some()));
+        assert_eq!(payload.nodes_3d.iter().filter(|node| node.id == late_id.to_string()).count(), 2);
+        let parent_branch = payload.lines_3d.iter().find(|line| line.id == format!("branch-{parent_id}")).unwrap();
+        let child_branch = payload.lines_3d.iter().find(|line| line.id == format!("branch-{child_id}")).unwrap();
+        assert_eq!(parent_branch.from[2], early.z);
+        assert_eq!(parent_branch.to[2], late.z);
+        assert_eq!(child_branch.from[2], late.z);
+        assert_eq!(child_branch.to[2], late.z);
+    }
+
+    #[test]
+    fn places_related_experiences_in_generations_with_separate_sibling_lanes() {
+        let root_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
+        let first_child_id = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+        let second_child_id = Uuid::parse_str("22222222-2222-2222-2222-222222222223").unwrap();
+        let grandchild_id = Uuid::parse_str("22222222-2222-2222-2222-222222222224").unwrap();
+        let model = ModelDatabase {
+            people: vec![],
+            experiences: vec![
+                experience(root_id, "Root", vec![]),
+                experience(first_child_id, "First child", vec![root_id]),
+                experience(second_child_id, "Second child", vec![root_id]),
+                experience(grandchild_id, "Grandchild", vec![first_child_id]),
+            ],
+            facts: vec![],
+            links: vec![],
+        };
+
+        let positions = calculate_branch_positions(&model);
+        assert_eq!(positions[&root_id][0], 0.0);
+        assert_eq!(positions[&first_child_id][0], 6.0);
+        assert_eq!(positions[&second_child_id][0], 6.0);
+        assert_eq!(positions[&grandchild_id][0], 12.0);
+        assert_ne!(positions[&first_child_id][1], positions[&second_child_id][1]);
+        assert!((positions[&first_child_id][1] + positions[&second_child_id][1]).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -164,6 +285,23 @@ mod tests {
         assert!(PathBuf::from(&demo.path).join("hasm.db").is_file());
         assert!(PathBuf::from(&demo.path).join("FACT/33333333-3333-3333-3333-333333333335/main.md").is_file());
         fs::remove_dir_all(demo.path).unwrap();
+    }
+
+    #[test]
+    fn attaches_owning_person_name_to_experience_nodes_and_skips_person_lines() {
+        let person_id = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+        let experience_id = Uuid::parse_str("22222222-2222-2222-2222-222222222225").unwrap();
+        let model = ModelDatabase {
+            people: vec![crate::hasm::definitions::Person { person_id, person_name: "Ada".to_string(), person_description_path: String::new(), birthday: String::new(), die: String::new(), link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            experiences: vec![crate::hasm::definitions::Experience { experience_id, person_id, experience_name: "Life stream".to_string(), experience_description_path: String::new(), parent_experience_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            facts: vec![],
+            links: vec![],
+        };
+        let payload = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        let experience_node = payload.nodes_3d.iter().find(|node| node.id == experience_id.to_string()).unwrap();
+        assert_eq!(experience_node.person_name.as_deref(), Some("Ada"));
+        assert!(!payload.nodes_3d.iter().any(|node| node.entity_type == "PERSON"));
+        assert!(!payload.lines_3d.iter().any(|line| line.line_type == "PERSON_LIFELINE" || line.line_type == "PERSON_EXPERIENCE_BRANCH"));
     }
 
     fn experience(experience_id: Uuid, name: &str, parent_experience_ids: Vec<Uuid>) -> crate::hasm::definitions::Experience {

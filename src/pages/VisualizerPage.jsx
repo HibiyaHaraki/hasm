@@ -54,12 +54,14 @@ function VisualizerPage() {
         if (!active || !sceneRef.current) return;
         disposeSceneRef.current();
         const theme = getPatternById(activePatternId).colors;
+        const factDatesById = new Map(model.facts?.map((fact) => [fact.factId, fact.occurredAt]));
         disposeSceneRef.current = createCommitGraph(
           sceneRef.current,
           payload,
           theme,
           (node) => navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: { path: state.path, model, isVerified: state?.isVerified !== false } }),
           (node, event) => setRenderState((current) => ({ ...current, tooltip: node ? { ...node, x: event.clientX, y: event.clientY } : null })),
+          factDatesById,
         );
         hasRenderedLayoutRef.current = true;
         setRenderState((current) => ({ ...current, loading: false, warning: payload.warnings?.join(" ") || "" }));
@@ -77,7 +79,7 @@ function VisualizerPage() {
     return () => { active = false; window.clearTimeout(watchdogRef.current); unlisten(); disposeSceneRef.current(); };
   }, [activePatternId, filter, model, navigate, state?.isVerified, state?.path]);
 
-  return <main className="visualizer-page"><header className="visualizer-toolbar"><div><p className="sequence-label">HASM / SEQ-03</p><h1>Commit graph</h1></div><label>Time scale<select value={filter.timeScaleMode} onChange={(event) => setFilter(nextLayoutFilter(filter, "timeScaleMode", event.target.value))}>{TIME_SCALE_MODES.map((mode) => <option key={mode}>{mode}</option>)}</select></label><label>Z scale<input type="range" min="0.5" max="2" step="0.5" value={filter.zScaleFactor} onChange={(event) => setFilter(nextLayoutFilter(filter, "zScaleFactor", event.target.value))} /></label><button type="button" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>Create New Entity</button></header><section className="graph-stage" aria-label="HASM 3D commit graph"><div className="graph-canvas" ref={sceneRef} />{renderState.loading ? <div className="graph-progress"><p>{renderState.message}</p><progress value={renderState.progress} max="100">{renderState.progress}%</progress></div> : null}{renderState.warning ? <p className="graph-warning">{renderState.warning}</p> : null}{renderState.notice ? <p className="graph-notice">{renderState.notice}</p> : null}{renderState.tooltip ? <div className="graph-tooltip" style={{ left: renderState.tooltip.x, top: renderState.tooltip.y }}>{renderState.tooltip.entityType}: {renderState.tooltip.label}</div> : null}</section></main>;
+  return <main className="visualizer-page"><header className="visualizer-toolbar"><div><p className="sequence-label">HASM / SEQ-03</p><h1>Commit graph</h1></div><label>Time scale<select value={filter.timeScaleMode} onChange={(event) => setFilter(nextLayoutFilter(filter, "timeScaleMode", event.target.value))}>{TIME_SCALE_MODES.map((mode) => <option key={mode}>{mode}</option>)}</select></label><label>Z scale<input type="range" min="0.5" max="2" step="0.5" value={filter.zScaleFactor} onChange={(event) => setFilter(nextLayoutFilter(filter, "zScaleFactor", event.target.value))} /></label><button type="button" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>Create New Entity</button></header><section className="graph-stage" aria-label="HASM 3D commit graph"><div className="graph-canvas" ref={sceneRef} />{renderState.loading ? <div className="graph-progress"><p>{renderState.message}</p><progress value={renderState.progress} max="100">{renderState.progress}%</progress></div> : null}{renderState.warning ? <p className="graph-warning">{renderState.warning}</p> : null}{renderState.notice ? <p className="graph-notice">{renderState.notice}</p> : null}{renderState.tooltip ? <div className="graph-tooltip" style={{ left: renderState.tooltip.x, top: renderState.tooltip.y }}>{renderState.tooltip.entityType}: {renderState.tooltip.label}{renderState.tooltip.personName ? ` (Person: ${renderState.tooltip.personName})` : ""}</div> : null}</section></main>;
 }
 
 export default VisualizerPage;

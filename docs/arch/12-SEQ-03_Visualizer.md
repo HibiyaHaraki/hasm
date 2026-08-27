@@ -8,7 +8,8 @@ This document details the visual concept, 3D space mapping logic, state validati
 
 The HASM 3D Visualizer represents life experiences and activities in a three-dimensional space by leveraging a **Git Branch & Commit metaphor**:
 
-* **EXPERIENCE (Git Branches):** Each `EXPERIENCE` entity is rendered as a continuous parallel line fixed on the **XY plane** and extending along the **Z-axis**.
+* **PERSON (No Dedicated Line):** `PERSON` does not render its own node, mesh, or line. Each `EXPERIENCE` node carries its owning PERSON's name, so hovering or clicking an EXPERIENCE trunk also identifies the PERSON it belongs to.
+* **EXPERIENCE (Git Branches):** Each `EXPERIENCE` entity is rendered as a continuous parallel line fixed on the **XY plane** and extending along the **Z-axis**, without a separate node mesh. Hovering or clicking the line identifies the EXPERIENCE and its owning PERSON.
 * **FACT (Git Commits):** Each `FACT` entity is rendered as a 3D node (commit point) stationed directly on its parent `EXPERIENCE` branch at a specific Z-coordinate calculated from its time metadata.
 * **LINK (Relationships):** Relationships between FACTs or other entities are rendered as thin 3D splines or connecting lines spanning through the 3D space.
 * **Creation Toolbar:** Persistent 3D control bar providing direct access to **`Create PERSON`**, **`Create EXPERIENCE`**, **`Create FACT`**, and **`Create LINK`** modals.
@@ -18,9 +19,12 @@ The HASM 3D Visualizer represents life experiences and activities in a three-dim
 The current coordinate policy is intentionally isolated in `src-tauri/src/hasm/visualizer_commands.rs` for later mathematical revision.
 
 1. **Z-axis is time:** FACTs are globally sorted by persisted `FACT.occurred_at` (ISO8601). Earlier dates receive lower Z coordinates.
-2. **Time scale:** `Linear` scales the calendar delta from the earliest FACT, `Logarithmic` applies $\log_{10}(\Delta t + 1)$, and `SequentialIndex` assigns equal spacing after chronological sorting.
-3. **Straight EXPERIENCE trunks:** every EXPERIENCE receives a fixed `(x, y)` coordinate. Its branch is a straight line parallel to Z; ordinary commits do not bend it.
-4. **Branching and merging:** `parent_experience_ids` declares each incoming parent. The renderer derives child relationships by scanning these arrays. A `BRANCH_JOIN` line connects each parent trunk to the child trunk at the child’s first FACT Z coordinate. Multiple parents produce multiple merge connectors at that shared time plane.
+2. **Time scale:** `Linear` scales the calendar delta from the earliest FACT, `Logarithmic` applies $\log_{10}(\Delta t + 1)$, and `SequentialIndex` assigns equal spacing after chronological sorting. `SequentialIndex` is the default `TimeScaleMode`.
+3. **Relationship-aware XY layout:** every EXPERIENCE receives a fixed `(x, y)` coordinate. For an EXPERIENCE at parent depth $d$, $x = 6d$. Its desired lane is $y = \operatorname{mean}(y_{parent}) + 4(i - (n - 1)/2)$, where $i$ is its stable sibling index among $n$ related siblings; a deterministic nearest-free-lane step prevents overlap. Each EXPERIENCE trunk is straight and parallel to Z, beginning at its first FACT and ending at its final FACT; an EXPERIENCE without a FACT has no trunk. PERSON has no coordinate or line of its own.
+4. **Smooth branching and merging:** `parent_experience_ids` declares each incoming parent. At the child EXPERIENCE's first FACT Z coordinate, a curved `BRANCH_OUT` connector runs from every parent trunk to the child trunk. At its final FACT Z coordinate, a curved `BRANCH_MERGE` connector returns to every parent. Multiple parents produce both connectors per parent.
+5. **Recursive FACT reflection:** a FACT is placed on every directly related EXPERIENCE and all of that EXPERIENCE's recursive ancestors, so child commits remain visible on their parent timelines.
+6. **Z-axis timeline, no xy-plane grid:** the xy-plane no longer renders a grid/border. Instead, a single Z-axis timeline is drawn beside the graph with a tick at every distinct FACT Z coordinate and a label showing that FACT's `occurred_at` date (or its sequence number as a fallback). Tick positions come directly from the FACT Z coordinates already produced by the selected `TimeScaleMode`, so the timeline adapts automatically to `Linear`, `Logarithmic`, or `SequentialIndex`.
+7. **Per-EXPERIENCE color families:** each EXPERIENCE trunk is assigned $\text{hue}_i = (i \times 137.508°) \bmod 360°$ (the golden angle), which keeps every branch's color maximally distinguishable from its neighbors regardless of how many EXPERIENCEs exist. FACT commit spheres reuse their EXPERIENCE's hue blended toward the theme's text color, so a FACT reads as a related but visibly different tint of its own trunk rather than sharing an identical or unrelated color. All generated colors are nudged toward WCAG AA contrast (ratio ≥ 4.5) against the active background.
 
 The persisted model currently represents child relationships through each child’s `parent_experience_ids`; no duplicated `child_ids` column is required.
 
@@ -60,7 +64,7 @@ sequenceDiagram
 
     React->>Bridge: Setup Event Listener: listen('visualizer-layout-progress')
     React->>React: Mount VisualizerPage & Set Initial State<br/>{ isDataLoading: true, layoutProgress: 0, loadingMessage: "Initializing 3D Engine..." }
-    React->>React: Initialize Default Filter State:<br/>{ timeRange: [Min, Max], securityLevel: All, timeScaleMode: "Linear", zScaleFactor: 1.0 }
+    React->>React: Initialize Default Filter State:<br/>{ timeRange: [Min, Max], securityLevel: All, timeScaleMode: "SequentialIndex", zScaleFactor: 1.0 }
     
     React->>Bridge: invoke('compute_visualizer_layout', { filter: initialFilter })
     Bridge->>Rust: IPC: compute_visualizer_layout(filter)
