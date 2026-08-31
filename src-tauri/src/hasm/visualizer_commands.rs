@@ -33,11 +33,25 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
     let branch_positions = calculate_branch_positions(model);
     let mut experience_fact_zs: HashMap<_, Vec<f32>> = HashMap::new();
     let person_name_by_id: HashMap<_, _> = model.people.iter().map(|person| (person.person_id, person.person_name.clone())).collect();
+    let linked_entity_ids = collect_linked_entity_ids(model);
+    let fact_ids = model.facts.iter().map(|fact| fact.fact_id).collect::<HashSet<_>>();
+    let mut direct_fact_positions = HashMap::new();
 
     for experience in &model.experiences {
         let [x, y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
         let person_name = person_name_by_id.get(&experience.person_id).cloned();
-        nodes.push(Node3dGeometry { id: experience.experience_id.to_string(), entity_type: "EXPERIENCE".to_string(), label: experience.experience_name.clone(), x, y, z: 0.0, person_name });
+        nodes.push(Node3dGeometry {
+            id: experience.experience_id.to_string(),
+            entity_type: "EXPERIENCE".to_string(),
+            label: experience.experience_name.clone(),
+            x,
+            y,
+            z: 0.0,
+            person_name,
+            is_direct_fact: None,
+            parent_experience_ids: Some(experience.parent_experience_ids.iter().map(ToString::to_string).collect()),
+            linked_entity_ids: Some(linked_entity_ids.get(&experience.experience_id).cloned().unwrap_or_default()),
+        });
     }
 
     let mut facts = model.facts.iter().collect::<Vec<_>>();
@@ -52,7 +66,25 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
         for experience_id in reflected_experiences {
             if let Some([x, y]) = branch_positions.get(&experience_id).copied() {
                 experience_fact_zs.entry(experience_id).or_default().push(z);
-                nodes.push(Node3dGeometry { id: fact.fact_id.to_string(), entity_type: "FACT".to_string(), label: fact.fact_name.clone(), x, y, z, person_name: None });
+                let is_direct_fact = fact.experience_ids.contains(&experience_id);
+                if is_direct_fact {
+                    direct_fact_positions.entry(fact.fact_id).or_insert([x, y, z]);
+                }
+                let parent_experience_ids = model.experiences.iter()
+                    .find(|experience| experience.experience_id == experience_id)
+                    .map(|experience| experience.parent_experience_ids.iter().map(ToString::to_string).collect());
+                nodes.push(Node3dGeometry {
+                    id: fact.fact_id.to_string(),
+                    entity_type: "FACT".to_string(),
+                    label: fact.fact_name.clone(),
+                    x,
+                    y,
+                    z,
+                    person_name: None,
+                    is_direct_fact: Some(is_direct_fact),
+                    parent_experience_ids,
+                    linked_entity_ids: Some(linked_entity_ids.get(&fact.fact_id).cloned().unwrap_or_default()),
+                });
             }
         }
     }
@@ -75,13 +107,35 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
         }
     }
 
-    for (index, link) in model.links.iter().enumerate() {
-        let source = nodes.get(index % nodes.len()).map(|node| [node.x, node.y, node.z]).unwrap_or([0.0, 0.0, 0.0]);
-        let target = nodes.get((index + 1) % nodes.len()).map(|node| [node.x, node.y, node.z]).unwrap_or([0.0, 0.0, z_step]);
-        lines.push(Line3dGeometry { id: link.link_id.to_string(), line_type: "LINK".to_string(), from: source, to: target, control_points: None });
+    for link in &model.links {
+        let [source_id, target_id, ..] = link.related_ids.as_slice() else {
+            continue;
+        };
+        if !fact_ids.contains(source_id) || !fact_ids.contains(target_id) {
+            continue;
+        }
+        let (Some(source), Some(target)) = (direct_fact_positions.get(source_id), direct_fact_positions.get(target_id)) else {
+            continue;
+        };
+        lines.push(Line3dGeometry { id: link.link_id.to_string(), line_type: "LINK".to_string(), from: *source, to: *target, control_points: None });
     }
 
     RenderPayload { nodes_3d: nodes, lines_3d: lines, warnings: Vec::new() }
+}
+
+fn collect_linked_entity_ids(model: &ModelDatabase) -> HashMap<uuid::Uuid, Vec<String>> {
+    let mut linked_ids = HashMap::<uuid::Uuid, Vec<String>>::new();
+    for link in &model.links {
+        for entity_id in &link.related_ids {
+            let related = linked_ids.entry(*entity_id).or_default();
+            for related_id in link.related_ids.iter().filter(|related_id| *related_id != entity_id).map(ToString::to_string) {
+                if !related.contains(&related_id) {
+                    related.push(related_id);
+                }
+            }
+        }
+    }
+    linked_ids
 }
 
 fn calculate_branch_positions(model: &ModelDatabase) -> HashMap<uuid::Uuid, [f32; 2]> {
@@ -201,7 +255,7 @@ fn emit_progress(app: &AppHandle, current: usize, total: usize, message: &str) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hasm::definitions::{Experience, Fact};
+    use crate::hasm::definitions::{Experience, Fact, Link};
     use uuid::Uuid;
 
     #[test]
@@ -278,6 +332,30 @@ mod tests {
     }
 
     #[test]
+    fn marks_direct_facts_and_only_emits_fact_to_fact_links() {
+        let parent_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
+        let child_id = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+        let first_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333331").unwrap();
+        let second_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333332").unwrap();
+        let model = ModelDatabase {
+            people: vec![],
+            experiences: vec![experience(parent_id, "Parent", vec![]), experience(child_id, "Child", vec![parent_id])],
+            facts: vec![fact(first_fact_id, "First", "2024-01-01", child_id), fact(second_fact_id, "Second", "2024-02-01", parent_id)],
+            links: vec![
+                link("FACT link", vec![first_fact_id, second_fact_id]),
+                link("EXPERIENCE link", vec![first_fact_id, parent_id]),
+            ],
+        };
+
+        let payload = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        let first_fact_nodes = payload.nodes_3d.iter().filter(|node| node.id == first_fact_id.to_string()).collect::<Vec<_>>();
+        assert!(first_fact_nodes.iter().any(|node| node.is_direct_fact == Some(true)));
+        assert!(first_fact_nodes.iter().any(|node| node.is_direct_fact == Some(false)));
+        assert_eq!(payload.lines_3d.iter().filter(|line| line.line_type == "LINK").count(), 1);
+        assert!(first_fact_nodes[0].linked_entity_ids.as_ref().unwrap().contains(&second_fact_id.to_string()));
+    }
+
+    #[test]
     fn creates_a_populated_development_demo_package() {
         let demo = create_visualizer_demo_workspace().unwrap();
         assert_eq!(demo.model.experiences.len(), 3);
@@ -310,6 +388,10 @@ mod tests {
 
     fn fact(fact_id: Uuid, name: &str, occurred_at: &str, experience_id: Uuid) -> Fact {
         Fact { fact_id, fact_name: name.to_string(), occurred_at: occurred_at.to_string(), fact_description_path: String::new(), experience_ids: vec![experience_id], person_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }
+    }
+
+    fn link(name: &str, related_ids: Vec<Uuid>) -> Link {
+        Link { link_id: Uuid::nil(), link_name: name.to_string(), link_type: "references".to_string(), link_description_path: String::new(), related_ids, markdown: String::new(), markdown_path: String::new() }
     }
 }
 

@@ -173,8 +173,14 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover, 
   const timelineAxisObjects = createTimelineAxis(scene, payload, factDatesById, entityColors.FACT);
 
   const nodeById = new Map(payload.nodes3d.map((node) => [node.id, node]));
+  const experienceIdByPositionKey = new Map(payload.nodes3d
+    .filter((node) => node.entityType === "EXPERIENCE")
+    .map((node) => [positionKey(node.x, node.y), node.id]));
   const timelineLines = [];
   const lineMeshes = [];
+  const experienceMeshesById = new Map();
+  const factMeshesById = new Map();
+  const highlightColor = ensureReadableColor(theme.textColor, theme.textBackgroundColor);
   // BRANCH_OUT lands on the child EXPERIENCE (`to`); BRANCH_MERGE departs from it (`from`); everything else uses `to`.
   const resolveLineColor = (line) => {
     if (line.lineType === "LINK") return entityColors.LINK;
@@ -187,30 +193,60 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover, 
     const points = line.controlPoints?.length
       ? new THREE.QuadraticBezierCurve3(from, new THREE.Vector3(...line.controlPoints[0]), to).getPoints(24)
       : [from, to];
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
     const color = resolveLineColor(line);
-    const mesh = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color }));
-    // Hovering an EXPERIENCE trunk surfaces its owning PERSON via node.personName; PERSON no longer renders its own line.
+    const isExperienceLine = line.lineType !== "LINK";
+    const curve = new THREE.CatmullRomCurve3(points);
+    const geometry = isExperienceLine
+      ? new THREE.TubeGeometry(curve, Math.max(points.length - 1, 1), 0.075, 8, false)
+      : new THREE.BufferGeometry().setFromPoints(points);
+    const material = isExperienceLine
+      ? new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.1 })
+      : new THREE.LineBasicMaterial({ color });
+    const mesh = isExperienceLine ? new THREE.Mesh(geometry, material) : new THREE.Line(geometry, material);
     const nodeId = line.lineType === "BRANCH" ? line.id.replace("branch-", "") : null;
     const node = nodeId ? nodeById.get(nodeId) : null;
+    mesh.userData = { ...node, baseColor: color, baseOpacity: 1 };
     if (node) {
-      mesh.userData = node;
       timelineLines.push(mesh);
+      experienceMeshesById.set(node.id, mesh);
     }
     lineMeshes.push(mesh);
     scene.add(mesh);
   });
 
   const nodes = payload.nodes3d.filter((node) => node.entityType === "FACT").map((node) => {
-    const geometry = new THREE.SphereGeometry(0.38, 20, 16);
+    const geometry = new THREE.BoxGeometry(0.62, 0.62, 0.62);
     const color = factColorByPositionKey.get(positionKey(node.x, node.y)) || entityColors.FACT;
-    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.15 });
+    const opacity = node.isDirectFact ? 1 : 0.32;
+    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.15, transparent: true, opacity, depthWrite: node.isDirectFact });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(node.x, node.y, node.z);
-    mesh.userData = node;
+    mesh.userData = { ...node, baseColor: color, baseOpacity: opacity };
+    const meshes = factMeshesById.get(node.id) || [];
+    meshes.push(mesh);
+    factMeshesById.set(node.id, meshes);
     scene.add(mesh);
     return mesh;
   });
+
+  const setHighlight = (node) => {
+    const highlightedIds = new Set(node ? [node.id, ...(node.linkedEntityIds || []), ...(node.parentExperienceIds || [])] : []);
+    if (node?.entityType === "FACT") {
+      const experienceId = experienceIdByPositionKey.get(positionKey(node.x, node.y));
+      if (experienceId) highlightedIds.add(experienceId);
+    }
+    experienceMeshesById.forEach((mesh, id) => {
+      mesh.material.color.set(highlightedIds.has(id) ? highlightColor : mesh.userData.baseColor);
+    });
+    factMeshesById.forEach((meshes, id) => {
+      meshes.forEach((mesh) => {
+        const highlighted = highlightedIds.has(id);
+        mesh.material.color.set(highlighted ? highlightColor : mesh.userData.baseColor);
+        mesh.material.opacity = highlighted ? 1 : mesh.userData.baseOpacity;
+      });
+    });
+    renderer.render(scene, camera);
+  };
 
   const raycaster = new THREE.Raycaster();
   raycaster.params.Line.threshold = 0.3;
@@ -229,7 +265,9 @@ export function createCommitGraph(container, payload, theme, onSelect, onHover, 
   const handleMove = (event) => {
     if (performance.now() - lastHoverAt < 100) return;
     lastHoverAt = performance.now();
-    onHover(intersectEntity(event) || null, event);
+    const node = intersectEntity(event) || null;
+    setHighlight(node);
+    onHover(node, event);
   };
   const handleClick = (event) => {
     const node = intersectEntity(event);
