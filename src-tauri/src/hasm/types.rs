@@ -67,6 +67,12 @@ pub struct Node3dGeometry {
     pub z: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub person_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_direct_fact: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_experience_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linked_entity_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
