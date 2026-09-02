@@ -13,3 +13,6 @@
 [submodule "hasm_logo"]
 	path = hasm_logo
 	url = git@github.com:HibiyaHaraki/hasm_logo.git
+[submodule "src/hasm_visualizer"]
+	path = src/hasm_visualizer
+	url = git@github.com:HibiyaHaraki/hasm_visualizer.git
