@@ -16,7 +16,7 @@ vi.mock("../src/features/hasm/api", () => ({
   switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
-vi.mock("../src/hasm_visualizer/threeCommitGraph.js", () => ({ createCommitGraph: (...args) => { selectNode(args[3]); return createCommitGraph(...args); } }));
+vi.mock("../src/features/visualizer/threeCommitGraph", () => ({ createCommitGraph: (...args) => { selectNode(args[3]); return createCommitGraph(...args); } }));
 
 const model = { people: [{ personId: "person-1" }], experiences: [{ experienceId: "experience-1" }], facts: [{ factId: "fact-1" }], links: [] };
 const payload = { nodes3d: [], lines3d: [], warnings: [] };
