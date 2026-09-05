@@ -67,6 +67,8 @@ pub struct ProgressPayload {
 
 The current implementation owns the SEQ-02 backend IPC in `src-tauri/src/hasm/model_commands.rs` and the frontend lifecycle in `src/pages/LoadingModelPage.jsx`. The Rust loader returns the existing serialized `ModelDatabase` payload, and the frontend transfers that verified payload to `/visualizer`. Tests create a populated temporary `hasm.db` with PERSON, EXPERIENCE, FACT, and LINK rows plus non-empty matching `main.md` and `assets/` folders; no empty workspace fixture is used.
 
+`load_hasm_model_db` streams `model-load-progress` per row via `service::read_model_database_with_progress` (in `src-tauri/src/hasm/service.rs`) instead of only emitting at the four coarse entity-type boundaries. Emits are time-throttled (`PROGRESS_EMIT_INTERVAL`, 150 ms) so large HASM packages still report continuous progress and reset the frontend's 10,000 ms watchdog without flooding the IPC channel. `verify_hasm_storage` applies the same time-based throttle to its per-entity emits, and its `find_unreferenced_entity_folders` folder scan (previously one unthrottled blocking pass with no progress) also streams `model-verify-progress` per scanned folder for the same reason.
+
 ### Participant Lifecycle Legend
 
 * **User**: End user interacting with `LoadingModelPage.tsx` or closing the application window.

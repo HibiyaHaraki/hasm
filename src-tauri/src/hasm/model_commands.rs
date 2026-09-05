@@ -5,8 +5,13 @@ use crate::hasm::types::{LockStatus, ModelDatabase, ProgressPayload, Verificatio
 use log::{info, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use sysinfo::{Pid, System};
 use tauri::{AppHandle, Emitter};
+
+// Minimum wall-clock gap between progress emits so large packages stream smooth,
+// frequent updates without flooding the IPC channel on every single row.
+const PROGRESS_EMIT_INTERVAL: Duration = Duration::from_millis(150);
 
 const LOCK_DIRECTORY: &str = ".hasm";
 const LOCK_FILENAME: &str = "lock";
@@ -65,12 +70,32 @@ pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) 
 
 #[tauri::command]
 pub fn load_hasm_model_db(app: AppHandle, path: String) -> Result<ModelDatabase, String> {
-    emit_progress(&app, "DB_LOAD", 0, 4, "Opening workspace database")?;
-    let model = service::read_model_database(&path)?;
-    let counts = [model.people.len(), model.experiences.len(), model.facts.len(), model.links.len()];
-    for (index, (entity_type, count)) in ENTITY_TYPES.iter().zip(counts).enumerate() {
-        emit_progress(&app, "DB_LOAD", index + 1, 4, &format!("Loaded {count} {entity_type} records"))?;
-    }
+    emit_progress(&app, "DB_LOAD", 0, 1, "Opening workspace database")?;
+
+    let mut last_emit = Instant::now();
+    let model = service::read_model_database_with_progress(&path, &mut |current, total, message| {
+        let now = Instant::now();
+        if current >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+            last_emit = now;
+            if let Err(error) = emit_progress(&app, "DB_LOAD", current, total, message) {
+                warn!("[SEQ-MD-02][LOAD] failed to emit progress: {error}");
+            }
+        }
+    })?;
+
+    emit_progress(
+        &app,
+        "DB_LOAD",
+        1,
+        1,
+        &format!(
+            "Loaded {} PERSON, {} EXPERIENCE, {} FACT, {} LINK records",
+            model.people.len(),
+            model.experiences.len(),
+            model.facts.len(),
+            model.links.len()
+        ),
+    )?;
     info!("[SEQ-MD-02][LOAD] database metadata loaded");
     Ok(model)
 }
@@ -85,12 +110,18 @@ pub fn verify_hasm_storage(
     let expected = expected_markdown_paths(&model);
     let total = expected.len().max(1);
     let mut missing_entities = Vec::new();
+    let mut last_emit = Instant::now();
 
     for (index, entity_path) in expected.iter().enumerate() {
         if !root.join(entity_path).is_file() {
             missing_entities.push(entity_path.clone());
         }
-        emit_progress(&app, "STORAGE_VERIFY", index + 1, total, "Verifying workspace storage")?;
+        let current = index + 1;
+        let now = Instant::now();
+        if current >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+            last_emit = now;
+            emit_progress(&app, "STORAGE_VERIFY", current, total, "Verifying workspace storage")?;
+        }
     }
 
     if !missing_entities.is_empty() {
@@ -98,7 +129,7 @@ pub fn verify_hasm_storage(
         return Err(format!("ERR_MISSING_STORAGE_FOLDER: {}", missing_entities.join(", ")));
     }
 
-    let unreferenced_entities = find_unreferenced_entity_folders(&root, &expected)?;
+    let unreferenced_entities = find_unreferenced_entity_folders(Some(&app), &root, &expected)?;
     info!("[SEQ-MD-02][VERIFY] workspace storage verified");
     Ok(VerificationResult { missing_entities, unreferenced_entities })
 }
@@ -136,15 +167,49 @@ fn expected_markdown_paths(model: &ModelDatabase) -> Vec<String> {
         .collect()
 }
 
-fn find_unreferenced_entity_folders(root: &Path, expected: &[String]) -> Result<Vec<String>, String> {
-    let mut unreferenced = Vec::new();
+fn find_unreferenced_entity_folders(
+    app: Option<&AppHandle>,
+    root: &Path,
+    expected: &[String],
+) -> Result<Vec<String>, String> {
+    // Pre-scan directory entries first so a real total is known and progress can
+    // stream smoothly (large workspaces previously ran this whole scan with zero
+    // progress emits, tripping the frontend's watchdog).
+    let mut entries_by_type = Vec::new();
+    let mut total = 0usize;
     for entity_type in ENTITY_TYPES {
         let directory = root.join(entity_type);
-        if !directory.is_dir() { continue; }
-        for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
-            let markdown = entry.map_err(|error| error.to_string())?.path().join("main.md");
+        let entries = if directory.is_dir() {
+            fs::read_dir(&directory)
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?
+        } else {
+            Vec::new()
+        };
+        total += entries.len();
+        entries_by_type.push((entity_type, entries));
+    }
+    let total = total.max(1);
+
+    let mut unreferenced = Vec::new();
+    let mut processed = 0usize;
+    let mut last_emit = Instant::now();
+
+    for (entity_type, entries) in entries_by_type {
+        for entry in entries {
+            let markdown = entry.path().join("main.md");
             let relative = markdown.strip_prefix(root).map_err(|error| error.to_string())?.to_string_lossy().replace('\\', "/");
             if markdown.is_file() && !expected.iter().any(|path| path == &relative) { unreferenced.push(relative); }
+
+            processed += 1;
+            let now = Instant::now();
+            if let Some(app) = app {
+                if processed >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+                    last_emit = now;
+                    emit_progress(app, "STORAGE_VERIFY", processed, total, &format!("Scanning {entity_type} folders"))?;
+                }
+            }
         }
     }
     Ok(unreferenced)
@@ -239,7 +304,7 @@ mod tests {
         let model = service::read_model_database(&root.to_string_lossy()).unwrap();
         assert_eq!((model.people.len(), model.experiences.len(), model.facts.len(), model.links.len()), (1, 1, 1, 1));
         assert!(expected_markdown_paths(&model).iter().all(|path| root.join(path).is_file()));
-        assert!(find_unreferenced_entity_folders(&root, &expected_markdown_paths(&model)).unwrap().is_empty());
+        assert!(find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -263,7 +328,7 @@ mod tests {
         fs::write(extra.join("main.md"), "# Unreferenced\n\nFixture content.").unwrap();
 
         assert_eq!(
-            find_unreferenced_entity_folders(&root, &expected_markdown_paths(&model)).unwrap(),
+            find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap(),
             vec!["PERSON/55555555-5555-5555-5555-555555555555/main.md"]
         );
         fs::remove_dir_all(root).unwrap();

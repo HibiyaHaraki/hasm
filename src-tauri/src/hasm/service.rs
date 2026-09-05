@@ -64,19 +64,36 @@ pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
     })
 }
 
+/// Callback invoked with (records_loaded_so_far, total_records, status_message) as
+/// `read_model_database_with_progress` streams rows, so large HASM packages report
+/// continuous progress instead of jumping only at coarse entity-type boundaries.
+pub type ProgressFn<'a> = dyn FnMut(usize, usize, &str) + 'a;
+
 pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
+    read_model_database_with_progress(model_root, &mut |_, _, _| {})
+}
+
+pub fn read_model_database_with_progress(
+    model_root: &str,
+    on_progress: &mut ProgressFn,
+) -> Result<ModelDatabase, String> {
     init_logger();
     info!("read_model_database start: model_root={}", model_root);
 
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
+
+    on_progress(0, 1, "Synchronizing workspace folders");
     sync_directories_to_db(&connection, &root)?;
 
+    let total = count_all_entities(&connection)?;
+    let mut loaded = 0usize;
+
     let model = ModelDatabase {
-        people: load_people(&connection, &root)?,
-        experiences: load_experiences(&connection, &root)?,
-        facts: load_facts(&connection, &root)?,
-        links: load_links(&connection, &root)?,
+        people: load_people(&connection, &root, &mut loaded, total, on_progress)?,
+        experiences: load_experiences(&connection, &root, &mut loaded, total, on_progress)?,
+        facts: load_facts(&connection, &root, &mut loaded, total, on_progress)?,
+        links: load_links(&connection, &root, &mut loaded, total, on_progress)?,
     };
 
     info!(
@@ -89,6 +106,17 @@ pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
     );
 
     Ok(model)
+}
+
+fn count_all_entities(connection: &Connection) -> Result<usize, String> {
+    let mut total = 0usize;
+    for table in ["person", "experience", "fact", "link"] {
+        let count: i64 = connection
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        total += count as usize;
+    }
+    Ok(total.max(1))
 }
 
 pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<SaveResult, String> {
@@ -914,7 +942,13 @@ fn list_links(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     Ok(items)
 }
 
-fn load_people(connection: &Connection, model_root: &Path) -> Result<Vec<Person>, String> {
+fn load_people(
+    connection: &Connection,
+    model_root: &Path,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Person>, String> {
     let mut statement = connection
         .prepare(
             "SELECT person_id, person_name, person_description_path, birthday, die, link_ids
@@ -952,12 +986,20 @@ fn load_people(connection: &Connection, model_root: &Path) -> Result<Vec<Person>
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading PERSON records");
     }
 
     Ok(people)
 }
 
-fn load_experiences(connection: &Connection, model_root: &Path) -> Result<Vec<Experience>, String> {
+fn load_experiences(
+    connection: &Connection,
+    model_root: &Path,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Experience>, String> {
     let mut statement = connection
         .prepare(
             "SELECT experience_id, person_id, experience_name, experience_description_path,
@@ -1002,12 +1044,20 @@ fn load_experiences(connection: &Connection, model_root: &Path) -> Result<Vec<Ex
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading EXPERIENCE records");
     }
 
     Ok(experiences)
 }
 
-fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, String> {
+fn load_facts(
+    connection: &Connection,
+    model_root: &Path,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Fact>, String> {
     let mut statement = connection
         .prepare(
             "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
@@ -1047,12 +1097,20 @@ fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, S
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading FACT records");
     }
 
     Ok(facts)
 }
 
-fn load_links(connection: &Connection, model_root: &Path) -> Result<Vec<Link>, String> {
+fn load_links(
+    connection: &Connection,
+    model_root: &Path,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Link>, String> {
     let mut statement = connection
         .prepare(
             "SELECT link_id, link_name, link_type, link_description_path, related_ids
@@ -1088,6 +1146,8 @@ fn load_links(connection: &Connection, model_root: &Path) -> Result<Vec<Link>, S
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading LINK records");
     }
 
     Ok(links)
