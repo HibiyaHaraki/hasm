@@ -16,9 +16,10 @@ vi.mock("../src/features/hasm/api", () => ({
   switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
-vi.mock("../src/features/visualizer/threeCommitGraph", () => ({
-  createCommitGraph: vi.fn(() => () => {}),
-}));
+vi.mock("../src/hasm_visualizer/threeCommitGraph.js", async () => {
+  const actual = await vi.importActual("../src/hasm_visualizer/threeCommitGraph.js");
+  return { ...actual, createCommitGraph: vi.fn(() => () => {}) };
+});
 
 const model = {
   people: [{ personId: "11111111-1111-1111-1111-111111111111", personName: "John" }],

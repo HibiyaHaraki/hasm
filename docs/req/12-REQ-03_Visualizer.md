@@ -24,6 +24,10 @@ This specification defines the functional, data, time constraint, progress strea
 * **[REQ-03-RULE-011] FACT Projection Emphasis:** A FACT projection directly registered on its rendered EXPERIENCE MUST be opaque. A recursively reflected FACT projection MUST render as a translucent cube with $\alpha = 0.32$, so direct commits remain visually emphasized.
 * **[REQ-03-RULE-012] FACT-Only Link Rendering:** The visualizer MUST render only a LINK whose first two `related_ids` identify FACT entities, using their direct FACT coordinates. Links that involve a PERSON or EXPERIENCE MUST not render in the current graph.
 * **[REQ-03-RULE-013] Hover Relationship Highlighting:** Hovering a FACT or EXPERIENCE MUST apply a visible highlight color to that entity, its linked rendered FACT entities, and its parent EXPERIENCE trunks. EXPERIENCE trunks and branch curves MUST render with bold tube geometry; FACT-to-FACT links MUST remain normal thin lines.
+* **[REQ-03-RULE-014] Shared Visualizer Ownership:** The visualizer surface MUST be provided by the reusable `src/hasm_visualizer` package. `VisualizerPage` MUST act only as a host, supplying the model, the layout callback, node-click routing, and page chrome. A duplicate Three.js or layout implementation MUST NOT be maintained elsewhere in the application.
+* **[REQ-03-RULE-015] Scope-Before-Layout Invariant:** For packages above the configured scope threshold, the model MUST be narrowed by the PERSON / EXPERIENCE scope selection **before** layout is requested. An unscoped large package MUST NOT trigger `compute_visualizer_layout`.
+* **[REQ-03-RULE-016] Bounded Scene Invariant:** The number of nodes handed to the Three.js scene, the number of Z-axis tick labels, and the number of GPU geometries MUST each be bounded by a constant that is independent of package size.
+* **[REQ-03-RULE-017] Scope Is Not a Layout Filter:** The PERSON / EXPERIENCE scope MUST remain a frontend model-narrowing concern. It MUST NOT be added to `LayoutFilterRequest`, so the SEQ-03 IPC contract is unchanged.
 
 ---
 
@@ -106,3 +110,14 @@ pub enum VisualizerError {
 * **[REQ-03-FUNC-304] Scene Navigation:** The Three.js canvas MUST provide orbit, pan, and zoom controls without disabling stationary node hover or click navigation.
 * **[REQ-03-FUNC-305] Adaptive Z-Axis Timeline:** React MUST render the Z-axis timeline ticks and labels from the currently rendered `RenderPayload`'s FACT Z coordinates, so switching `TimeScaleMode` or `zScaleFactor` re-renders the timeline consistently with the new layout without a separate xy-plane grid.
 * **[REQ-03-FUNC-306] Direct and Linked Geometry Metadata:** Rust MUST return direct-versus-inherited FACT projection metadata, parent EXPERIENCE IDs, and linked entity IDs with node geometry so React can render opacity and hover highlighting without reimplementing graph traversal.
+
+### Chapter 5: PERSON / EXPERIENCE Scope Selection (`HasmVisualizerComponent`)
+
+* **[REQ-03-FUNC-501] Scope Controls:** The visualizer toolbar MUST offer a multi-select PERSON scope control and a multi-select EXPERIENCE scope control, each labeled and keyboard reachable, plus a control that clears the scope.
+* **[REQ-03-FUNC-502] Composed Option Lists:** When one or more PERSONs are selected, the EXPERIENCE option list MUST show only EXPERIENCEs owned by those PERSONs, and any previously selected EXPERIENCE outside the new PERSON set MUST be dropped.
+* **[REQ-03-FUNC-503] Scope Narrowing Semantics:** Applying a scope MUST retain the selected EXPERIENCEs together with their ancestors and descendants, the FACTs registered on those EXPERIENCEs, the FACTs belonging to selected PERSONs, the owning PERSONs, and only those LINKs whose `related_ids` are all inside the scope.
+* **[REQ-03-FUNC-504] Empty Scope Passthrough:** An empty scope MUST return the model unchanged so behavior for small packages is identical to the unscoped path.
+* **[REQ-03-FUNC-505] Scope Summary:** The toolbar MUST display how many entities the active scope selects out of the package total.
+* **[REQ-03-FUNC-506] Large Package Scope Prompt:** When an unscoped package exceeds the scope threshold, the graph stage MUST display a prompt requesting a PERSON or EXPERIENCE selection instead of rendering (see `[REQ-03-RULE-015]`).
+* **[REQ-03-FUNC-507] Render Budget Disclosure:** When the layout exceeds the render budget, the visualizer MUST render the budgeted subset and display a warning naming how many FACT nodes were withheld and how to narrow the scope.
+* **[REQ-03-FUNC-508] Dual Model Shape Support:** Scope accessors MUST read both the camelCase entity shape returned by the Tauri backend and the snake_case shape used by the bundled sample packages.

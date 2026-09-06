@@ -314,9 +314,10 @@ hasm-desktop/
   * Navigates to `/visualizer` on completion, or `/error-model` on failure ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
 * **`VisualizerPage.jsx` (`/visualizer`)**
   * Wrapped in `<ProtectedRoute requireVerified={true}>`.
+  * Hosts the reusable `src/hasm_visualizer` package (`HasmVisualizerComponent`) rather than owning a Three.js scene of its own ([REQ-03-RULE-014](../req/12-REQ-03_Visualizer.md)).
   * Calls `computeVisualizerLayout(filter)` using `useTauriListen` for progress overlay.
   * Renders Three.js canvas via `useThreeCanvas`.
-  * Provides filter controls (`Linear`, `Logarithmic`, `SequentialIndex`) and handles node click navigation ([SEQ-03](./12-SEQ-03_Visualizer.md)).
+  * Provides filter controls (`Linear`, `Logarithmic`, `SequentialIndex`), PERSON/EXPERIENCE scope selection, and handles node click navigation ([SEQ-03](./12-SEQ-03_Visualizer.md)).
 * **`EntityDetailPage.jsx` (`/entity-detail/:entity_type/:entity_id`)**
   * Wrapped in `<ProtectedRoute requireVerified={true}>`.
   * Loads ticket metadata and markdown via `loadEntityDetail`.
@@ -345,6 +346,16 @@ hasm-desktop/
 * **`visualizer/ThreeCanvas.jsx`**: WebGL canvas container element for Three.js viewport.
 * **`visualizer/Tooltip.jsx`**: Floating 2D tooltip component displaying entity metadata on mesh hover.
 * **`visualizer/ControlPanel.jsx`**: Filter control panel for `TimeScaleMode`, security level, and time sliders.
+
+#### Reusable Visualizer Package (`src/hasm_visualizer/`)
+
+Self-contained and portable: copying this folder alongside `src/hasm_color_pattern` and `src/hasm_logger` reproduces the same visualizer in another repository. It is the single owner of the graph surface; no duplicate implementation is kept under `src/features/`.
+
+* **`HasmVisualizerComponent.jsx`**: Toolbar, PERSON/EXPERIENCE scope selection, 2D/3D switching, scene lifecycle, and render budgeting. Runs standalone over the bundled sample packages, or over a host model when given `model` and `computeLayout` props.
+* **`modelScope.js`**: `scopeModel`, `listPersonOptions`, `listExperienceOptions`, and `countModelEntities`. Reads both camelCase (Tauri) and snake_case (sample) entity shapes.
+* **`threeCommitGraph.js` / `twoCommitGraph.js`**: Three.js 3D and 2D scene ownership, node interaction, and `limitRenderedNodes` render budgeting.
+* **`layoutCalculator.js`**: Client-side layout kept in parity with the Rust `calculate_layout`, used when no Tauri backend is available.
+* **`layoutFilter.js`**, **`graph2DLayout.js`**, **`sampleModels.js`**, **`visualizer-design.css`**: Filter state, 2D row/lane math, bundled demo packages, and theme-variable styling.
 * **`entity/TicketForm.jsx`**: Form component for ticket metadata editing (name, dates, description, security level).
 * **`entity/RefreshButton.jsx`**: Dynamic refresh button component supporting normal, Amber pulsing, and Red danger visual states.
 

@@ -45,7 +45,23 @@ The Open Workspace page (`/select`) includes **Test 3D commit graph** for develo
 
 ### Implemented Module Mapping
 
-The current implementation separates the visualizer into `src/features/visualizer/layoutFilter.js` for filter state, `src/features/visualizer/threeCommitGraph.js` for Three.js scene ownership and node interaction, and `src/pages/VisualizerPage.jsx` for IPC, progress, watchdog, and routing. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; coordinate policy is intentionally isolated there for later revision.
+The current implementation owns the entire visualizer surface in the reusable `src/hasm_visualizer` package: `HasmVisualizerComponent.jsx` (toolbar, PERSON/EXPERIENCE scope selection, 2D/3D switching, scene lifecycle), `threeCommitGraph.js` and `twoCommitGraph.js` (Three.js scene ownership and node interaction), `layoutFilter.js` (filter state), `modelScope.js` (scope narrowing), and `layoutCalculator.js` (a client-side layout kept in parity with Rust for hosts without a Tauri backend). `src/pages/VisualizerPage.jsx` is a thin host: it supplies the loaded model, the Rust-backed `computeLayout` callback with IPC progress and watchdog handling, node-click routing, and the SEQ-03 header/overlay slots. The previous duplicate under `src/features/visualizer/` was removed. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; coordinate policy is intentionally isolated there for later revision.
+
+### Scope Selection and Render Budget (Large Packages)
+
+A 60,000-entity package cannot be laid out or rendered whole, so the visualizer narrows the model **before** layout rather than trimming geometry afterwards:
+
+| Stage | Mechanism | Location |
+| --- | --- | --- |
+| **Scope prompt** | An unscoped model above `scopePromptThreshold` (default 2,000 entities) is not laid out at all. The stage shows a prompt asking for a PERSON or EXPERIENCE selection, and `compute_visualizer_layout` is never invoked. | `HasmVisualizerComponent.jsx` |
+| **Scope narrowing** | `scopeModel(model, { personIds, experienceIds })` keeps the selected EXPERIENCEs plus their ancestors (so branch/merge lines stay connected) and descendants, the FACTs on those branches, the owning PERSONs, and only LINKs whose `related_ids` are entirely inside the scope. Accessors read both camelCase (Tauri) and snake_case (bundled samples). | `modelScope.js` |
+| **Composed controls** | The EXPERIENCE option list is filtered by the PERSON selection, and EXPERIENCE selections outside a newly chosen PERSON set are dropped automatically. | `HasmVisualizerComponent.jsx` |
+| **Render budget** | `limitRenderedNodes(payload, maxRenderedNodes)` (default 4,000) keeps every EXPERIENCE node and trims surplus FACT nodes, surfacing a warning naming how many were withheld. | `threeCommitGraph.js` |
+| **Timeline budget** | Z-axis ticks are evenly sampled to at most `MAX_TIMELINE_TICKS` (60) and label textures are cached by text and color, instead of one canvas-backed sprite per distinct FACT timestamp. | `threeCommitGraph.js` |
+| **GPU allocation** | All FACT commits share one `BoxGeometry`; only materials differ per node. | `threeCommitGraph.js` |
+| **Argument-limit guard** | The timeline maximum uses `reduce` rather than `Math.max(...spread)`, which throws past roughly 100,000 arguments. | `threeCommitGraph.js` |
+
+The scope is intentionally **not** part of `LayoutFilterRequest`: the component narrows the model and passes the unchanged `{ timeScaleMode, zScaleFactor }` filter to `compute_visualizer_layout`, so the Rust IPC contract is untouched.
 
 ### Chapter 1: Initial View Load, State Validation Guards & Async Progress Streaming
 
