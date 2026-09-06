@@ -1,5 +1,6 @@
 //! SEQ-03 graph layout command. Rendering remains owned by the React Three.js adapter.
 
+use crate::hasm::definitions::Experience;
 use crate::hasm::service;
 use crate::hasm::types::{LayoutFilterRequest, Line3dGeometry, ModelDatabase, Node3dGeometry, RenderPayload, VisualizerDemoPayload};
 use log::info;
@@ -30,7 +31,10 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
     let z_step = z_step(&filter.time_scale_mode, filter.z_scale_factor);
     let mut nodes = Vec::new();
     let mut lines = Vec::new();
-    let branch_positions = calculate_branch_positions(model);
+    // Built once and shared: every lookup below used to be a linear scan of the whole
+    // experience list, which is quadratic on large HASM packages.
+    let experience_by_id = index_experiences(model);
+    let branch_positions = calculate_branch_positions(model, &experience_by_id);
     let mut experience_fact_zs: HashMap<_, Vec<f32>> = HashMap::new();
     let person_name_by_id: HashMap<_, _> = model.people.iter().map(|person| (person.person_id, person.person_name.clone())).collect();
     let linked_entity_ids = collect_linked_entity_ids(model);
@@ -61,7 +65,7 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
         let z = fact_z(&filter.time_scale_mode, index, time_key(&fact.occurred_at).unwrap_or(earliest_time), earliest_time, z_step);
         let mut reflected_experiences = HashSet::new();
         for experience_id in &fact.experience_ids {
-            collect_experience_and_ancestors(*experience_id, model, &mut reflected_experiences);
+            collect_experience_and_ancestors(*experience_id, &experience_by_id, &mut reflected_experiences);
         }
         for experience_id in reflected_experiences {
             if let Some([x, y]) = branch_positions.get(&experience_id).copied() {
@@ -70,8 +74,8 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
                 if is_direct_fact {
                     direct_fact_positions.entry(fact.fact_id).or_insert([x, y, z]);
                 }
-                let parent_experience_ids = model.experiences.iter()
-                    .find(|experience| experience.experience_id == experience_id)
+                let parent_experience_ids = experience_by_id
+                    .get(&experience_id)
                     .map(|experience| experience.parent_experience_ids.iter().map(ToString::to_string).collect());
                 nodes.push(Node3dGeometry {
                     id: fact.fact_id.to_string(),
@@ -138,12 +142,28 @@ fn collect_linked_entity_ids(model: &ModelDatabase) -> HashMap<uuid::Uuid, Vec<S
     linked_ids
 }
 
-fn calculate_branch_positions(model: &ModelDatabase) -> HashMap<uuid::Uuid, [f32; 2]> {
+fn index_experiences(model: &ModelDatabase) -> HashMap<uuid::Uuid, &Experience> {
+    model.experiences.iter().map(|experience| (experience.experience_id, experience)).collect()
+}
+
+fn calculate_branch_positions<'a>(
+    model: &'a ModelDatabase,
+    experience_by_id: &HashMap<uuid::Uuid, &'a Experience>,
+) -> HashMap<uuid::Uuid, [f32; 2]> {
     const GENERATION_GAP: f32 = 6.0;
     const SIBLING_GAP: f32 = 4.0;
     let mut depths = HashMap::new();
     for experience in &model.experiences {
-        experience_depth(experience.experience_id, model, &mut depths, &mut HashSet::new());
+        experience_depth(experience.experience_id, experience_by_id, &mut depths, &mut HashSet::new());
+    }
+
+    // Children grouped by parent once, so sibling resolution below stays linear in the
+    // number of siblings instead of rescanning every experience for every experience.
+    let mut children_by_parent: HashMap<uuid::Uuid, Vec<usize>> = HashMap::new();
+    for (position, experience) in model.experiences.iter().enumerate() {
+        for parent_id in &experience.parent_experience_ids {
+            children_by_parent.entry(*parent_id).or_default().push(position);
+        }
     }
 
     let mut ordered_ids = model.experiences.iter().map(|experience| experience.experience_id).collect::<Vec<_>>();
@@ -152,13 +172,22 @@ fn calculate_branch_positions(model: &ModelDatabase) -> HashMap<uuid::Uuid, [f32
     let mut lanes_by_depth: HashMap<usize, Vec<f32>> = HashMap::new();
 
     for experience_id in ordered_ids {
-        let Some(experience) = model.experiences.iter().find(|item| item.experience_id == experience_id) else {
+        let Some(experience) = experience_by_id.get(&experience_id) else {
             continue;
         };
         let depth = depths.get(&experience_id).copied().unwrap_or(0);
         let parent_lanes = experience.parent_experience_ids.iter().filter_map(|parent_id| positions.get(parent_id).map(|position: &[f32; 2]| position[1])).collect::<Vec<_>>();
         let parent_center = if parent_lanes.is_empty() { 0.0 } else { parent_lanes.iter().sum::<f32>() / parent_lanes.len() as f32 };
-        let sibling_ids = model.experiences.iter().filter(|item| item.parent_experience_ids.iter().any(|parent_id| experience.parent_experience_ids.contains(parent_id))).map(|item| item.experience_id).collect::<Vec<_>>();
+        let mut sibling_positions = experience
+            .parent_experience_ids
+            .iter()
+            .filter_map(|parent_id| children_by_parent.get(parent_id))
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>();
+        sibling_positions.sort_unstable();
+        sibling_positions.dedup();
+        let sibling_ids = sibling_positions.iter().map(|position| model.experiences[*position].experience_id).collect::<Vec<_>>();
         let sibling_index = sibling_ids.iter().position(|id| *id == experience_id).unwrap_or(0);
         let desired_y = parent_center + (sibling_index as f32 - (sibling_ids.len().saturating_sub(1) as f32 / 2.0)) * SIBLING_GAP;
         let y = nearest_available_lane(desired_y, lanes_by_depth.entry(depth).or_default(), SIBLING_GAP);
@@ -168,15 +197,15 @@ fn calculate_branch_positions(model: &ModelDatabase) -> HashMap<uuid::Uuid, [f32
     positions
 }
 
-fn experience_depth(experience_id: uuid::Uuid, model: &ModelDatabase, depths: &mut HashMap<uuid::Uuid, usize>, visiting: &mut HashSet<uuid::Uuid>) -> usize {
+fn experience_depth(experience_id: uuid::Uuid, experience_by_id: &HashMap<uuid::Uuid, &Experience>, depths: &mut HashMap<uuid::Uuid, usize>, visiting: &mut HashSet<uuid::Uuid>) -> usize {
     if let Some(depth) = depths.get(&experience_id) {
         return *depth;
     }
     if !visiting.insert(experience_id) {
         return 0;
     }
-    let depth = model.experiences.iter().find(|experience| experience.experience_id == experience_id)
-        .map(|experience| experience.parent_experience_ids.iter().map(|parent_id| experience_depth(*parent_id, model, depths, visiting) + 1).max().unwrap_or(0))
+    let depth = experience_by_id.get(&experience_id)
+        .map(|experience| experience.parent_experience_ids.iter().map(|parent_id| experience_depth(*parent_id, experience_by_id, depths, visiting) + 1).max().unwrap_or(0))
         .unwrap_or(0);
     visiting.remove(&experience_id);
     depths.insert(experience_id, depth);
@@ -196,13 +225,13 @@ fn nearest_available_lane(desired_y: f32, occupied_lanes: &mut Vec<f32>, gap: f3
     unreachable!("a free lane is always available beyond the occupied lanes")
 }
 
-fn collect_experience_and_ancestors(experience_id: uuid::Uuid, model: &ModelDatabase, collected: &mut HashSet<uuid::Uuid>) {
+fn collect_experience_and_ancestors(experience_id: uuid::Uuid, experience_by_id: &HashMap<uuid::Uuid, &Experience>, collected: &mut HashSet<uuid::Uuid>) {
     if !collected.insert(experience_id) {
         return;
     }
-    if let Some(experience) = model.experiences.iter().find(|experience| experience.experience_id == experience_id) {
+    if let Some(experience) = experience_by_id.get(&experience_id) {
         for parent_id in &experience.parent_experience_ids {
-            collect_experience_and_ancestors(*parent_id, model, collected);
+            collect_experience_and_ancestors(*parent_id, experience_by_id, collected);
         }
     }
 }
@@ -322,7 +351,7 @@ mod tests {
             links: vec![],
         };
 
-        let positions = calculate_branch_positions(&model);
+        let positions = calculate_branch_positions(&model, &index_experiences(&model));
         assert_eq!(positions[&root_id][0], 0.0);
         assert_eq!(positions[&first_child_id][0], 6.0);
         assert_eq!(positions[&second_child_id][0], 6.0);

@@ -184,6 +184,22 @@ Associates inverse or reciprocal link pairs (e.g., `"refers"` and `"is referred 
 * **`link_id`** (*UUID, PK, FK*): Primary link identifier.
 * **`related_link_id`** (*UUID, PK, FK*): Reciprocal or associated link identifier.
 
+### Indexes and Storage Engine Settings
+
+The implemented `main.db` schema (`service::ensure_schema`) creates the following indexes so that a 60,000-entity package can be listed without materializing a temporary sort B-tree. Each expression index matches the corresponding entity list `ORDER BY` key exactly.
+
+| Index | Definition | Purpose |
+| --- | --- | --- |
+| `idx_person_sort` | `person(COALESCE(NULLIF(person_name, ''), person_id))` | Index-ordered PERSON listing. |
+| `idx_experience_sort` | `experience(COALESCE(NULLIF(experience_name, ''), experience_id))` | Index-ordered EXPERIENCE listing. |
+| `idx_fact_sort` | `fact(COALESCE(NULLIF(fact_name, ''), fact_id))` | Index-ordered FACT listing. |
+| `idx_link_sort` | `link(COALESCE(NULLIF(link_name, ''), link_id))` | Index-ordered LINK listing. |
+| `idx_experience_person` | `experience(person_id)` | Owner lookup and cascade scans. |
+
+Every connection opened by `service::open_connection` applies `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, and `cache_size = -65536` before running any statement, so folder bootstrap inserts do not pay a full fsync per row.
+
+**Experience ownership.** `experience.person_id` carries the nil-UUID owner placeholder for folder-only entities that are bootstrapped before their owning PERSON is known. It therefore declares no SQL foreign key, and `foreign_keys` enforcement is left disabled; ownership validity is enforced in the Rust domain layer.
+
 ---
 
 ## 3. In-Memory Rust Domain Model
