@@ -9,8 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  wiki: write
+  contents: write
 
 jobs:
   sync-wiki:
