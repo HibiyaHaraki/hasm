@@ -3,6 +3,14 @@
   "bundle": {
     "resources": [
       "binaries/hasm_markdown.exe"
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "license": "windows/license.rtf"
+      },
+      "nsis": {
+        "license": "windows/license.rtf"
+      }
+    }
   }
 }
