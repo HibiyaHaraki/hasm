@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "sync:tauri-icons": "powershell -ExecutionPolicy Bypass -File ./scripts/sync-tauri-icons.ps1",
+    "sync:tauri-icons": "node ./scripts/sync-tauri-icons.mjs",
     "build": "npm run sync:tauri-icons && npm run build:markdown && npm run build:frontend",
     "build:frontend": "vite build",
     "preview": "vite preview",
@@ -25,7 +25,7 @@
     "test:seq-md-07": "npm run test:eval-07",
     "test:seq-md-08": "npm run test:eval-08",
     "test:seq-md": "npm run test:eval-01 && npm run test:eval-02 && npm run test:eval-03 && npm run test:eval-04 && npm run test:eval-05 && npm run test:eval-07 && npm run test:eval-08",
-    "build:markdown": "powershell -ExecutionPolicy Bypass -File ./scripts/build-hasm-markdown.ps1",
+    "build:markdown": "node ./scripts/build-hasm-markdown.mjs",
     "tauri:build": "npm run sync:tauri-icons && npm run build && tauri build --config src-tauri/tauri.distribution.conf.json"
   },
   "dependencies": {
