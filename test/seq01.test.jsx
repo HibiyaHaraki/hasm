@@ -130,6 +130,16 @@ describe("SEQ-01 app launch validation", () => {
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
+  it("TC-01-REACT-014 accepts a Windows Explorer quoted workspace path", async () => {
+    api.validateHasmFolderPath.mockResolvedValue();
+    renderSelect();
+    fireEvent.change(screen.getByLabelText("Workspace folder"), { target: { value: '  "C:\\workspace with spaces"  ' } });
+
+    await waitFor(() => expect(api.validateHasmFolderPath).toHaveBeenCalledWith("C:\\workspace with spaces"));
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+  });
+
   it("TC-01-REACT-011 keeps submit disabled for an invalid path", async () => {
     api.validateHasmFolderPath.mockRejectedValue(new Error("ERR_TARGET_PATH_NOT_FOUND"));
     renderSelect();

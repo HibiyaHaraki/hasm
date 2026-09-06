@@ -6,7 +6,7 @@ This document details the complete sequence for application startup, binary vali
 
 ## 1. Sequence Overview & Key Operations
 
-1. **External App & Version Validation:** Validates `hasm_markdown.exe` binary existence, checks app version, and parses CLI arguments (`--path`).
+1. **External App & Version Validation:** Validates `hasm_markdown.exe` binary existence, checks app version, and parses CLI arguments (`--path`). Matching outer double quotes around a workspace path are removed, supporting Windows Explorer Copy as Path values.
 
 
 2. **Path Verification:** Checks physical directory existence when launched via CLI/Context Menu.
@@ -68,7 +68,7 @@ sequenceDiagram
         React->>Bridge: invoke('validate_app_version')
         Bridge->>Rust: IPC: validate_app_version()
         
-        Rust->>Rust: Read env!("CARGO_PKG_VERSION") & Parse std::env::args()
+            Rust->>Rust: Read env!("CARGO_PKG_VERSION"), parse std::env::args(), and remove matching outer path quotes
         
         break On Inspection Error (Result::Err)
             Rust-->>Bridge: Return Err(AppValidationError { code: "ERR_VERSION_CHECK_FAILED" })
@@ -126,6 +126,7 @@ sequenceDiagram
             React->>Dialog: Trigger OS Open Directory Dialog
             Dialog-->>React: Return selectedDirectoryPath
             
+            React->>React: Trim whitespace and remove matching outer path quotes
             React->>Bridge: invoke('validate_hasm_folder_path', { path: selectedDirectoryPath })
             Bridge->>Rust: IPC: validate_hasm_folder_path(selectedDirectoryPath)
             Rust->>FS: Verify path and hasm.db existence

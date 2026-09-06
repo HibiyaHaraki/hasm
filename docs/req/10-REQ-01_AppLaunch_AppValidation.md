@@ -12,6 +12,7 @@ This specification defines the functional, data, and behavioral requirements for
 * **[REQ-01-RULE-004] Mandatory Path Verification Before Load:** Under no circumstances shall the application navigate to `/loading-model` (`SEQ-02`) without a verified, existing local disk path (`modelPath`).
 * **[REQ-01-RULE-005] Frontend Hard Timeout Enforcement:** All IPC calls interacting with external systems or the File System MUST enforce a hard timeout on the frontend to prevent UI thread lockup.
 * **[REQ-01-RULE-006] Multi-Process Double-Booting Allowance:** The application MUST allow multiple OS process instances to run concurrently (double-booting), where each process operates with its own isolated memory space, React state, and backend context.
+* **[REQ-01-RULE-007] Quoted Windows Path Compatibility:** The application MUST trim whitespace and remove matching outer double quotes from workspace paths received through CLI arguments or manual input before validation and loading. Quotes within a path remain literal.
 
 ---
 
@@ -64,6 +65,7 @@ pub struct AppVersionResponse {
 * **[REQ-01-FUNC-303] CLI Arguments Parsing:** Rust MUST inspect `std::env::args()` for passed CLI path arguments.
 * **[REQ-01-FUNC-304] Context Menu Boot Flag Setting:** If a valid argument string is present in `std::env::args()`, Rust MUST set `is_model_selected` to `true` in the IPC response.
 * **[REQ-01-FUNC-305] Context Menu Boot Path Extraction:** If a valid argument string is present in `std::env::args()`, Rust MUST return the path in the IPC response payload.
+* **[REQ-01-FUNC-311] Quoted CLI Path Normalization:** Rust MUST remove matching outer double quotes from a CLI workspace path before returning it in the IPC response.
 * **[REQ-01-FUNC-306] Direct Boot Flag Setting:** If no argument string is present in `std::env::args()`, Rust MUST set `is_model_selected` to `false` in the IPC response.
 * **[REQ-01-FUNC-307] Check 2 Error State Update:** On Check 2 error, React MUST set `isLoading` to `false` and store the error message in state.
 * **[REQ-01-FUNC-308] Check 2 Error Routing:** On Check 2 error, React Router MUST navigate to `/error-app`.
@@ -91,6 +93,7 @@ pub struct AppVersionResponse {
 * **[REQ-01-FUNC-508] Invalid Path Form Disable:** When real-time validation fails or times out (>2,000ms), React MUST disable the form 'Submit' button.
 * **[REQ-01-FUNC-509] Invalid Path Warning Display:** When real-time validation fails or times out (>2,000ms), React MUST display an inline timeout or invalid path warning.
 * **[REQ-01-FUNC-510] Form Submit State Capture:** When the user clicks the enabled 'Submit' button, React MUST capture the validated `inputPath` as `modelPath`.
+* **[REQ-01-FUNC-512] Quoted Manual Path Normalization:** React MUST remove matching outer double quotes from manually entered workspace paths before validation and route-state transfer.
 * **[REQ-01-FUNC-511] Form Submit Loading State:** When the user clicks the enabled 'Submit' button, React MUST set `isLoading` to `true`.
 
 ### Step 6: Transition to SEQ-02

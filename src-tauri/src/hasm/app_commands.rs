@@ -39,7 +39,8 @@ pub fn validate_app_version() -> Result<AppVersionResponse, AppValidationError> 
 
 #[tauri::command]
 pub fn validate_hasm_folder_path(path: String) -> Result<(), AppValidationError> {
-    let candidate = Path::new(&path);
+    let normalized_path = normalize_workspace_path(&path);
+    let candidate = Path::new(&normalized_path);
     if candidate.is_dir() {
         info!("[SEQ-MD-01][PATH] workspace directory accepted");
         return Ok(());
@@ -91,15 +92,27 @@ fn parse_launch_path(args: &[String]) -> Option<String> {
     let mut values = args.iter().skip(1);
     while let Some(value) = values.next() {
         if value == "--path" {
-            return values.next().filter(|path| !path.is_empty()).cloned();
+            return values
+                .next()
+                .map(|path| normalize_workspace_path(path))
+                .filter(|path| !path.is_empty());
         }
 
         if !value.starts_with('-') && !value.is_empty() {
-            return Some(value.clone());
+            return Some(normalize_workspace_path(value));
         }
     }
 
     None
+}
+
+fn normalize_workspace_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"') {
+        trimmed[1..trimmed.len() - 1].trim().to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 fn validation_error(code: impl Into<String>, message: impl Into<String>) -> AppValidationError {
@@ -146,6 +159,14 @@ mod tests {
             parse_launch_path(&["hasm.exe".into(), "C:/workspace".into()]),
             Some("C:/workspace".to_string())
         );
+        assert_eq!(
+            parse_launch_path(&["hasm.exe".into(), "--path".into(), "\"C:/workspace with spaces\"".into()]),
+            Some("C:/workspace with spaces".to_string())
+        );
+        assert_eq!(
+            parse_launch_path(&["hasm.exe".into(), "\"C:/workspace with spaces\"".into()]),
+            Some("C:/workspace with spaces".to_string())
+        );
         assert_eq!(parse_launch_path(&["hasm.exe".into()]), None);
     }
 
@@ -155,6 +176,7 @@ mod tests {
         fs::create_dir_all(&directory).unwrap();
 
         assert!(validate_hasm_folder_path(directory.to_string_lossy().to_string()).is_ok());
+        assert!(validate_hasm_folder_path(format!("\"{}\"", directory.display())).is_ok());
         let missing = directory.join("missing");
         let error = validate_hasm_folder_path(missing.to_string_lossy().to_string()).unwrap_err();
         assert_eq!(error.code, "ERR_TARGET_PATH_NOT_FOUND");

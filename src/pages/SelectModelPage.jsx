@@ -11,6 +11,13 @@ import { createLogger } from "../hasm_logger/src/react/logger.js";
 
 const logger = createLogger("select-model");
 
+function normalizeWorkspacePath(value) {
+  const path = value.trim();
+  return path.length >= 2 && path.startsWith('"') && path.endsWith('"')
+    ? path.slice(1, -1).trim()
+    : path;
+}
+
 function SelectModelPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -30,7 +37,7 @@ function SelectModelPage() {
   }, [navigate, redirectReason]);
 
   useEffect(() => {
-    const path = inputPath.trim();
+    const path = normalizeWorkspacePath(inputPath);
     if (!path) {
       setValidation((current) => {
         if (current.status === "invalid" && current.message) {
@@ -67,7 +74,7 @@ function SelectModelPage() {
 
     submittingRef.current = true;
     logger.info("[SEQ-MD-01][SELECT] workspace selected manually");
-    navigate("/loading-model", { state: { path: inputPath.trim() } });
+    navigate("/loading-model", { state: { path: normalizeWorkspacePath(inputPath) } });
   }
 
   async function openVisualizerDemo() {
