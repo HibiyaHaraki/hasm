@@ -10,8 +10,9 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 | Test IDs covered | Executable test file / command | CI job |
 | --- | --- | --- |
-| `TC-03-REACT-001` to `TC-03-REACT-004`, visualizer guards, node-to-ticket route handoff | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-REACT-001` to `TC-03-REACT-004`, `TC-03-REACT-SCOPE-001` to `TC-03-REACT-SCOPE-003`, visualizer guards, node-to-ticket route handoff | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | SEQ-03 IPC contract | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-SCOPE-001` to `TC-03-SCOPE-005`, `TC-03-BUDGET-001`, `TC-03-BUDGET-002` | `test/visualizer-scope.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-E2E-001` canvas smoke | `test/visualizer-geometry.test.js`, opt-in with `HASM_RUN_VISUALIZER_GEOMETRY=1` | Skipped by default |
 | `TC-03-RUST-005` to `TC-03-RUST-007` | `src-tauri/src/hasm/visualizer_commands.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
 
@@ -46,6 +47,16 @@ These unit and component tests focus on `VisualizerPage.tsx`, Watchdog Timer pro
 | **TC-03-REACT-003** | `REQ-03-RULE-005``REQ-03-FUNC-203` | Negative (Filter Timeout) | `VisualizerPage.tsx` | 1. Change time scale filter.2. Simulate Watchdog timeout (>10,000ms). | 1. Displays error toast ("Filter update timed out. Reverting view.").2. Retains previous 3D scene state without canvas crash. |
 | **TC-03-REACT-004** | `REQ-03-FUNC-109` | Positive (Warning Toast) | `VisualizerPage.tsx` | 1. Resolve `compute_visualizer_layout` returning `RenderPayload` with `warnings = ["Unreferenced folder detected"]`. | 1. Renders warning toast/banner displaying unreferenced storage folder message. |
 | **TC-03-REACT-005** | `REQ-03-FUNC-110` | Positive (Development) | `SelectModelPage.tsx` | 1. Click **Test 3D commit graph**.<br/>2. Mock the populated demo payload. | 1. Calls `create_visualizer_demo_workspace` exactly once.<br/>2. Navigates to `/visualizer`. |
+| **TC-03-REACT-SCOPE-001** | `REQ-03-RULE-014``REQ-03-FUNC-501``REQ-03-FUNC-503``REQ-03-FUNC-505` | Positive (PERSON Scope) | `VisualizerPage.tsx` + `HasmVisualizerComponent` | 1. Render with a two-PERSON model.<br/>2. Select one PERSON in the PERSON scope control. | 1. `compute_visualizer_layout` is re-invoked with only that PERSON, their EXPERIENCE, and their FACT.<br/>2. The toolbar reports the scoped-of-total entity count. |
+| **TC-03-REACT-SCOPE-002** | `REQ-03-FUNC-501``REQ-03-FUNC-503` | Positive (EXPERIENCE Scope) | `HasmVisualizerComponent` | 1. Render with a two-EXPERIENCE model.<br/>2. Select one EXPERIENCE in the EXPERIENCE scope control. | 1. `compute_visualizer_layout` receives only that EXPERIENCE and the FACTs registered on it. |
+| **TC-03-REACT-SCOPE-003** | `REQ-03-RULE-015``REQ-03-FUNC-506` | Positive (Large Package Guard) | `HasmVisualizerComponent` | 1. Render with a model above the scope threshold and no scope.<br/>2. Then select a PERSON. | 1. The scope prompt is displayed and `compute_visualizer_layout` is never invoked.<br/>2. After the selection, layout is invoked. |
+| **TC-03-SCOPE-001** | `REQ-03-FUNC-504` | Positive (Passthrough) | `modelScope.scopeModel` | 1. Call with an empty scope. | 1. The same model instance is returned unchanged. |
+| **TC-03-SCOPE-002** | `REQ-03-FUNC-503` | Positive (Narrowing) | `modelScope.scopeModel` | 1. Scope to one PERSON in a model with a cross-scope LINK. | 1. Only that PERSON, their EXPERIENCE subtree and FACTs remain.<br/>2. The LINK reaching outside the scope is dropped. |
+| **TC-03-SCOPE-003** | `REQ-03-FUNC-503` | Positive (Topology) | `modelScope.scopeModel` | 1. Scope to a child EXPERIENCE, then to its root. | 1. Both directions retain the ancestor and the descendant, so branch and merge lines stay connected. |
+| **TC-03-SCOPE-004** | `REQ-03-FUNC-502` | Positive (Composed Options) | `modelScope.listExperienceOptions` | 1. Request EXPERIENCE options with and without a PERSON selection. | 1. Without a selection all EXPERIENCEs are offered.<br/>2. With a selection only that PERSON's EXPERIENCEs are offered. |
+| **TC-03-SCOPE-005** | `REQ-03-FUNC-508` | Positive (Shape Support) | `modelScope.scopeModel` | 1. Scope a snake_case sample-package model. | 1. Narrowing succeeds identically to the camelCase Tauri shape. |
+| **TC-03-BUDGET-001** | `REQ-03-RULE-016``REQ-03-FUNC-507` | Positive (Within Budget) | `threeCommitGraph.limitRenderedNodes` | 1. Pass a payload smaller than the budget. | 1. The payload is returned untouched with no warning. |
+| **TC-03-BUDGET-002** | `REQ-03-RULE-016``REQ-03-FUNC-507` | Positive (Over Budget) | `threeCommitGraph.limitRenderedNodes` | 1. Pass a payload exceeding the budget. | 1. Every EXPERIENCE node is kept and surplus FACT nodes are trimmed to the budget.<br/>2. The warning names how many FACT nodes were withheld. |
 
 ---
 

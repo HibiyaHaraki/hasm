@@ -43,6 +43,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .entity-create-checkbox { display: flex !important; align-items: center; gap: 8px; }
 .entity-create-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .model-progress { width: 100%; height: 10px; accent-color: var(--theme-primary); }
+.model-progress::-webkit-progress-value { transition: width 0.25s ease-out; }
+.model-progress::-moz-progress-bar { transition: width 0.25s ease-out; }
 .model-notice { padding: 10px; border-left: 3px solid var(--theme-secondary); color: var(--theme-muted); }
 .visualizer-page { min-height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 18px; gap: 14px; }
 .visualizer-toolbar { display: flex; align-items: end; gap: 18px; flex-wrap: wrap; padding: 14px 18px; border: 1px solid var(--theme-border); background: var(--theme-soft); }

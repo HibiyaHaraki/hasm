@@ -51,6 +51,24 @@ pub struct ProgressPayload {
 | **Storage Verification Stream** (`verify_hasm_storage`) | Watchdog Timer (Pattern B) | **10,000 ms** (Without event) | Abort verification; reject IPC; navigate to `/error-model`. |
 | **Workspace Lock Release** (`release_workspace_lock`) | Window Close Sync Lock | **1,000 ms** | Force remove `.hasm/lock` file and terminate app process. |
 
+### 1.3 Large Package Performance Budget
+
+The reference large package is **60,000 entities** (approximately 15,000 per entity type). All budgets assume a release build on local SSD storage and are measured from `load_hasm_model_db` invocation to `/visualizer` navigation.
+
+| Phase | Cost Model | Budget (60,000 entities) | Design Constraint |
+| --- | --- | --- | --- |
+| **Workspace lock check** | O(1) | < 100 ms | Refresh only the recorded `holder_pid`; never snapshot the whole OS process table. |
+| **Folder bootstrap** (`sync_directories_to_db`) | O(N) directory entries, O(M) inserts where M = folders absent from the database | < 5 s cold, < 1 s warm | Single transaction, cached prepared statements, and an existing-ID set so an unchanged package issues zero INSERTs. |
+| **Metadata load** (`load_people` / `load_experiences` / `load_facts` / `load_links`) | O(N) indexed row reads | < 5 s | Index-ordered scan; entity Markdown bodies are **not** read from disk. |
+| **IPC serialization** | O(N) metadata fields | < 2 s | Payload is metadata only; the Markdown corpus never crosses the bridge during SEQ-02. |
+| **Storage verification** (`verify_hasm_storage`) | O(N) stat calls + O(N) set lookups | < 5 s | Expected paths are held in a hash set; a linear scan per folder would be quadratic. |
+| **Entity edit round trip** (SEQ-04) | O(1) | < 300 ms | Detail read and save bootstrap only the addressed entity row. |
+| **Freshness poll** (`check_entity_mtime`) | O(1) | < 10 ms | Stats the conventional entity path; the database is opened only for non-default description paths. |
+
+**Storage engine settings applied on every connection** (`service::open_connection`): `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, `cache_size = -65536`, `foreign_keys = OFF`.
+
+**Deferred (not yet in budget):** the SEQ-03 Three.js scene still allocates one canvas-backed sprite label per node and the entity list still renders one DOM node per entity. Both remain unbounded at 60,000 entities and are tracked separately from the SEQ-02 load path.
+
 ---
 
 ## 2. Lock File Lifecycle & Stale Recovery Rules
@@ -66,6 +84,24 @@ pub struct ProgressPayload {
 ### Implemented Module Mapping
 
 The current implementation owns the SEQ-02 backend IPC in `src-tauri/src/hasm/model_commands.rs` and the frontend lifecycle in `src/pages/LoadingModelPage.jsx`. The Rust loader returns the existing serialized `ModelDatabase` payload, and the frontend transfers that verified payload to `/visualizer`. Tests create a populated temporary `hasm.db` with PERSON, EXPERIENCE, FACT, and LINK rows plus non-empty matching `main.md` and `assets/` folders; no empty workspace fixture is used.
+
+`load_hasm_model_db` streams `model-load-progress` per row via `service::read_model_database_with_progress` (in `src-tauri/src/hasm/service.rs`) instead of only emitting at the four coarse entity-type boundaries. Emits are time-throttled (`PROGRESS_EMIT_INTERVAL`, 150 ms) so large HASM packages still report continuous progress and reset the frontend's 10,000 ms watchdog without flooding the IPC channel. `verify_hasm_storage` applies the same time-based throttle to its per-entity emits, and its `find_unreferenced_entity_folders` folder scan (previously one unthrottled blocking pass with no progress) also streams `model-verify-progress` per scanned folder for the same reason.
+
+#### Large Package Load Path
+
+The following implementation decisions realise the §1.3 budget:
+
+* **Metadata-only load.** `read_model_database_with_progress` takes an `include_markdown` flag. `load_hasm_model_db` passes `false`, so SEQ-02 performs zero `main.md` reads and the returned `ModelDatabase` carries `markdown_path` with an empty `markdown`. SEQ-04's `load_entity_detail` reads the body for the single opened entity; `service::read_model_database` (used by `commands::read_model_database` and by tests) still returns full bodies.
+* **Transactional, diff-based folder bootstrap.** `sync_directories_to_db_with_progress` reads the existing ID set per table, opens one transaction, and executes cached `INSERT OR IGNORE` statements only for folders that have no row. It also streams progress, closing the previously silent gap before the load loops.
+* **Constant-time edit bootstrap.** `ensure_entity_row` replaces the whole-package folder sync in all four `get_*_detail` and all four `save_*_detail` service functions, so an edit no longer scales with package size.
+* **Indexed list ordering.** `ensure_schema` creates expression indexes matching each list `ORDER BY COALESCE(NULLIF(<name>, ''), <id>)` key plus `idx_experience_person`, replacing a full temporary B-tree sort per entity type per load.
+* **Linear storage verification.** `find_unreferenced_entity_folders` resolves expected paths through a `HashSet`; the previous per-folder `Vec` scan was quadratic in entity count.
+* **Targeted process lookup.** `process_is_active` refreshes only the recorded lock PID instead of building a full `System::new_all()` snapshot.
+* **Linear layout indexing.** `visualizer_commands::calculate_layout` builds an experience-by-id map and a children-by-parent map once, removing the per-experience linear scans (ancestor walk, parent lookup, sibling grouping) that made SEQ-03 layout quadratic.
+
+#### Schema Note: Experience Ownership
+
+`experience.person_id` no longer declares a SQL `REFERENCES person(person_id)` constraint, and `foreign_keys` is left `OFF`. Folder-only EXPERIENCE entities are bootstrapped with the nil-UUID owner placeholder before their owning PERSON is known, which made the constraint unsatisfiable for packages that carry entity folders without database rows. Ownership is validated in the domain layer instead. Legacy databases that still carry the constraint continue to open because enforcement is disabled.
 
 ### Participant Lifecycle Legend
 

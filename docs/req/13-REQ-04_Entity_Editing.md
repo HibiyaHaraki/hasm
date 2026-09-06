@@ -13,6 +13,8 @@ This specification defines the functional, data, time constraint, and validation
 * **[REQ-04-RULE-005] Verification Invalidation on Save:** Upon successful metadata persistence to `hasm.db`, Rust MUST set the in-memory `HasmModel` flag `is_verified` to `false`.
 * **[REQ-04-RULE-006] Domain Validation Pre-condition:** SQLite persistence MUST NOT execute if Rust domain validation (`entity.verify()`) fails.
 * **[REQ-04-RULE-007] Non-Blocking Window Focus mtime Check:** Window focus events MUST execute a lightweight `mtime` and existence check (< 10ms execution) without locking the UI, triggering database calls, or invoking `hasm_markdown.exe`.
+* **[REQ-04-RULE-008] Constant-Time Edit Invariant:** Loading and saving a single entity ticket MUST cost time independent of the number of entities in the package. Neither operation may scan the package's entity folders or rewrite unrelated rows.
+* **[REQ-04-RULE-009] No Implicit Workspace Reload:** Saving an entity MUST NOT trigger a reload of the whole model. The frontend MUST patch its in-memory model instead of re-invoking `load_hasm_model_db`.
 
 ---
 

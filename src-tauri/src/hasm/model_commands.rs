@@ -3,10 +3,16 @@
 use crate::hasm::service;
 use crate::hasm::types::{LockStatus, ModelDatabase, ProgressPayload, VerificationResult};
 use log::{info, warn};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use sysinfo::{Pid, System};
+use std::time::{Duration, Instant};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 use tauri::{AppHandle, Emitter};
+
+// Minimum wall-clock gap between progress emits so large packages stream smooth,
+// frequent updates without flooding the IPC channel on every single row.
+const PROGRESS_EMIT_INTERVAL: Duration = Duration::from_millis(150);
 
 const LOCK_DIRECTORY: &str = ".hasm";
 const LOCK_FILENAME: &str = "lock";
@@ -65,12 +71,34 @@ pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) 
 
 #[tauri::command]
 pub fn load_hasm_model_db(app: AppHandle, path: String) -> Result<ModelDatabase, String> {
-    emit_progress(&app, "DB_LOAD", 0, 4, "Opening workspace database")?;
-    let model = service::read_model_database(&path)?;
-    let counts = [model.people.len(), model.experiences.len(), model.facts.len(), model.links.len()];
-    for (index, (entity_type, count)) in ENTITY_TYPES.iter().zip(counts).enumerate() {
-        emit_progress(&app, "DB_LOAD", index + 1, 4, &format!("Loaded {count} {entity_type} records"))?;
-    }
+    emit_progress(&app, "DB_LOAD", 0, 1, "Opening workspace database")?;
+
+    let mut last_emit = Instant::now();
+    // Metadata-only load: entity Markdown bodies stay on disk until SEQ-04 opens a
+    // single ticket, which keeps the SEQ-02 IPC payload proportional to entity count.
+    let model = service::read_model_database_with_progress(&path, false, &mut |current, total, message| {
+        let now = Instant::now();
+        if current >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+            last_emit = now;
+            if let Err(error) = emit_progress(&app, "DB_LOAD", current, total, message) {
+                warn!("[SEQ-MD-02][LOAD] failed to emit progress: {error}");
+            }
+        }
+    })?;
+
+    emit_progress(
+        &app,
+        "DB_LOAD",
+        1,
+        1,
+        &format!(
+            "Loaded {} PERSON, {} EXPERIENCE, {} FACT, {} LINK records",
+            model.people.len(),
+            model.experiences.len(),
+            model.facts.len(),
+            model.links.len()
+        ),
+    )?;
     info!("[SEQ-MD-02][LOAD] database metadata loaded");
     Ok(model)
 }
@@ -85,12 +113,18 @@ pub fn verify_hasm_storage(
     let expected = expected_markdown_paths(&model);
     let total = expected.len().max(1);
     let mut missing_entities = Vec::new();
+    let mut last_emit = Instant::now();
 
     for (index, entity_path) in expected.iter().enumerate() {
         if !root.join(entity_path).is_file() {
             missing_entities.push(entity_path.clone());
         }
-        emit_progress(&app, "STORAGE_VERIFY", index + 1, total, "Verifying workspace storage")?;
+        let current = index + 1;
+        let now = Instant::now();
+        if current >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+            last_emit = now;
+            emit_progress(&app, "STORAGE_VERIFY", current, total, "Verifying workspace storage")?;
+        }
     }
 
     if !missing_entities.is_empty() {
@@ -98,7 +132,7 @@ pub fn verify_hasm_storage(
         return Err(format!("ERR_MISSING_STORAGE_FOLDER: {}", missing_entities.join(", ")));
     }
 
-    let unreferenced_entities = find_unreferenced_entity_folders(&root, &expected)?;
+    let unreferenced_entities = find_unreferenced_entity_folders(Some(&app), &root, &expected)?;
     info!("[SEQ-MD-02][VERIFY] workspace storage verified");
     Ok(VerificationResult { missing_entities, unreferenced_entities })
 }
@@ -117,7 +151,14 @@ fn unlocked_status(is_stale_recovered: bool) -> LockStatus {
 }
 
 fn process_is_active(pid: u32) -> bool {
-    let system = System::new_all();
+    // Refresh only the one PID that holds the lock; a full `System::new_all()` snapshot
+    // enumerates every process on the machine on each workspace open.
+    let mut system = System::new();
+    system.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
+        true,
+        ProcessRefreshKind::nothing(),
+    );
     system.process(Pid::from_u32(pid)).is_some()
 }
 
@@ -136,15 +177,53 @@ fn expected_markdown_paths(model: &ModelDatabase) -> Vec<String> {
         .collect()
 }
 
-fn find_unreferenced_entity_folders(root: &Path, expected: &[String]) -> Result<Vec<String>, String> {
-    let mut unreferenced = Vec::new();
+fn find_unreferenced_entity_folders(
+    app: Option<&AppHandle>,
+    root: &Path,
+    expected: &[String],
+) -> Result<Vec<String>, String> {
+    // Pre-scan directory entries first so a real total is known and progress can
+    // stream smoothly (large workspaces previously ran this whole scan with zero
+    // progress emits, tripping the frontend's watchdog).
+    let mut entries_by_type = Vec::new();
+    let mut total = 0usize;
     for entity_type in ENTITY_TYPES {
         let directory = root.join(entity_type);
-        if !directory.is_dir() { continue; }
-        for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
-            let markdown = entry.map_err(|error| error.to_string())?.path().join("main.md");
+        let entries = if directory.is_dir() {
+            fs::read_dir(&directory)
+                .map_err(|error| error.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| error.to_string())?
+        } else {
+            Vec::new()
+        };
+        total += entries.len();
+        entries_by_type.push((entity_type, entries));
+    }
+    let total = total.max(1);
+
+    // Set membership instead of a linear scan per folder; the previous `Vec::any` made
+    // this loop O(N^2), which dominated verification time for large packages.
+    let expected_paths: HashSet<&str> = expected.iter().map(String::as_str).collect();
+
+    let mut unreferenced = Vec::new();
+    let mut processed = 0usize;
+    let mut last_emit = Instant::now();
+
+    for (entity_type, entries) in entries_by_type {
+        for entry in entries {
+            let markdown = entry.path().join("main.md");
             let relative = markdown.strip_prefix(root).map_err(|error| error.to_string())?.to_string_lossy().replace('\\', "/");
-            if markdown.is_file() && !expected.iter().any(|path| path == &relative) { unreferenced.push(relative); }
+            if markdown.is_file() && !expected_paths.contains(relative.as_str()) { unreferenced.push(relative); }
+
+            processed += 1;
+            let now = Instant::now();
+            if let Some(app) = app {
+                if processed >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+                    last_emit = now;
+                    emit_progress(app, "STORAGE_VERIFY", processed, total, &format!("Scanning {entity_type} folders"))?;
+                }
+            }
         }
     }
     Ok(unreferenced)
@@ -239,7 +318,7 @@ mod tests {
         let model = service::read_model_database(&root.to_string_lossy()).unwrap();
         assert_eq!((model.people.len(), model.experiences.len(), model.facts.len(), model.links.len()), (1, 1, 1, 1));
         assert!(expected_markdown_paths(&model).iter().all(|path| root.join(path).is_file()));
-        assert!(find_unreferenced_entity_folders(&root, &expected_markdown_paths(&model)).unwrap().is_empty());
+        assert!(find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -263,9 +342,110 @@ mod tests {
         fs::write(extra.join("main.md"), "# Unreferenced\n\nFixture content.").unwrap();
 
         assert_eq!(
-            find_unreferenced_entity_folders(&root, &expected_markdown_paths(&model)).unwrap(),
+            find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap(),
             vec!["PERSON/55555555-5555-5555-5555-555555555555/main.md"]
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Creates a workspace holding `per_type` folder-only entities of each type and no
+    /// database, so the load path has to bootstrap every row.
+    fn scale_fixture_workspace(per_type: usize) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "hasm-seq-02-scale-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        for (type_index, entity_type) in ENTITY_TYPES.iter().enumerate() {
+            for index in 0..per_type {
+                let id = uuid::Uuid::from_u128(
+                    0x1000_0000_0000_0000_0000_0000_0000_0000u128
+                        + (type_index as u128) * 1_000_000
+                        + index as u128,
+                );
+                let folder = root.join(entity_type).join(id.to_string());
+                fs::create_dir_all(&folder).unwrap();
+                fs::write(folder.join("main.md"), format!("# {entity_type} {index}\n\nbody")).unwrap();
+            }
+        }
+        root
+    }
+
+    // TC-02-RUST-PERF-001
+    #[test]
+    fn loads_large_package_metadata_without_reading_entity_markdown() {
+        let per_type = 500;
+        let root = scale_fixture_workspace(per_type);
+        let root_string = root.to_string_lossy().to_string();
+
+        let model = service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+
+        assert_eq!(model.people.len(), per_type);
+        assert_eq!(model.experiences.len(), per_type);
+        assert_eq!(model.facts.len(), per_type);
+        assert_eq!(model.links.len(), per_type);
+        assert!(model.people.iter().all(|entity| entity.markdown.is_empty()));
+        assert!(model.facts.iter().all(|entity| entity.markdown.is_empty()));
+        assert!(model.people.iter().all(|entity| !entity.markdown_path.is_empty()));
+
+        // Storage verification must stay linear: a quadratic scan of this fixture would
+        // not complete inside the SEQ-02 budget.
+        assert!(find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-PERF-002
+    #[test]
+    fn reloading_an_unchanged_package_inserts_no_additional_rows() {
+        let per_type = 200;
+        let root = scale_fixture_workspace(per_type);
+        let root_string = root.to_string_lossy().to_string();
+
+        service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+        let reloaded = service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+
+        assert_eq!(reloaded.people.len(), per_type);
+        let connection = Connection::open(root.join("main.db")).unwrap();
+        for (table, id_column) in [("person", "person_id"), ("experience", "experience_id"), ("fact", "fact_id"), ("link", "link_id")] {
+            let distinct: i64 = connection
+                .query_row(&format!("SELECT COUNT(DISTINCT {id_column}) FROM {table}"), [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(distinct as usize, per_type, "{table} gained duplicate bootstrap rows");
+        }
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-PERF-003
+    #[test]
+    fn tunes_sqlite_for_large_packages_and_indexes_every_list_sort_key() {
+        let root = scale_fixture_workspace(2);
+        let root_string = root.to_string_lossy().to_string();
+        service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+
+        let connection = Connection::open(root.join("main.db")).unwrap();
+        let journal_mode: String = connection.query_row("PRAGMA journal_mode", [], |row| row.get(0)).unwrap();
+        assert_eq!(journal_mode.to_lowercase(), "wal");
+
+        for index_name in ["idx_person_sort", "idx_experience_sort", "idx_fact_sort", "idx_link_sort", "idx_experience_person"] {
+            let count: i64 = connection
+                .query_row("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?1", [index_name], |row| row.get(0))
+                .unwrap();
+            assert_eq!(count, 1, "missing index {index_name}");
+        }
+
+        // The list query must stream from the sort index instead of materializing a
+        // temporary B-tree over every entity row.
+        let plan: String = connection
+            .query_row(
+                "EXPLAIN QUERY PLAN SELECT person_id FROM person ORDER BY COALESCE(NULLIF(person_name, ''), person_id)",
+                [],
+                |row| row.get(3),
+            )
+            .unwrap();
+        assert!(plan.contains("idx_person_sort"), "unexpected query plan: {plan}");
+
+        drop(connection);
         fs::remove_dir_all(root).unwrap();
     }
 }

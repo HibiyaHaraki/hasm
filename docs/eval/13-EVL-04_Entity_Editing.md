@@ -10,9 +10,19 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 | Test IDs covered | Executable test file / command | CI job |
 | --- | --- | --- |
-| `TC-04-REACT-001`, `TC-04-REACT-007`, `TC-04-REACT-009`, `TC-04-E2E-004` route return | `test/seq04.test.jsx` via `npm run test:eval-04` | Frontend: EVAL-04 React and IPC tests |
+| `TC-04-REACT-001`, `TC-04-REACT-007`, `TC-04-REACT-009`, `TC-04-REACT-PERF-001`, `TC-04-REACT-PERF-002`, `TC-04-E2E-004` route return | `test/seq04.test.jsx` via `npm run test:eval-04` | Frontend: EVAL-04 React and IPC tests |
 | All four typed save invokes plus load/mtime/reload invoke contracts | `test/eval-04-ipc.test.js` via `npm run test:eval-04` | Frontend: EVAL-04 React and IPC tests |
 | `TC-04-RUST-005`, `TC-04-RUST-009`, all-entity load/reload/persist coverage | `src-tauri/src/hasm/entity_editor_commands.rs` via `cargo test entity_editor_commands` | Rust: EVAL-04 Rust entity editor tests |
+| `TC-04-RUST-PERF-001`, `TC-04-RUST-PERF-002` | `src-tauri/src/hasm/entity_editor_commands.rs` via `cargo test entity_editor_commands` | Rust: EVAL-04 Rust entity editor tests |
+
+### Large Package Performance Cases
+
+| Test ID | Trace Requirement ID | Test Type | Component / Target | Test Steps | Expected Result |
+| --- | --- | --- | --- | --- | --- |
+| **TC-04-REACT-PERF-001** | `REQ-04-RULE-009` | Positive (No Reload) | `EntityDetailPage.tsx` | 1. Render a ticket with a model in route state.<br/>2. Edit the name and click Save. | 1. `save_entity_detail` is invoked exactly once.<br/>2. `load_hasm_model_db` is never invoked.<br/>3. `load_entity_detail` is not repeated after the save. |
+| **TC-04-REACT-PERF-002** | `REQ-04-RULE-007` | Positive (Cheap Poll) | `EntityDetailPage.tsx` | 1. Render a ticket.<br/>2. Dispatch a window `focus` event with an unmodified file. | 1. `check_entity_mtime` is invoked exactly once.<br/>2. Neither `load_hasm_model_db` nor `reload_entity_markdown` is invoked. |
+| **TC-04-RUST-PERF-001** | `REQ-04-RULE-008` | Positive (Constant Time Edit) | `service::get_person_detail` / `service::save_person_detail` | 1. Create a demo workspace.<br/>2. Add 1,000 unrelated folder-only FACT entities.<br/>3. Load and save the PERSON ticket. | 1. The saved name round-trips.<br/>2. No row is created for any of the 1,000 unrelated folders, proving no whole-package folder sync ran. |
+| **TC-04-RUST-PERF-002** | `REQ-04-RULE-007` | Positive (Database-Free Poll) | `check_entity_mtime` | 1. Load a FACT ticket.<br/>2. Delete `main.db` from the workspace.<br/>3. Invoke `check_entity_mtime`. | 1. The call succeeds without the database.<br/>2. `is_deleted` is false and `current_mtime_ms` is non-zero. |
 
 Rows for domain validation, transaction rollback, and full desktop interactions remain acceptance scenarios pending their dedicated implementation.
 

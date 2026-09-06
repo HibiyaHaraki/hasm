@@ -12,6 +12,9 @@ This specification defines the functional, data, time constraint, and error hand
 * **[REQ-02-RULE-004] Atomic Memory Invalidation:** Loading a new model MUST completely purge and replace any existing in-memory `HasmModel` instance.
 * **[REQ-02-RULE-005] Watchdog Progress Guarantee:** Long-running database load and storage verification operations MUST emit progress events at least once every **10,000ms**. Failure to emit events within this threshold MUST trigger a Watchdog Timeout and route to `/error-model`.
 * **[REQ-02-RULE-006] Fatal Missing Directory Guard:** If `verify_storage()` detects missing physical directories (`main.md`) for loaded database entities, `has_fatal_error()` MUST return `true`, blocking navigation to `/visualizer` and redirecting to `/error-model`.
+* **[REQ-02-RULE-007] Linear Scale Invariant:** Every phase of the model load and storage verification path MUST be at worst linear in the number of entities. No phase may perform a per-entity scan of a collection whose size grows with the package.
+* **[REQ-02-RULE-008] Metadata-Only Load Invariant:** `load_hasm_model_db` MUST NOT read entity Markdown bodies from disk. The returned model carries `markdownPath` for every entity and an empty `markdown`; bodies are read only when a single entity ticket is opened under SEQ-04.
+* **[REQ-02-RULE-009] Idempotent Bootstrap Invariant:** Re-opening an unchanged package MUST NOT write any row to `main.db`. Folder-to-database bootstrap MUST insert only entity folders that have no corresponding row.
 
 ---
 
@@ -96,3 +99,19 @@ pub enum ModelLoadingError {
 * **[REQ-02-FUNC-304] Fatal Missing Directory Handling:** If `VerificationResult.has_fatal_error()` returns `true` (missing required `main.md` directories), Rust MUST reject IPC with `MissingStorageFolder` and React Router MUST navigate to `/error-model`.
 * **[REQ-02-FUNC-305] Verification State Flag Setting:** Upon successful verification completion, Rust MUST set the in-memory `HasmModel` flag `is_verified = true`.
 * **[REQ-02-FUNC-306] Visualizer Navigation:** Upon successful resolution of storage verification, React Router MUST navigate to `/visualizer` passing loaded model context.
+
+### Chapter 4: Large Package Performance (`load_hasm_model_db` / `verify_hasm_storage`)
+
+The reference package for all requirements in this chapter holds **60,000 entities**, approximately 15,000 of each entity type.
+
+* **[REQ-02-FUNC-401] Load Time Budget:** Opening a 60,000-entity package MUST complete lock acquisition, metadata load, and storage verification within **20,000 ms** total on a release build backed by local SSD storage.
+* **[REQ-02-FUNC-402] Transactional Folder Bootstrap:** Folder-to-database bootstrap MUST execute inside a single transaction using cached prepared statements. Per-row autocommit MUST NOT be used.
+* **[REQ-02-FUNC-403] Differential Bootstrap:** Before inserting, Rust MUST read the existing entity ID set for each table and MUST issue an `INSERT` only for folders absent from that set (see `[REQ-02-RULE-009]`).
+* **[REQ-02-FUNC-404] Storage Engine Tuning:** Every `main.db` connection MUST apply `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, and a negative `cache_size` before executing any statement.
+* **[REQ-02-FUNC-405] Indexed List Ordering:** The schema MUST provide an index matching each entity list `ORDER BY COALESCE(NULLIF(<name>, ''), <id>)` key, plus an index on `experience(person_id)`. List queries MUST NOT materialize a temporary sort B-tree.
+* **[REQ-02-FUNC-406] Metadata-Only Payload:** `load_hasm_model_db` MUST request a metadata-only read and MUST return entities whose `markdown` field is empty and whose `markdownPath` field is populated (see `[REQ-02-RULE-008]`).
+* **[REQ-02-FUNC-407] Single Load Per Navigation:** The frontend MUST invoke `load_hasm_model_db` at most once per workspace open and MUST forward the returned model directly to `verify_hasm_storage` without re-reading the package.
+* **[REQ-02-FUNC-408] Constant-Time Set Membership in Verification:** `verify_hasm_storage` MUST resolve expected-path membership through a hash set. A linear scan of the expected-path collection per scanned folder MUST NOT be used.
+* **[REQ-02-FUNC-409] Targeted Process Table Access:** `check_workspace_lock` MUST refresh only the recorded `holder_pid` and MUST NOT enumerate the full OS process table.
+* **[REQ-02-FUNC-410] Bootstrap Progress Streaming:** The folder bootstrap phase MUST emit `model-load-progress` events subject to the 150 ms throttle, so it cannot trip the `[REQ-02-RULE-005]` watchdog on large packages.
+* **[REQ-02-FUNC-411] Ownership Constraint Relaxation:** The `experience` table MUST NOT declare a SQL foreign key on `person_id`, and foreign key enforcement MUST remain disabled, so folder-only EXPERIENCE entities can be bootstrapped with the nil-UUID owner placeholder before their owning PERSON is known. Ownership validity MUST be enforced in the domain layer.

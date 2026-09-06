@@ -16,10 +16,46 @@ vi.mock("../src/features/hasm/api", () => ({
   switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
 }));
-vi.mock("../src/features/visualizer/threeCommitGraph", () => ({ createCommitGraph: (...args) => { selectNode(args[3]); return createCommitGraph(...args); } }));
+vi.mock("../src/hasm_visualizer/threeCommitGraph.js", async () => {
+  const actual = await vi.importActual("../src/hasm_visualizer/threeCommitGraph.js");
+  return { ...actual, createCommitGraph: (...args) => { selectNode(args[3]); return createCommitGraph(...args); } };
+});
 
 const model = { people: [{ personId: "person-1" }], experiences: [{ experienceId: "experience-1" }], facts: [{ factId: "fact-1" }], links: [] };
 const payload = { nodes3d: [], lines3d: [], warnings: [] };
+
+const scopeFixtureModel = {
+  people: [
+    { personId: "person-1", personName: "Ada" },
+    { personId: "person-2", personName: "Bob" },
+  ],
+  experiences: [
+    { experienceId: "exp-1", personId: "person-1", experienceName: "Research", parentExperienceIds: [] },
+    { experienceId: "exp-2", personId: "person-2", experienceName: "Teaching", parentExperienceIds: [] },
+  ],
+  facts: [
+    { factId: "fact-1", factName: "Paper", experienceIds: ["exp-1"], personIds: ["person-1"] },
+    { factId: "fact-2", factName: "Lecture", experienceIds: ["exp-2"], personIds: ["person-2"] },
+  ],
+  links: [],
+};
+
+function largeFixtureModel(entityCount) {
+  const perType = Math.ceil(entityCount / 3);
+  return {
+    people: Array.from({ length: perType }, (_value, index) => ({ personId: `person-${index}`, personName: `Person ${index}` })),
+    experiences: Array.from({ length: perType }, (_value, index) => ({ experienceId: `exp-${index}`, personId: `person-${index}`, experienceName: `Experience ${index}`, parentExperienceIds: [] })),
+    facts: Array.from({ length: perType }, (_value, index) => ({ factId: `fact-${index}`, factName: `Fact ${index}`, experienceIds: [`exp-${index}`], personIds: [`person-${index}`] })),
+    links: [],
+  };
+}
+
+// jsdom multi-selects are not driven by fireEvent.change's `target.value`, so the option
+// selection state is set directly before the change event is dispatched.
+function selectOptions(select, values) {
+  Array.from(select.options).forEach((option) => { option.selected = values.includes(option.value); });
+  fireEvent.change(select);
+}
 
 function LocationProbe() {
   const location = useLocation();
@@ -86,5 +122,51 @@ describe("SEQ-03 visualizer lifecycle", () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {}); api.computeVisualizerLayout.mockResolvedValue(payload); renderVisualizer();
     await vi.waitFor(() => expect(selectNode).toHaveBeenCalled()); selectNode.mock.calls.at(-1)[0]({ entityType: "FACT", id: "fact-1" });
     expect(await screen.findByTestId("location")).toHaveTextContent("/entity-detail/FACT/fact-1:model");
+  });
+
+  it("TC-03-REACT-SCOPE-001 narrows the laid-out model to the selected PERSON scope", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts).toHaveLength(2);
+
+    selectOptions(screen.getByLabelText("PERSON scope"), ["person-1"]);
+
+    await vi.waitFor(() => {
+      const scoped = api.computeVisualizerLayout.mock.calls.at(-1)[0];
+      expect(scoped.people.map((person) => person.personId)).toEqual(["person-1"]);
+      expect(scoped.experiences.map((experience) => experience.experienceId)).toEqual(["exp-1"]);
+      expect(scoped.facts.map((fact) => fact.factId)).toEqual(["fact-1"]);
+    });
+    expect(screen.getByText("3 of 6 entities")).toBeInTheDocument();
+  });
+
+  it("TC-03-REACT-SCOPE-002 narrows further to a selected EXPERIENCE within the PERSON scope", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+
+    selectOptions(screen.getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+
+    await vi.waitFor(() => {
+      const scoped = api.computeVisualizerLayout.mock.calls.at(-1)[0];
+      expect(scoped.experiences.map((experience) => experience.experienceId)).toEqual(["exp-2"]);
+      expect(scoped.facts.map((fact) => fact.factId)).toEqual(["fact-2"]);
+    });
+  });
+
+  it("TC-03-REACT-SCOPE-003 refuses to lay out a large package until a scope is chosen", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: largeFixtureModel(2400), path: "C:/fixture.hasm", isVerified: true });
+
+    expect(await screen.findByText(/Select a PERSON or EXPERIENCE scope/)).toBeInTheDocument();
+    expect(api.computeVisualizerLayout).not.toHaveBeenCalled();
+
+    selectOptions(screen.getByLabelText("PERSON scope"), ["person-0"]);
+
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
   });
 });

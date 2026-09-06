@@ -94,6 +94,16 @@ pub enum EntityEditorError {
 | **Metadata DB Persistence** (`hasm.db`) | Fixed Hard Timeout | **5,000 ms** | `ROLLBACK` SQLite Transaction; return `ERR_SAVE_TIMEOUT`; preserve form state on React UI. |
 | **mtime Diff / Existence Check** (`check_entity_mtime`) | Instant (Fs Metadata) | **< 10 ms** | Non-blocking background check on Window Focus; return `is_modified` / `is_deleted` booleans. |
 
+### 1.3 Large Package Cost Model
+
+Editing must be independent of package size. On the reference 60,000-entity package the SEQ-04 path is bounded as follows:
+
+| Operation | Cost Model | Implementation Note |
+| --- | --- | --- |
+| `load_entity_detail` | O(1) | `service::get_*_detail` calls `ensure_entity_row` for the addressed entity only. The previous whole-package `sync_directories_to_db` call was removed from all four getters. |
+| `save_*_detail` | O(1) | Same single-entity bootstrap, followed by one upsert and one Markdown write. No workspace reload follows the save. |
+| `check_entity_mtime` | O(1), database-free | Stats `{root}/{TYPE}/{uuid}/main.md` directly. The entity id is parsed as a UUID first so it can never inject path segments. The database is consulted only when an entity stores a non-default description path. |
+
 ---
 
 ## 2. Entity-Level Domain Validation Rules (Rust `entity.verify()`)

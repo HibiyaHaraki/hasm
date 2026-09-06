@@ -8,7 +8,7 @@ use crate::hasm::types::{EntitySummary, ModelDatabase, ModelWorkspace, SaveResul
 use crate::logger::init_logger;
 use log::{debug, error, info, warn};
 use rusqlite::{params, Connection, OptionalExtension};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -64,19 +64,43 @@ pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
     })
 }
 
+/// Callback invoked with (records_loaded_so_far, total_records, status_message) as
+/// `read_model_database_with_progress` streams rows, so large HASM packages report
+/// continuous progress instead of jumping only at coarse entity-type boundaries.
+pub type ProgressFn<'a> = dyn FnMut(usize, usize, &str) + 'a;
+
 pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
+    read_model_database_with_progress(model_root, true, &mut |_, _, _| {})
+}
+
+/// `include_markdown = false` skips one `fs::read_to_string` per entity and keeps the
+/// whole-package Markdown corpus out of the IPC payload; the SEQ-02 browse view only
+/// needs metadata, and SEQ-04 re-reads the body for the single opened entity.
+pub fn read_model_database_with_progress(
+    model_root: &str,
+    include_markdown: bool,
+    on_progress: &mut ProgressFn,
+) -> Result<ModelDatabase, String> {
     init_logger();
-    info!("read_model_database start: model_root={}", model_root);
+    info!(
+        "read_model_database start: model_root={}, include_markdown={}",
+        model_root, include_markdown
+    );
 
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+
+    on_progress(0, 1, "Synchronizing workspace folders");
+    sync_directories_to_db_with_progress(&connection, &root, on_progress)?;
+
+    let total = count_all_entities(&connection)?;
+    let mut loaded = 0usize;
 
     let model = ModelDatabase {
-        people: load_people(&connection, &root)?,
-        experiences: load_experiences(&connection, &root)?,
-        facts: load_facts(&connection, &root)?,
-        links: load_links(&connection, &root)?,
+        people: load_people(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
+        experiences: load_experiences(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
+        facts: load_facts(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
+        links: load_links(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
     };
 
     info!(
@@ -89,6 +113,20 @@ pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
     );
 
     Ok(model)
+}
+
+fn count_all_entities(connection: &Connection) -> Result<usize, String> {
+    let total: i64 = connection
+        .query_row(
+            "SELECT (SELECT COUNT(*) FROM person)
+                  + (SELECT COUNT(*) FROM experience)
+                  + (SELECT COUNT(*) FROM fact)
+                  + (SELECT COUNT(*) FROM link)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok((total.max(0) as usize).max(1))
 }
 
 pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<SaveResult, String> {
@@ -139,13 +177,13 @@ pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, St
     init_logger();
     info!("get_person_detail start: model_root={}, entity_id={}", model_root, entity_id);
 
-    // Step 1. Validate/open/sync before detail lookup.
+    // Step 1. Validate/open and bootstrap only the requested entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    let person_id = parse_uuid(entity_id)?;
+    ensure_entity_row(&connection, &root, "PERSON", &person_id)?;
 
     // Step 2. Query person row and compose detail payload with markdown content.
-    let person_id = parse_uuid(entity_id)?;
     let row = connection
         .query_row(
             "SELECT person_id, person_name, person_description_path, birthday, die, link_ids
@@ -193,13 +231,13 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
         entity_id
     );
 
-    // Step 1. Validate/open/sync before detail lookup.
+    // Step 1. Validate/open and bootstrap only the requested entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    let experience_id = parse_uuid(entity_id)?;
+    ensure_entity_row(&connection, &root, "EXPERIENCE", &experience_id)?;
 
     // Step 2. Query experience row and compose detail payload with markdown content.
-    let experience_id = parse_uuid(entity_id)?;
     let row = connection
         .query_row(
             "SELECT experience_id, person_id, experience_name, experience_description_path,
@@ -252,13 +290,13 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
     init_logger();
     info!("get_fact_detail start: model_root={}, entity_id={}", model_root, entity_id);
 
-    // Step 1. Validate/open/sync before detail lookup.
+    // Step 1. Validate/open and bootstrap only the requested entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    let fact_id = parse_uuid(entity_id)?;
+    ensure_entity_row(&connection, &root, "FACT", &fact_id)?;
 
     // Step 2. Query fact row and compose detail payload with markdown content.
-    let fact_id = parse_uuid(entity_id)?;
     let row = connection
         .query_row(
             "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
@@ -306,13 +344,13 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
     init_logger();
     info!("get_link_detail start: model_root={}, entity_id={}", model_root, entity_id);
 
-    // Step 1. Validate/open/sync before detail lookup.
+    // Step 1. Validate/open and bootstrap only the requested entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    let link_id = parse_uuid(entity_id)?;
+    ensure_entity_row(&connection, &root, "LINK", &link_id)?;
 
     // Step 2. Query link row and compose detail payload with markdown content.
-    let link_id = parse_uuid(entity_id)?;
     let row = connection
         .query_row(
             "SELECT link_id, link_name, link_type, link_description_path, related_ids
@@ -358,10 +396,10 @@ pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResul
         detail.person_id
     );
 
-    // Step 1. Validate/open/sync before persistence.
+    // Step 1. Validate/open and bootstrap only the edited entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    ensure_entity_row(&connection, &root, "PERSON", &detail.person_id)?;
 
     // Step 2. Upsert person row into DB and markdown file.
     save_person_row(&connection, &root, detail)?;
@@ -381,10 +419,10 @@ pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<S
         detail.experience_id
     );
 
-    // Step 1. Validate/open/sync before persistence.
+    // Step 1. Validate/open and bootstrap only the edited entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    ensure_entity_row(&connection, &root, "EXPERIENCE", &detail.experience_id)?;
 
     // Step 2. Upsert experience row into DB and markdown file.
     save_experience_row(&connection, &root, detail)?;
@@ -404,10 +442,10 @@ pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, S
         detail.fact_id
     );
 
-    // Step 1. Validate/open/sync before persistence.
+    // Step 1. Validate/open and bootstrap only the edited entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    ensure_entity_row(&connection, &root, "FACT", &detail.fact_id)?;
 
     // Step 2. Upsert fact row into DB and markdown file.
     save_fact_row(&connection, &root, detail)?;
@@ -427,10 +465,10 @@ pub fn save_link_detail(model_root: &str, detail: &Link) -> Result<SaveResult, S
         detail.link_id
     );
 
-    // Step 1. Validate/open/sync before persistence.
+    // Step 1. Validate/open and bootstrap only the edited entity.
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
-    sync_directories_to_db(&connection, &root)?;
+    ensure_entity_row(&connection, &root, "LINK", &detail.link_id)?;
 
     // Step 2. Upsert link row into DB and markdown file.
     save_link_row(&connection, &root, detail)?;
@@ -497,7 +535,21 @@ fn open_connection(model_root: &Path) -> Result<Connection, String> {
     // Step 2. Open main.db connection from model root.
     let connection = Connection::open(&main_db_path).map_err(|error| error.to_string())?;
 
-    // Step 3. Ensure required schema exists.
+    // Step 3. Apply large-package I/O tuning before any statement runs. Without WAL
+    // and relaxed sync, every bootstrap INSERT costs a full fsync (SEQ-MD-02 budget).
+    // Foreign key enforcement stays off so legacy databases that still carry the
+    // experience -> person constraint can bootstrap folder-only entities.
+    connection
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF;
+            PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+            PRAGMA temp_store = MEMORY;
+            PRAGMA cache_size = -65536;",
+        )
+        .map_err(|error| error.to_string())?;
+
+    // Step 4. Ensure required schema exists.
     ensure_schema(&connection)?;
     debug!("open_connection success: {}", main_db_path.display());
     Ok(connection)
@@ -506,8 +558,7 @@ fn open_connection(model_root: &Path) -> Result<Connection, String> {
 fn ensure_schema(connection: &Connection) -> Result<(), String> {
     connection
         .execute_batch(
-            "PRAGMA foreign_keys = ON;
-            CREATE TABLE IF NOT EXISTS person (
+            "CREATE TABLE IF NOT EXISTS person (
                 person_id UUID PRIMARY KEY,
                 person_name TEXT NOT NULL DEFAULT '',
                 person_description_path TEXT NOT NULL DEFAULT '',
@@ -517,7 +568,10 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
             );
             CREATE TABLE IF NOT EXISTS experience (
                 experience_id UUID PRIMARY KEY,
-                person_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000' REFERENCES person(person_id),
+                -- Folder-only EXPERIENCE entities are bootstrapped with the nil owner
+                -- placeholder before their PERSON is known, so ownership is validated in
+                -- the domain layer rather than by a SQL foreign key.
+                person_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
                 experience_name TEXT NOT NULL DEFAULT '',
                 experience_description_path TEXT NOT NULL DEFAULT '',
                 parent_experience_ids TEXT NOT NULL DEFAULT '[]',
@@ -542,73 +596,212 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     let _ = connection.execute("ALTER TABLE fact ADD COLUMN occurred_at TEXT NOT NULL DEFAULT ''", []);
+
+    // Expression indexes matching the list ORDER BY keys, so a 60k-entity package is
+    // streamed from an index instead of a full temporary B-tree sort on every load.
+    connection
+        .execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_person_sort
+                ON person(COALESCE(NULLIF(person_name, ''), person_id));
+            CREATE INDEX IF NOT EXISTS idx_experience_sort
+                ON experience(COALESCE(NULLIF(experience_name, ''), experience_id));
+            CREATE INDEX IF NOT EXISTS idx_fact_sort
+                ON fact(COALESCE(NULLIF(fact_name, ''), fact_id));
+            CREATE INDEX IF NOT EXISTS idx_link_sort
+                ON link(COALESCE(NULLIF(link_name, ''), link_id));
+            CREATE INDEX IF NOT EXISTS idx_experience_person ON experience(person_id);",
+        )
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
 fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<(), String> {
+    sync_directories_to_db_with_progress(connection, model_root, &mut |_, _, _| {})
+}
+
+/// Bootstraps folder-only entities into `main.db`.
+///
+/// Runs inside a single transaction and issues an INSERT only for folders that are
+/// genuinely absent from the database, so an unchanged 60k-entity package costs four
+/// index scans instead of 60k autocommit statements (SEQ-MD-02 load budget).
+fn sync_directories_to_db_with_progress(
+    connection: &Connection,
+    model_root: &Path,
+    on_progress: &mut ProgressFn,
+) -> Result<(), String> {
     init_logger();
     debug!("sync_directories_to_db start: {}", model_root.display());
 
-    // Step 1. Sync PERSON folders into DB rows when missing.
+    // Step 1. Enumerate folders and existing rows once per entity type.
     let person_ids = read_entity_directories(model_root, "PERSON")?;
-    for entity_id in &person_ids {
-        let description_path = Person::default_markdown_path(&entity_id);
-        connection
-            .execute(
+    let experience_ids = read_entity_directories(model_root, "EXPERIENCE")?;
+    let fact_ids = read_entity_directories(model_root, "FACT")?;
+    let link_ids = read_entity_directories(model_root, "LINK")?;
+    let total = (person_ids.len() + experience_ids.len() + fact_ids.len() + link_ids.len()).max(1);
+
+    let existing_people = read_existing_ids(connection, "person", "person_id")?;
+    let existing_experiences = read_existing_ids(connection, "experience", "experience_id")?;
+    let existing_facts = read_existing_ids(connection, "fact", "fact_id")?;
+    let existing_links = read_existing_ids(connection, "link", "link_id")?;
+
+    // Step 2. Insert only the missing rows, batched into one transaction.
+    let transaction = connection
+        .unchecked_transaction()
+        .map_err(|error| error.to_string())?;
+    let mut processed = 0usize;
+    let mut inserted = 0usize;
+
+    {
+        let mut statement = transaction
+            .prepare_cached(
                 "INSERT OR IGNORE INTO person (person_id, person_name, person_description_path, birthday, die, link_ids)
                  VALUES (?1, '', ?2, '', '', '[]')",
-                params![entity_id.to_string(), description_path],
             )
             .map_err(|error| error.to_string())?;
+        for entity_id in &person_ids {
+            if !existing_people.contains(entity_id) {
+                statement
+                    .execute(params![entity_id.to_string(), Person::default_markdown_path(entity_id)])
+                    .map_err(|error| error.to_string())?;
+                inserted += 1;
+            }
+            processed += 1;
+            on_progress(processed, total, "Synchronizing PERSON folders");
+        }
     }
 
-    // Step 2. Sync EXPERIENCE folders into DB rows when missing.
-    let experience_ids = read_entity_directories(model_root, "EXPERIENCE")?;
-    for entity_id in &experience_ids {
-        let description_path = Experience::default_markdown_path(&entity_id);
-        connection
-            .execute(
+    {
+        let mut statement = transaction
+            .prepare_cached(
                 "INSERT OR IGNORE INTO experience (experience_id, person_id, experience_name, experience_description_path, parent_experience_ids, link_ids)
                  VALUES (?1, '00000000-0000-0000-0000-000000000000', '', ?2, '[]', '[]')",
-                params![entity_id.to_string(), description_path],
             )
             .map_err(|error| error.to_string())?;
+        for entity_id in &experience_ids {
+            if !existing_experiences.contains(entity_id) {
+                statement
+                    .execute(params![entity_id.to_string(), Experience::default_markdown_path(entity_id)])
+                    .map_err(|error| error.to_string())?;
+                inserted += 1;
+            }
+            processed += 1;
+            on_progress(processed, total, "Synchronizing EXPERIENCE folders");
+        }
     }
 
-    // Step 3. Sync FACT folders into DB rows when missing.
-    let fact_ids = read_entity_directories(model_root, "FACT")?;
-    for entity_id in &fact_ids {
-        let description_path = Fact::default_markdown_path(&entity_id);
-        connection
-            .execute(
+    {
+        let mut statement = transaction
+            .prepare_cached(
                 "INSERT OR IGNORE INTO fact (fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids)
                  VALUES (?1, '', ?2, '[]', '[]', '[]')",
-                params![entity_id.to_string(), description_path],
             )
             .map_err(|error| error.to_string())?;
+        for entity_id in &fact_ids {
+            if !existing_facts.contains(entity_id) {
+                statement
+                    .execute(params![entity_id.to_string(), Fact::default_markdown_path(entity_id)])
+                    .map_err(|error| error.to_string())?;
+                inserted += 1;
+            }
+            processed += 1;
+            on_progress(processed, total, "Synchronizing FACT folders");
+        }
     }
 
-    // Step 4. Sync LINK folders into DB rows when missing.
-    let link_ids = read_entity_directories(model_root, "LINK")?;
-    for entity_id in &link_ids {
-        let description_path = Link::default_markdown_path(&entity_id);
-        connection
-            .execute(
+    {
+        let mut statement = transaction
+            .prepare_cached(
                 "INSERT OR IGNORE INTO link (link_id, link_name, link_type, link_description_path, related_ids)
                  VALUES (?1, '', '', ?2, '[]')",
-                params![entity_id.to_string(), description_path],
             )
             .map_err(|error| error.to_string())?;
+        for entity_id in &link_ids {
+            if !existing_links.contains(entity_id) {
+                statement
+                    .execute(params![entity_id.to_string(), Link::default_markdown_path(entity_id)])
+                    .map_err(|error| error.to_string())?;
+                inserted += 1;
+            }
+            processed += 1;
+            on_progress(processed, total, "Synchronizing LINK folders");
+        }
     }
 
+    transaction.commit().map_err(|error| error.to_string())?;
+
     debug!(
-        "sync_directories_to_db success: PERSON={}, EXPERIENCE={}, FACT={}, LINK={}",
+        "sync_directories_to_db success: PERSON={}, EXPERIENCE={}, FACT={}, LINK={}, inserted={}",
         person_ids.len(),
         experience_ids.len(),
         fact_ids.len(),
-        link_ids.len()
+        link_ids.len(),
+        inserted
     );
     Ok(())
+}
+
+fn read_existing_ids(
+    connection: &Connection,
+    table: &str,
+    id_column: &str,
+) -> Result<HashSet<Uuid>, String> {
+    let mut statement = connection
+        .prepare(&format!("SELECT {id_column} FROM {table}"))
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|error| error.to_string())?;
+
+    let mut ids = HashSet::new();
+    for row in rows {
+        let raw = row.map_err(|error| error.to_string())?;
+        if let Ok(id) = Uuid::parse_str(raw.trim()) {
+            ids.insert(id);
+        }
+    }
+    Ok(ids)
+}
+
+/// Bootstraps a single folder-only entity row.
+///
+/// SEQ-04 detail reads and saves use this instead of a whole-package folder sync so
+/// opening or saving one ticket stays constant-time regardless of package size.
+fn ensure_entity_row(
+    connection: &Connection,
+    model_root: &Path,
+    entity_type: &str,
+    entity_id: &Uuid,
+) -> Result<(), String> {
+    if !model_root.join(entity_type).join(entity_id.to_string()).is_dir() {
+        return Ok(());
+    }
+
+    let id = entity_id.to_string();
+    let result = match entity_type {
+        "PERSON" => connection.execute(
+            "INSERT OR IGNORE INTO person (person_id, person_name, person_description_path, birthday, die, link_ids)
+             VALUES (?1, '', ?2, '', '', '[]')",
+            params![id, Person::default_markdown_path(entity_id)],
+        ),
+        "EXPERIENCE" => connection.execute(
+            "INSERT OR IGNORE INTO experience (experience_id, person_id, experience_name, experience_description_path, parent_experience_ids, link_ids)
+             VALUES (?1, '00000000-0000-0000-0000-000000000000', '', ?2, '[]', '[]')",
+            params![id, Experience::default_markdown_path(entity_id)],
+        ),
+        "FACT" => connection.execute(
+            "INSERT OR IGNORE INTO fact (fact_id, fact_name, fact_description_path, experience_ids, person_ids, link_ids)
+             VALUES (?1, '', ?2, '[]', '[]', '[]')",
+            params![id, Fact::default_markdown_path(entity_id)],
+        ),
+        "LINK" => connection.execute(
+            "INSERT OR IGNORE INTO link (link_id, link_name, link_type, link_description_path, related_ids)
+             VALUES (?1, '', '', ?2, '[]')",
+            params![id, Link::default_markdown_path(entity_id)],
+        ),
+        other => return Err(format!("Unknown entity type: {other}")),
+    };
+
+    result.map(|_| ()).map_err(|error| error.to_string())
 }
 
 fn save_person_row(connection: &Connection, model_root: &Path, detail: &Person) -> Result<(), String> {
@@ -914,7 +1107,14 @@ fn list_links(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     Ok(items)
 }
 
-fn load_people(connection: &Connection, model_root: &Path) -> Result<Vec<Person>, String> {
+fn load_people(
+    connection: &Connection,
+    model_root: &Path,
+    include_markdown: bool,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Person>, String> {
     let mut statement = connection
         .prepare(
             "SELECT person_id, person_name, person_description_path, birthday, die, link_ids
@@ -947,17 +1147,26 @@ fn load_people(connection: &Connection, model_root: &Path) -> Result<Vec<Person>
             birthday,
             die,
             link_ids: parse_json_uuid_array(&link_ids),
-            markdown: read_markdown(model_root, &description_path),
+            markdown: read_markdown_if(model_root, &description_path, include_markdown),
             markdown_path: resolve_markdown_path(model_root, &description_path)
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading PERSON records");
     }
 
     Ok(people)
 }
 
-fn load_experiences(connection: &Connection, model_root: &Path) -> Result<Vec<Experience>, String> {
+fn load_experiences(
+    connection: &Connection,
+    model_root: &Path,
+    include_markdown: bool,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Experience>, String> {
     let mut statement = connection
         .prepare(
             "SELECT experience_id, person_id, experience_name, experience_description_path,
@@ -997,17 +1206,26 @@ fn load_experiences(connection: &Connection, model_root: &Path) -> Result<Vec<Ex
             experience_description_path: description_path.clone(),
             parent_experience_ids: parse_json_uuid_array(&parent_experience_ids),
             link_ids: parse_json_uuid_array(&link_ids),
-            markdown: read_markdown(model_root, &description_path),
+            markdown: read_markdown_if(model_root, &description_path, include_markdown),
             markdown_path: resolve_markdown_path(model_root, &description_path)
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading EXPERIENCE records");
     }
 
     Ok(experiences)
 }
 
-fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, String> {
+fn load_facts(
+    connection: &Connection,
+    model_root: &Path,
+    include_markdown: bool,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Fact>, String> {
     let mut statement = connection
         .prepare(
             "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
@@ -1042,17 +1260,26 @@ fn load_facts(connection: &Connection, model_root: &Path) -> Result<Vec<Fact>, S
             experience_ids: parse_json_uuid_array(&experience_ids),
             person_ids: parse_json_uuid_array(&person_ids),
             link_ids: parse_json_uuid_array(&link_ids),
-            markdown: read_markdown(model_root, &description_path),
+            markdown: read_markdown_if(model_root, &description_path, include_markdown),
             markdown_path: resolve_markdown_path(model_root, &description_path)
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading FACT records");
     }
 
     Ok(facts)
 }
 
-fn load_links(connection: &Connection, model_root: &Path) -> Result<Vec<Link>, String> {
+fn load_links(
+    connection: &Connection,
+    model_root: &Path,
+    include_markdown: bool,
+    loaded: &mut usize,
+    total: usize,
+    on_progress: &mut ProgressFn,
+) -> Result<Vec<Link>, String> {
     let mut statement = connection
         .prepare(
             "SELECT link_id, link_name, link_type, link_description_path, related_ids
@@ -1083,11 +1310,13 @@ fn load_links(connection: &Connection, model_root: &Path) -> Result<Vec<Link>, S
             link_type,
             link_description_path: description_path.clone(),
             related_ids: parse_json_uuid_array(&related_ids),
-            markdown: read_markdown(model_root, &description_path),
+            markdown: read_markdown_if(model_root, &description_path, include_markdown),
             markdown_path: resolve_markdown_path(model_root, &description_path)
                 .to_string_lossy()
                 .to_string(),
         });
+        *loaded += 1;
+        on_progress(*loaded, total, "Loading LINK records");
     }
 
     Ok(links)
@@ -1109,7 +1338,13 @@ fn read_entity_directories(model_root: &Path, entity_type: &str) -> Result<Vec<U
     // Step 2. Collect child folder names as UUID entity IDs.
     for entry in entries {
         let entry = entry.map_err(|error| format!("Failed to inspect directory entry: {error}"))?;
-        if entry.path().is_dir() {
+        // `file_type()` comes from the directory listing itself, unlike `path().is_dir()`
+        // which costs an extra stat syscall for each of the package's entity folders.
+        let is_directory = entry
+            .file_type()
+            .map_err(|error| format!("Failed to inspect directory entry: {error}"))?
+            .is_dir();
+        if is_directory {
             let raw_id = entry.file_name().to_string_lossy().to_string();
             let parsed_id = parse_uuid(&raw_id)?;
             entity_ids.push(parsed_id);
@@ -1117,7 +1352,7 @@ fn read_entity_directories(model_root: &Path, entity_type: &str) -> Result<Vec<U
     }
 
     // Step 3. Sort and return deterministic entity ID list.
-    entity_ids.sort_by_key(|id| id.to_string());
+    entity_ids.sort_unstable();
     debug!(
         "read_entity_directories success: entity_type={}, count={}",
         entity_type,
@@ -1129,6 +1364,14 @@ fn read_entity_directories(model_root: &Path, entity_type: &str) -> Result<Vec<U
 fn read_markdown(model_root: &Path, relative_path: &str) -> String {
     let path = resolve_markdown_path(model_root, relative_path);
     fs::read_to_string(path).unwrap_or_default()
+}
+
+fn read_markdown_if(model_root: &Path, relative_path: &str, include_markdown: bool) -> String {
+    if include_markdown {
+        read_markdown(model_root, relative_path)
+    } else {
+        String::new()
+    }
 }
 
 fn write_markdown(model_root: &Path, relative_path: &str, markdown: &str) -> Result<(), String> {

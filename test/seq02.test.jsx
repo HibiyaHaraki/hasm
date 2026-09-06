@@ -169,6 +169,32 @@ describe("SEQ-02 model loading and storage verification", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("value", "50");
   });
 
+  it("TC-02-REACT-PERF-001 loads metadata-only entities exactly once and forwards them to verification", async () => {
+    const metadataOnlyModel = {
+      people: [
+        {
+          personId: "11111111-1111-1111-1111-111111111111",
+          markdown: "",
+          markdownPath: "C:/fixture.hasm/PERSON/11111111-1111-1111-1111-111111111111/main.md",
+        },
+      ],
+      experiences: [],
+      facts: [],
+      links: [],
+    };
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockResolvedValue(metadataOnlyModel);
+    api.verifyHasmStorage.mockResolvedValue({ missingEntities: [], unreferencedEntities: [] });
+
+    renderLoading();
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+    // SEQ-02 must never re-read the package to fill in the Markdown bodies it skipped.
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+    expect(api.verifyHasmStorage).toHaveBeenCalledWith("C:/fixture.hasm", metadataOnlyModel);
+  });
+
   it("TC-02-REACT-002 releases a writable workspace lock on the close event", async () => {
     let closeHandler;
     api.subscribeToTauriEvent.mockImplementation((eventName, handler) => {

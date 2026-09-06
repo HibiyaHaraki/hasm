@@ -12,7 +12,7 @@
     "tauri": "tauri",
     "test:eval-01": "vitest run test/seq01.test.jsx test/eval-01-ipc.test.js",
     "test:eval-02": "vitest run test/seq02.test.jsx test/eval-02-ipc.test.js",
-    "test:eval-03": "vitest run test/seq03.test.jsx test/eval-03-ipc.test.js test/visualizer-geometry.test.js",
+    "test:eval-03": "vitest run test/seq03.test.jsx test/eval-03-ipc.test.js test/visualizer-scope.test.js test/visualizer-geometry.test.js",
     "test:eval-04": "vitest run test/seq04.test.jsx test/eval-04-ipc.test.js",
     "test:eval-05": "vitest run test/seq05.test.jsx test/eval-05-ipc.test.js",
     "test:eval-07": "vitest run test/seq07.test.jsx",
