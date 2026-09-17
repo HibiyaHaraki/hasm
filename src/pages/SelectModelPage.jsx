@@ -133,7 +133,14 @@ function SelectModelPage() {
           </div>
           <p className="validation-message" role="status" data-status={validation.status}>{validation.message}</p>
         </form>
-        <button type="button" className="demo-visualizer-button" onClick={openVisualizerDemo} disabled={demoLoading}>{demoLoading ? "Creating test graph..." : "Test 3D commit graph"}</button>
+        <button 
+          type="button" 
+          className="demo-visualizer-button" 
+          onClick={openVisualizerDemo} 
+          disabled={demoLoading}
+        >
+          {demoLoading ? "Creating test graph..." : "Test 3D commit graph"}
+        </button>
         <button
           type="button"
           className="demo-visualizer-button"
