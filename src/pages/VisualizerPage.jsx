@@ -95,7 +95,6 @@ function VisualizerPage() {
       factDatesById={factDatesById}
       headerSlot={(
         <div className="visualizer-page-header">
-          <p className="sequence-label">HASM / SEQ-03</p>
           <h1>Commit graph</h1>
         </div>
       )}
