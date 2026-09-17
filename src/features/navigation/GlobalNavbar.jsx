@@ -43,6 +43,7 @@ function GlobalNavbar() {
   return (
     <header className={`global-navbar${isMenuOpen ? " is-menu-open" : ""}`}>
       <div className="global-navbar-title">
+        <img src="./src/icons/hasm_favicon.png" alt=""></img>
         <strong>HASM</strong>
       </div>
 

@@ -46,3 +46,6 @@ Desktop.ini
 src-tauri/icons/*.png
 src-tauri/icons/*.ico
 src-tauri/icons/*.icns
+src/icons/*.png
+src/icons/*.ico
+src/icons/*.icns
