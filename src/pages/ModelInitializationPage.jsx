@@ -42,7 +42,6 @@ function ModelInitializationPage() {
   return (
     <main className="entity-create-page">
       <section className="entity-create-panel">
-        <p className="sequence-label">HASM / SEQ-08</p>
         <h1>Initialize New HASM Model</h1>
         <p className="selection-copy">
           The visualizer requires at least one entity. Enter one PERSON name to bootstrap a minimal model.

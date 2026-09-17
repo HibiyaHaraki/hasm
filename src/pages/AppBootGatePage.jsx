@@ -66,7 +66,6 @@ function AppBootGatePage() {
   return (
     <main className="boot-layout" aria-busy="true">
       <section className="boot-panel" aria-live="polite">
-        <p className="sequence-label">HASM / SEQ-01</p>
         <h1>Preparing workspace</h1>
         <p>Validating the HASM Markdown application and workspace launch context.</p>
         <ol className="validation-steps">

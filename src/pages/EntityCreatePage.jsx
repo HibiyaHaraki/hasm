@@ -141,7 +141,6 @@ function EntityCreatePage() {
   return (
     <main className="entity-create-page">
       <section className="entity-create-panel">
-        <p className="sequence-label">HASM / SEQ-08</p>
         <h1>Create New Entity</h1>
         <p className="selection-copy">Use a dedicated creation page so each entity form can evolve independently.</p>
 

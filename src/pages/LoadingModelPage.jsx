@@ -102,7 +102,6 @@ function LoadingModelPage() {
   return (
     <main className="boot-layout">
       <section className="boot-panel" aria-live="polite">
-        <p className="sequence-label">HASM / SEQ-02</p>
         <h1>Loading workspace</h1>
         <p>{state.message}</p>
         <progress className="model-progress" value={state.progress} max="100">{state.progress}%</progress>
