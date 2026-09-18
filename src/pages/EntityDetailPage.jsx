@@ -3,6 +3,9 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { TicketForm } from "../features/entityTicket/TicketForm";
 import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
+import { Button, Col, Container, Row } from "react-bootstrap";
+import "./PanelCard.css";
+import "./EntityDetailPage.css";
 
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
@@ -35,7 +38,11 @@ function EntityDetailPage() {
     window.addEventListener("focus", focused); return () => window.removeEventListener("focus", focused); 
   }, [ticket, root, entityType, entityId]);
   if (!ticket || !form) {
-    return <main className="boot-layout"><section className="boot-panel">Loading ticket...</section></main>
+    return (
+      <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
+        <section className="panel-card">Loading ticket...</section>
+      </Container>
+    );
   }
   const save = async (event) => { 
     event.preventDefault();
@@ -70,33 +77,41 @@ function EntityDetailPage() {
       else {
         setMessage(error?.message || "Refresh failed"); 
       } 
-    };
-    const editMarkdown = async () => { 
-      try { 
-        await launchExternalMarkdownApp(root, entityType, entityId); 
-        setMessage("Opened HASM Markdown App. Click 'Refresh Markdown' after saving."); 
-      } 
-      catch (error) { 
-        const text = error?.message || "Failed to launch hasm_markdown.exe process."; 
-        setMessage(text.includes("EXECUTABLE_NOT_FOUND") ? "hasm_markdown.exe application binary is missing." : text.includes("DIRECTORY_NOT_FOUND") ? "Entity folder does not exist on disk." : text.includes("LAUNCH_TIMEOUT") ? "Launching HASM Markdown App timed out." : text.includes("PROCESS_SPAWN_FAILED") ? "Failed to launch hasm_markdown.exe process." : text); 
-      } 
-    };
-  }
+    }
+  };
+  const editMarkdown = async () => { 
+    try { 
+      await launchExternalMarkdownApp(root, entityType, entityId); 
+      setMessage("Opened HASM Markdown App. Click 'Refresh Markdown' after saving."); 
+    } 
+    catch (error) { 
+      const text = error?.message || "Failed to launch hasm_markdown.exe process."; 
+      setMessage(text.includes("EXECUTABLE_NOT_FOUND") ? "hasm_markdown.exe application binary is missing." : text.includes("DIRECTORY_NOT_FOUND") ? "Entity folder does not exist on disk." : text.includes("LAUNCH_TIMEOUT") ? "Launching HASM Markdown App timed out." : text.includes("PROCESS_SPAWN_FAILED") ? "Failed to launch hasm_markdown.exe process." : text); 
+    } 
+  };
   return (
-    <main className="ticket-page">
+    <Container as="main" fluid className="ticket-page">
       <header className="ticket-header">
-        <button type="button" onClick={() => navigate("/visualizer", { state })}>Back to Visualizer</button>
-        <button type="button" onClick={editMarkdown}>Edit Markdown in HASM App</button>
-        <p>{entityType} / {entityId}</p>
+        <div className="d-flex flex-wrap gap-2 mb-2">
+          <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state })}>Back to Visualizer</Button>
+          <Button className="btn-hasm-primary" onClick={editMarkdown}>Edit Markdown in HASM App</Button>
+        </div>
+        <p className="mb-0">{entityType} / {entityId}</p>
         <h1>{ticket.name}</h1>
       </header>
-      <div className="ticket-grid">
-        <section className="ticket-card">
-          <h2>Details</h2><TicketForm value={form} onChange={setForm} onSave={save} onCancel={() => setForm({ name: ticket.name })} saving={saving} />{message ? <p role="status">{message}</p> : null}
-        </section>
-        <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} changed={changed} deleted={deleted} loading={saving} />
-      </div>
-    </main>
+      <Row className="g-3 ticket-grid">
+        <Col md={5}>
+          <section className="panel-card h-100">
+            <h2>Details</h2>
+            <TicketForm value={form} onChange={setForm} onSave={save} onCancel={() => setForm({ name: ticket.name })} saving={saving} />
+            {message ? <p role="status">{message}</p> : null}
+          </section>
+        </Col>
+        <Col md={7}>
+          <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} changed={changed} deleted={deleted} loading={saving} />
+        </Col>
+      </Row>
+    </Container>
   );
 }
 export default EntityDetailPage;

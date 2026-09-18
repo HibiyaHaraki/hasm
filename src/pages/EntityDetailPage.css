@@ -1,0 +1,28 @@
+/* ###################################################
+  File Name : EntityDetailPage.css
+  Author : Hibiya Haraki
+  ###################################################
+  Purpose : Styling for the entity detail / markdown ticket page
+  ################################################### */
+
+.ticket-page {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.ticket-header {
+  border: 1px solid var(--theme-border);
+  background: var(--theme-soft);
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.ticket-header h1 {
+  margin-bottom: 0;
+}
+
+@media (max-width: 700px) {
+  .ticket-page {
+    padding: 14px;
+  }
+}

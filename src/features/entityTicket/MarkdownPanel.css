@@ -1,0 +1,29 @@
+/* ###################################################
+  File Name : MarkdownPanel.css
+  Author : Hibiya Haraki
+  ###################################################
+  Purpose : Styling for the read-only Markdown preview panel
+  ################################################### */
+
+.markdown-panel pre {
+  min-height: 300px;
+  white-space: pre-wrap;
+  font-family: "Yu Mincho", Georgia, serif;
+  line-height: 1.75;
+}
+
+.refresh-alert {
+  border-color: var(--theme-secondary) !important;
+  animation: ticket-pulse 1.5s infinite;
+}
+
+.refresh-danger {
+  border-color: var(--theme-danger) !important;
+  background-color: var(--theme-danger) !important;
+}
+
+@keyframes ticket-pulse {
+  50% {
+    opacity: .6;
+  }
+}

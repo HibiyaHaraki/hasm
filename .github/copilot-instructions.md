@@ -47,7 +47,20 @@
   - IF test pass, please return RESULT, TEST ID, and TEST NAME
 - Please check the test coverage. I faced issue that Rust test is done but the invokle is not tested therefore GUI function does not work. 
 
-  ## UI Design Policy
+## CSS and Component Library Conventions
+
+- The frontend uses `react-bootstrap` (with `bootstrap/dist/css/bootstrap.min.css` imported once in `src/App.jsx`) for structural and interactive UI primitives: `Container`, `Row`/`Col`, `Card`, `Form`/`Form.Group`/`Form.Control`/`Form.Select`/`Form.Check`, `Button`, `Navbar`/`Nav`, `ProgressBar`, `Badge`, `InputGroup`. Prefer these over hand-rolled `<div>`/`<input>`/`<select>`/`<button>` markup for new UI.
+- Give every `Form.Group` a `controlId` so `Form.Label` stays programmatically associated with its control (required for accessible queries and screen readers).
+- When a page-root needs the "main" landmark role (tests and accessibility rely on it), render the top-level `Container` with `as="main"`.
+- CSS is co-located per component/page instead of large shared stylesheets: each `.jsx` file that needs bespoke, non-Bootstrap styling (theme-variable colors, the "paper" panel look, animations, etc.) imports its own same-named `.css` file next to it (e.g. `src/pages/LoadingModelPage.jsx` + `src/pages/LoadingModelPage.css`).
+- A small number of intentionally shared partials exist for style patterns reused by several pages/components in the same folder — keep these narrowly scoped and documented at the top of the file:
+  - `src/App.css`: global reset, `:root` theme variables, and Bootstrap control re-theming (`.form-control`, `.form-select`, `.btn-hasm-primary`, `.btn-hasm-outline`) so every page inherits the active color pattern from `hasm_color_pattern`.
+  - `src/pages/PanelCard.css`: the shared centered "paper" card layout (`.panel-layout`, `.panel-card`, `.sequence-label`, `.validation-message`, etc.) used by the boot/error/selection-style pages.
+  - `src/pages/EntityFormPage.css`: shared entity-type selector spacing used by `EntityCreatePage` and `ModelInitializationPage`.
+- Do not duplicate CSS that a submodule component already owns. `src/hasm_visualizer` (a Git submodule) ships its own `visualizer-design.css` for `.graph-stage`/`.graph-progress`/`.graph-tooltip`/etc.; host pages must not redefine those classes.
+- Use `Button`/inputs' `className` (not inline `style`) for theme-color overrides, keeping the CSS-variable-driven theming from `src/hasm_color_pattern` intact.
+
+## UI Design Policy
 
   The canonical UI policy is [`docs/design-policy.md`](../docs/design-policy.md). Apply it to every page, state, dialog, and responsive breakpoint:
 

@@ -1,0 +1,12 @@
+/* ###################################################
+  File Name : LoadingModelPage.css
+  Author : Hibiya Haraki
+  ###################################################
+  Purpose : Styling for the workspace loading progress page
+  ################################################### */
+
+.model-notice {
+  padding: 10px;
+  border-left: 3px solid var(--theme-secondary);
+  color: var(--theme-muted);
+}

@@ -8,6 +8,9 @@ import {
   withTimeout,
 } from "../features/hasm/api";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
+import { Button, Container, Form, InputGroup } from "react-bootstrap";
+import "./PanelCard.css";
+import "./SelectModelPage.css";
 
 const logger = createLogger("select-model");
 
@@ -120,37 +123,44 @@ function SelectModelPage() {
   }
 
   return (
-    <main className="selection-layout">
-      <section className="selection-panel">
+    <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
+      <section className="panel-card">
         <p className="sequence-label">HASM WORKSPACE</p>
         <h1>Open a workspace</h1>
         <p className="selection-copy">Enter the folder containing the HASM workspace you want to load.</p>
-        <form onSubmit={submit} noValidate>
-          <label htmlFor="workspace-path">Workspace folder</label>
-          <div className="path-control">
-            <input id="workspace-path" value={inputPath} onChange={(event) => setInputPath(event.target.value)} placeholder="C:\\HASM\\MyLife" autoComplete="off" />
-            <button type="submit" disabled={validation.status !== "valid" || submittingRef.current}>Open</button>
-          </div>
+        <Form onSubmit={submit} noValidate>
+          <Form.Group controlId="workspace-path" className="mb-2">
+            <Form.Label>Workspace folder</Form.Label>
+            <InputGroup>
+              <Form.Control
+                value={inputPath}
+                onChange={(event) => setInputPath(event.target.value)}
+                placeholder="C:\\HASM\\MyLife"
+                autoComplete="off"
+              />
+              <Button type="submit" className="btn-hasm-primary" disabled={validation.status !== "valid" || submittingRef.current}>Open</Button>
+            </InputGroup>
+          </Form.Group>
           <p className="validation-message" role="status" data-status={validation.status}>{validation.message}</p>
-        </form>
-        <button 
-          type="button" 
-          className="demo-visualizer-button" 
-          onClick={openVisualizerDemo} 
+        </Form>
+        <Button
+          variant="outline-secondary"
+          className="btn-hasm-outline demo-visualizer-button"
+          onClick={openVisualizerDemo}
           disabled={demoLoading}
         >
           {demoLoading ? "Creating test graph..." : "Test 3D commit graph"}
-        </button>
-        <button
-          type="button"
-          className="demo-visualizer-button"
+        </Button>
+        <Button
+          variant="outline-secondary"
+          className="btn-hasm-outline demo-visualizer-button"
           onClick={createNewWorkspace}
           disabled={workspaceCreateLoading}
         >
           {workspaceCreateLoading ? "Creating workspace..." : "Create New HASM"}
-        </button>
+        </Button>
       </section>
-    </main>
+    </Container>
   );
 }
 

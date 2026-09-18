@@ -24,7 +24,8 @@ import SelectModelPage from "./pages/SelectModelPage";
 import VisualizerPage from "./pages/VisualizerPage";
 import { releaseWorkspaceLock, subscribeToTauriEvent, withTimeout } from "./features/hasm/api";
 import { createLogger } from "./hasm_logger/src/react/logger.js";
-import "./seq01.css";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./App.css";
 
 const logger = createLogger("app-lifecycle");
 
@@ -61,7 +62,7 @@ function App() {
   const themeStyle = useMemo(() => getThemeVariables(activePatternId), [activePatternId]);
 
   return (
-    <div className="seq01-app" style={themeStyle}>
+    <div className="app-shell" style={themeStyle}>
       <BrowserRouter>
         <ThemeProvider value={{ activePatternId, setActivePatternId }}>
           <CloseLockListener />

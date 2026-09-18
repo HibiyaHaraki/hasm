@@ -1,34 +1,36 @@
+import { Form } from "react-bootstrap";
+
 function CreateLinkForm({ value, onChange, entityOptions }) {
   return (
     <>
-      <label>
-        Link type
-        <input
+      <Form.Group className="mb-2" controlId="link-type">
+        <Form.Label>Link type</Form.Label>
+        <Form.Control
           value={value.linkType}
           onChange={(event) => onChange({ ...value, linkType: event.target.value })}
           required
         />
-      </label>
-      <label>
-        Description
-        <input
+      </Form.Group>
+      <Form.Group className="mb-2" controlId="link-description">
+        <Form.Label>Description</Form.Label>
+        <Form.Control
           value={value.description}
           onChange={(event) => onChange({ ...value, description: event.target.value })}
         />
-      </label>
-      <label>
-        Security level
-        <input
+      </Form.Group>
+      <Form.Group className="mb-2" controlId="link-security-level">
+        <Form.Label>Security level</Form.Label>
+        <Form.Control
           type="number"
           min="0"
           max="5"
           value={value.securityLevel}
           onChange={(event) => onChange({ ...value, securityLevel: event.target.value })}
         />
-      </label>
-      <label>
-        Origin
-        <select
+      </Form.Group>
+      <Form.Group className="mb-2" controlId="link-origin">
+        <Form.Label>Origin</Form.Label>
+        <Form.Select
           value={value.origin}
           onChange={(event) => onChange({ ...value, origin: event.target.value })}
           required
@@ -39,11 +41,11 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
               {option.label}
             </option>
           ))}
-        </select>
-      </label>
-      <label>
-        Target
-        <select
+        </Form.Select>
+      </Form.Group>
+      <Form.Group className="mb-2" controlId="link-target">
+        <Form.Label>Target</Form.Label>
+        <Form.Select
           value={value.target}
           onChange={(event) => onChange({ ...value, target: event.target.value })}
           required
@@ -54,8 +56,8 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
               {option.label}
             </option>
           ))}
-        </select>
-      </label>
+        </Form.Select>
+      </Form.Group>
     </>
   );
 }

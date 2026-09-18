@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Button, ProgressBar } from "react-bootstrap";
 import { computeVisualizerLayout, subscribeToTauriEvent } from "../features/hasm/api";
 import { useTheme } from "../features/theme/ThemeContext";
 import HasmVisualizerComponent from "../hasm_visualizer/HasmVisualizerComponent.jsx";
@@ -94,21 +95,21 @@ function VisualizerPage() {
       onSelectNode={openEntityTicket}
       factDatesById={factDatesById}
       headerSlot={(
-        <div className="visualizer-page-header">
-          <h1>Commit graph</h1>
+        <div className="d-flex align-items-center justify-content-between mb-2">
+          <h1 className="mb-0">Commit graph</h1>
         </div>
       )}
       toolbarSlot={(
-        <button type="button" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>
+        <Button className="btn-hasm-primary" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>
           Create New Entity
-        </button>
+        </Button>
       )}
       overlaySlot={(
         <>
           {renderState.loading ? (
             <div className="graph-progress">
               <p>{renderState.message}</p>
-              <progress value={renderState.progress} max="100">{renderState.progress}%</progress>
+              <ProgressBar now={renderState.progress} label={`${Math.round(renderState.progress)}%`} />
             </div>
           ) : null}
           {renderState.warning ? <p className="graph-warning">{renderState.warning}</p> : null}

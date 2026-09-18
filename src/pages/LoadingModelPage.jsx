@@ -8,6 +8,9 @@ import {
   withTimeout,
 } from "../features/hasm/api";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
+import { Container, ProgressBar } from "react-bootstrap";
+import "./PanelCard.css";
+import "./LoadingModelPage.css";
 
 const logger = createLogger("loading-model");
 const WATCHDOG_MS = 10000;
@@ -100,15 +103,14 @@ function LoadingModelPage() {
   }, [navigate, path]);
 
   return (
-    <main className="boot-layout">
-      <section className="boot-panel" aria-live="polite">
+    <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
+      <section className="panel-card" aria-live="polite">
         <h1>Loading workspace</h1>
         <p>{state.message}</p>
-        <progress className="model-progress" value={state.progress} max="100">{state.progress}%</progress>
-        <p>{Math.round(state.progress)}%</p>
+        <ProgressBar now={state.progress} label={`${Math.round(state.progress)}%`} />
         {state.notice ? <p className="model-notice">{state.notice}</p> : null}
       </section>
-    </main>
+    </Container>
   );
 }
 
