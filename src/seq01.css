@@ -96,7 +96,7 @@ input:focus-visible {
 }
 
 .switch-model-button {
-    color: #f8fafc;
+    color: var(--theme-input-bg);
 }
 
 .boot-layout,
