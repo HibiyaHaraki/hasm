@@ -1,0 +1,11 @@
+/* ###################################################
+  File Name : TicketForm.css
+  Author : Hibiya Haraki
+  ###################################################
+  Purpose : Styling for the entity ticket summary form
+  ################################################### */
+
+.ticket-form {
+  display: grid;
+  gap: 6px;
+}

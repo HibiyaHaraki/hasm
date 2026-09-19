@@ -1,8 +1,17 @@
 import { useParams } from "react-router-dom";
+import { Container } from "react-bootstrap";
+import "./PanelCard.css";
 
 function EntityDetailPlaceholderPage() {
   const { entityType, entityId } = useParams();
-  return <main className="boot-layout"><section className="boot-panel"><p className="sequence-label">HASM / SEQ-04</p><h1>Entity detail</h1><p>{entityType}: {entityId}</p></section></main>;
+  return (
+    <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
+      <section className="panel-card">
+        <h1>Entity detail</h1>
+        <p>{entityType}: {entityId}</p>
+      </section>
+    </Container>
+  )
 }
 
 export default EntityDetailPlaceholderPage;

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPerson, loadHasmModelDb } from "../features/hasm/api";
+import { Button, Container, Form } from "react-bootstrap";
+import "./PanelCard.css";
+import "./EntityFormPage.css";
 
 function ModelInitializationPage() {
   const { state } = useLocation();
@@ -40,39 +43,38 @@ function ModelInitializationPage() {
   }
 
   return (
-    <main className="entity-create-page">
-      <section className="entity-create-panel">
-        <p className="sequence-label">HASM / SEQ-08</p>
+    <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
+      <section className="panel-card panel-card--wide">
         <h1>Initialize New HASM Model</h1>
         <p className="selection-copy">
           The visualizer requires at least one entity. Enter one PERSON name to bootstrap a minimal model.
         </p>
 
-        <form className="entity-create-form" onSubmit={submit} noValidate>
-          <label>
-            PERSON name (required)
-            <input
+        <Form onSubmit={submit} noValidate>
+          <Form.Group className="mb-2" controlId="person-name">
+            <Form.Label>PERSON name (required)</Form.Label>
+            <Form.Control
               value={personName}
               onChange={(event) => setPersonName(event.target.value)}
               required
             />
-          </label>
+          </Form.Group>
 
           <p className="selection-copy">Auto-applied: security level = 1, create root EXPERIENCE stream = true.</p>
 
-          <div className="entity-create-actions">
-            <button type="button" onClick={() => navigate("/select", { replace: true })}>
+          <div className="d-flex justify-content-end gap-2 mt-3">
+            <Button variant="outline-secondary" className="btn-hasm-outline" onClick={() => navigate("/select", { replace: true })}>
               Cancel
-            </button>
-            <button type="submit" disabled={submitting || !personName.trim()}>
+            </Button>
+            <Button type="submit" className="btn-hasm-primary" disabled={submitting || !personName.trim()}>
               {submitting ? "Initializing..." : "Initialize and Open Visualizer"}
-            </button>
+            </Button>
           </div>
 
           {error ? <p className="validation-message">{error}</p> : null}
-        </form>
+        </Form>
       </section>
-    </main>
+    </Container>
   );
 }
 

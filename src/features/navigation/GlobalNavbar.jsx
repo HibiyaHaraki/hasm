@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { Badge, Button, Container, Form, Nav, Navbar } from "react-bootstrap";
 import { COLOR_PATTERNS } from "../../hasm_color_pattern/src/index.js";
 import { switchWorkspaceCleanly } from "../hasm/api";
 import { useTheme } from "../theme/ThemeContext";
+import "./GlobalNavbar.css";
 
 function GlobalNavbar() {
   const location = useLocation();
@@ -41,43 +43,45 @@ function GlobalNavbar() {
   }
 
   return (
-    <header className={`global-navbar${isMenuOpen ? " is-menu-open" : ""}`}>
-      <div className="global-navbar-title">
-        <strong>HASM</strong>
-      </div>
-
-      <button
-        type="button"
-        className="global-navbar-hamburger"
-        aria-label="Toggle menu"
-        aria-expanded={isMenuOpen}
-        onClick={() => setIsMenuOpen((current) => !current)}
-      >
-        <span aria-hidden="true">{isMenuOpen ? "Close" : "Menu"}</span>
-      </button>
-
-      <div className="global-navbar-status" aria-live="polite">
-        <span className="status-chip">Workspace: {workspacePath}</span>
-        <span className="status-chip">Status: {statusLabel}</span>
-        <span className="status-chip">Warnings: {warnings}</span>
-      </div>
-
-      <div className="global-navbar-actions">
-        <label htmlFor="global-theme-select" className="theme-inline-label">Theme</label>
-        <select
-          id="global-theme-select"
-          value={activePatternId}
-          onChange={(event) => setActivePatternId(event.target.value)}
-        >
-          {COLOR_PATTERNS.map((pattern) => (
-            <option key={pattern.id} value={pattern.id}>
-              {pattern.label}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="switch-model-button" onClick={switchModel}>Switch Model</button>
-      </div>
-    </header>
+    <Navbar
+      className="global-navbar"
+      expand="md"
+      sticky="top"
+      expanded={isMenuOpen}
+      onToggle={setIsMenuOpen}
+    >
+      <Container fluid>
+        <Navbar.Brand className="global-navbar-brand">
+          <img src="./src/icons/hasm_favicon.png" alt="" />
+          <strong>HASM</strong>
+        </Navbar.Brand>
+        <Navbar.Toggle aria-controls="global-navbar-collapse" aria-label="Toggle menu" />
+        <Navbar.Collapse id="global-navbar-collapse">
+          <Nav className="me-auto align-items-md-center gap-2 flex-wrap" aria-live="polite">
+            <Badge bg="none" className="status-chip">Workspace: {workspacePath}</Badge>
+            <Badge bg="none" className="status-chip">Status: {statusLabel}</Badge>
+            <Badge bg="none" className="status-chip">Warnings: {warnings}</Badge>
+          </Nav>
+          <Nav className="align-items-md-center gap-2">
+            <Form.Label htmlFor="global-theme-select" className="theme-inline-label mb-0">Theme</Form.Label>
+            <Form.Select
+              id="global-theme-select"
+              size="sm"
+              className="global-navbar-theme-select"
+              value={activePatternId}
+              onChange={(event) => setActivePatternId(event.target.value)}
+            >
+              {COLOR_PATTERNS.map((pattern) => (
+                <option key={pattern.id} value={pattern.id}>
+                  {pattern.label}
+                </option>
+              ))}
+            </Form.Select>
+            <Button size="sm" className="btn-hasm-outline" onClick={switchModel}>Switch Model</Button>
+          </Nav>
+        </Navbar.Collapse>
+      </Container>
+    </Navbar>
   );
 }
 

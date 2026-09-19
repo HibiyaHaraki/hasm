@@ -166,7 +166,7 @@ describe("SEQ-02 model loading and storage verification", () => {
     loadProgressHandler({ payload: { step: "DB_LOAD", current: 2, total: 4, percentage: 50, message: "Loaded fixture metadata" } });
 
     expect(await screen.findByText("Loaded fixture metadata")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("value", "50");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
   });
 
   it("TC-02-REACT-PERF-001 loads metadata-only entities exactly once and forwards them to verification", async () => {

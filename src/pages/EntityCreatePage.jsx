@@ -11,6 +11,9 @@ import CreateExperienceForm from "../features/entityCreation/components/CreateEx
 import CreateFactForm from "../features/entityCreation/components/CreateFactForm";
 import CreateLinkForm from "../features/entityCreation/components/CreateLinkForm";
 import CreatePersonForm from "../features/entityCreation/components/CreatePersonForm";
+import { Button, Container, Form } from "react-bootstrap";
+import "../pages/PanelCard.css";
+import "./EntityFormPage.css";
 
 const ENTITY_TYPES = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 
@@ -139,26 +142,25 @@ function EntityCreatePage() {
   }
 
   return (
-    <main className="entity-create-page">
-      <section className="entity-create-panel">
-        <p className="sequence-label">HASM / SEQ-08</p>
+    <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
+      <section className="panel-card panel-card--wide">
         <h1>Create New Entity</h1>
         <p className="selection-copy">Use a dedicated creation page so each entity form can evolve independently.</p>
 
-        <div className="entity-type-row" role="tablist" aria-label="Entity creation type">
+        <div className="entity-type-row d-flex flex-wrap gap-2" role="tablist" aria-label="Entity creation type">
           {ENTITY_TYPES.map((type) => (
-            <button
+            <Button
               key={type}
-              type="button"
-              className={entityType === type ? "entity-type-chip active" : "entity-type-chip"}
+              variant={entityType === type ? undefined : "outline-secondary"}
+              className={entityType === type ? "btn-hasm-primary" : "btn-hasm-outline"}
               onClick={() => setEntityType(type)}
             >
               {type}
-            </button>
+            </Button>
           ))}
         </div>
 
-        <form className="entity-create-form" onSubmit={submit} noValidate>
+        <Form onSubmit={submit} noValidate>
           {entityType === "PERSON" ? <CreatePersonForm value={personForm} onChange={setPersonForm} /> : null}
           {entityType === "EXPERIENCE" ? <CreateExperienceForm value={experienceForm} onChange={setExperienceForm} /> : null}
           {entityType === "FACT" ? <CreateFactForm value={factForm} onChange={setFactForm} /> : null}
@@ -170,19 +172,19 @@ function EntityCreatePage() {
             />
           ) : null}
 
-          <div className="entity-create-actions">
-            <button type="button" onClick={() => navigate("/visualizer", { state: location.state })}>
+          <div className="d-flex justify-content-end gap-2 mt-3">
+            <Button variant="outline-secondary" className="btn-hasm-outline" onClick={() => navigate("/visualizer", { state: location.state })}>
               Cancel
-            </button>
-            <button type="submit" disabled={submitting}>
+            </Button>
+            <Button type="submit" className="btn-hasm-primary" disabled={submitting}>
               {submitting ? "Creating..." : `Create ${entityType}`}
-            </button>
+            </Button>
           </div>
 
           {statusMessage ? <p className="validation-message">{statusMessage}</p> : null}
-        </form>
+        </Form>
       </section>
-    </main>
+    </Container>
   );
 }
 

@@ -1,0 +1,11 @@
+/* ###################################################
+  File Name : EntityFormPage.css
+  Author : Hibiya Haraki
+  ###################################################
+  Purpose : Shared styling for entity creation / initialization forms
+  Description : Used by EntityCreatePage and ModelInitializationPage.
+  ################################################### */
+
+.entity-type-row {
+  margin: 20px 0;
+}

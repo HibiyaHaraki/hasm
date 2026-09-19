@@ -7,6 +7,8 @@ import {
   withTimeout,
 } from "../features/hasm/api";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
+import { Container } from "react-bootstrap";
+import "./PanelCard.css";
 
 const logger = createLogger("app-boot");
 
@@ -64,9 +66,8 @@ function AppBootGatePage() {
   }, [navigate]);
 
   return (
-    <main className="boot-layout" aria-busy="true">
-      <section className="boot-panel" aria-live="polite">
-        <p className="sequence-label">HASM / SEQ-01</p>
+    <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center" aria-busy="true">
+      <section className="panel-card" aria-live="polite">
         <h1>Preparing workspace</h1>
         <p>Validating the HASM Markdown application and workspace launch context.</p>
         <ol className="validation-steps">
@@ -75,7 +76,7 @@ function AppBootGatePage() {
           <li data-active={loadState >= 2}>Workspace path</li>
         </ol>
       </section>
-    </main>
+    </Container>
   );
 }
 

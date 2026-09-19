@@ -80,7 +80,7 @@ sequenceDiagram
     Note over User,Model: Pre-condition: User attempts to load /visualizer route.
 
     React->>Bridge: Setup Event Listener: listen('visualizer-layout-progress')
-    React->>React: Mount VisualizerPage & Set Initial State<br/>{ isDataLoading: true, layoutProgress: 0, loadingMessage: "Initializing 3D Engine..." }
+    React->>React: Mount VisualizerPage & Set Initial State<br/>{ isDataLoading: true, layoutProgress: 0, loadingMessage: "Initializing 3D Engine...", viewMode: "2d" }
     React->>React: Initialize Default Filter State:<br/>{ timeRange: [Min, Max], securityLevel: All, timeScaleMode: "SequentialIndex", zScaleFactor: 1.0 }
     
     React->>Bridge: invoke('compute_visualizer_layout', { filter: initialFilter })
