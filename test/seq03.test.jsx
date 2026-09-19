@@ -66,6 +66,10 @@ function renderVisualizer(state = { model, path: "C:/fixture.hasm", isVerified: 
   return render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state }]}><Routes><Route path="/visualizer" element={<VisualizerPage />} /><Route path="/entity-detail/:entityType/:entityId" element={<LocationProbe />} /><Route path="/select" element={<LocationProbe />} /><Route path="/loading-model" element={<LocationProbe />} /><Route path="/error-model" element={<LocationProbe />} /></Routes></MemoryRouter>);
 }
 
+function switchTo3D() {
+  fireEvent.click(screen.getByRole("button", { name: "3D" }));
+}
+
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
 
 describe("SEQ-03 visualizer lifecycle", () => {
@@ -79,6 +83,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
     await act(async () => progressHandler({ payload: { percentage: 40, message: "Positioning EXPERIENCE..." } }));
     expect(screen.getByText("Positioning EXPERIENCE...")).toBeInTheDocument();
     await act(async () => resolveLayout(payload));
+    switchTo3D();
     await vi.waitFor(() => expect(createCommitGraph).toHaveBeenCalled());
   });
 
@@ -96,6 +101,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
     api.computeVisualizerLayout.mockResolvedValueOnce(payload).mockRejectedValueOnce(new Error("Layout calculation stalled"));
     renderVisualizer();
+    switchTo3D();
     await vi.waitFor(() => expect(createCommitGraph).toHaveBeenCalledTimes(1));
     fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "SequentialIndex" } });
     expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
@@ -120,6 +126,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
 
   it("TC-04-E2E-001 navigates a visualizer node to its entity ticket", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {}); api.computeVisualizerLayout.mockResolvedValue(payload); renderVisualizer();
+    switchTo3D();
     await vi.waitFor(() => expect(selectNode).toHaveBeenCalled()); selectNode.mock.calls.at(-1)[0]({ entityType: "FACT", id: "fact-1" });
     expect(await screen.findByTestId("location")).toHaveTextContent("/entity-detail/FACT/fact-1:model");
   });
