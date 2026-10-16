@@ -426,10 +426,26 @@ mod tests {
 
 #[tauri::command]
 pub fn create_visualizer_demo_workspace() -> Result<VisualizerDemoPayload, String> {
-    let root = std::env::temp_dir().join(format!(
-        "hasm-visualizer-demo-{}",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|error| error.to_string())?.as_nanos()
-    ));
+    let root = {
+        let temp_dir = std::env::temp_dir();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|error| error.to_string())?
+            .as_nanos();
+        let base_name = format!("hasm-visualizer-demo-{timestamp}");
+        let mut candidate = temp_dir.join(&base_name);
+        let mut suffix = 0u32;
+        loop {
+            match fs::create_dir(&candidate) {
+                Ok(()) => break candidate,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    suffix += 1;
+                    candidate = temp_dir.join(format!("{base_name}-{suffix}"));
+                }
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+    };
     let person_id = "11111111-1111-1111-1111-111111111111";
     let root_experience_id = "22222222-2222-2222-2222-222222222221";
     let research_experience_id = "22222222-2222-2222-2222-222222222222";
