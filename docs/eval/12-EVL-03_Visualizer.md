@@ -15,8 +15,29 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | `TC-03-SCOPE-001` to `TC-03-SCOPE-005`, `TC-03-BUDGET-001`, `TC-03-BUDGET-002` | `test/visualizer-scope.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-E2E-001` canvas smoke | `test/visualizer-geometry.test.js`, opt-in with `HASM_RUN_VISUALIZER_GEOMETRY=1` | Skipped by default |
 | `TC-03-RUST-005` to `TC-03-RUST-007` | `src-tauri/src/hasm/visualizer_commands.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
+| `TC-03-REACT-SCOPE-004`, `TC-03-REACT-SCOPE-005`, `TC-03-REACT-2D-001`, `TC-03-REACT-2D-002`, `TC-03-ZSCALE-001` | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-SCOPE-006`, `TC-03-SCOPE-007` | `test/visualizer-scope.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-IPC-002` GUI controls through real API wrapper to mocked Tauri invoke | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 
 Desktop rows requiring an installed GUI driver remain acceptance scenarios.
+
+### Adaptive 2D and Selection Regression Acceptance
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-03-REACT-SCOPE-004` | `REQ-03-FUNC-501` | A single-PERSON model hides PERSON selection but keeps EXPERIENCE selection. |
+| `TC-03-REACT-SCOPE-005` | `REQ-03-FUNC-503` | Plain-click toggles compose with PERSON scope; selecting another EXPERIENCE adds it, and toggling one off removes its FACTs. |
+| `TC-03-SCOPE-006` | `REQ-03-FUNC-503` | Selecting a child retains ancestors and its descendants but excludes siblings. |
+| `TC-03-SCOPE-007` | `REQ-03-FUNC-503` | Explicit EXPERIENCE scope excludes unrelated FACTs even if their PERSON is selected; PERSON-only scope still retains PERSON-owned FACTs. |
+| `TC-03-REACT-2D-001` | `REQ-03-FUNC-509` | Pane and SVG widths use the same lane geometry and shrink after EXPERIENCE selection. |
+| `TC-03-REACT-2D-002` | `REQ-03-FUNC-510` | Changing the slider sends the scale to layout and scales both row CSS and SVG FACT spacing at 0.5x and 2x. |
+| `TC-03-ZSCALE-001` | `REQ-03-FUNC-510` | Client layout scales Z coordinates in Linear, Logarithmic, and SequentialIndex modes. The Rust scale-mode test also asserts scaled node and trunk endpoint coordinates. |
+| `TC-03-IPC-002` | `REQ-03-FUNC-503`, `REQ-03-FUNC-510` | GUI EXPERIENCE selection and Z-scale changes reach `compute_visualizer_layout` through the real API wrapper with the narrowed model and numeric scale. |
+
+Browser acceptance additionally checks actual table row centers against SVG FACT centers at
+0.5x, 1x, and 2x, verifies alignment while vertically scrolling, and verifies the FACT/Time
+table follows the last lane on narrow screens through horizontal scrolling. These are real
+browser measurements, not coverage provided by the opt-in placeholder geometry smoke test.
 
 ---
 

@@ -66,6 +66,38 @@ describe("EVAL-03 visualizer scope selection", () => {
     expect(scoped.experiences).toHaveLength(1);
     expect(scoped.facts).toHaveLength(1);
   });
+
+  it("TC-03-SCOPE-006 excludes sibling branches when adding ancestors of a selection", () => {
+    const model = {
+      ...camelCaseModel,
+      experiences: [
+        ...camelCaseModel.experiences,
+        { experienceId: "exp-sibling", personId: "person-1", parentExperienceIds: ["exp-root"] },
+        { experienceId: "exp-leaf", personId: "person-1", parentExperienceIds: ["exp-child"] },
+      ],
+    };
+    const scoped = scopeModel(model, { personIds: [], experienceIds: ["exp-child"] });
+    expect(scoped.experiences.map((experience) => experience.experienceId)).toEqual(["exp-root", "exp-child", "exp-leaf"]);
+  });
+
+  it("TC-03-SCOPE-007 narrows FACTs by EXPERIENCE even when their PERSON is selected", () => {
+    const model = {
+      ...camelCaseModel,
+      experiences: [
+        ...camelCaseModel.experiences,
+        { experienceId: "exp-independent", personId: "person-1", parentExperienceIds: [] },
+      ],
+      facts: [
+        ...camelCaseModel.facts,
+        { factId: "fact-independent", experienceIds: ["exp-independent"], personIds: ["person-1"] },
+        { factId: "fact-person-only", experienceIds: [], personIds: ["person-1"] },
+      ],
+    };
+    expect(scopeModel(model, { personIds: ["person-1"], experienceIds: ["exp-child"] }).facts.map((fact) => fact.factId))
+      .toEqual(["fact-root", "fact-child"]);
+    expect(scopeModel(model, { personIds: ["person-1"], experienceIds: [] }).facts.map((fact) => fact.factId))
+      .toEqual(["fact-root", "fact-child", "fact-independent", "fact-person-only"]);
+  });
 });
 
 describe("EVAL-03 visualizer render budget", () => {

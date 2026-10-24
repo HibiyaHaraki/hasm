@@ -304,6 +304,14 @@ mod tests {
         assert_eq!(linear.nodes_3d[1].z, 4.0);
         assert_eq!(logarithmic.nodes_3d[1].z, 2.0);
         assert_eq!(sequential.nodes_3d[1].z, 3.0);
+        for (baseline, mode) in [(&linear, "Linear"), (&logarithmic, "Logarithmic"), (&sequential, "SequentialIndex")] {
+            for scale in [0.5, 2.0] {
+                let scaled = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: mode.to_string(), z_scale_factor: scale });
+                assert_eq!(scaled.nodes_3d[1].z, baseline.nodes_3d[1].z * scale);
+                assert_eq!(scaled.lines_3d[0].from[2], baseline.lines_3d[0].from[2] * scale);
+                assert_eq!(scaled.lines_3d[0].to[2], baseline.lines_3d[0].to[2] * scale);
+            }
+        }
     }
 
     #[test]

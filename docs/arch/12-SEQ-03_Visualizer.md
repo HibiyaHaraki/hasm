@@ -47,6 +47,21 @@ The Open Workspace page (`/select`) includes **Test 3D commit graph** for develo
 
 The current implementation owns the entire visualizer surface in the reusable `src/hasm_visualizer` package: `HasmVisualizerComponent.jsx` (toolbar, PERSON/EXPERIENCE scope selection, 2D/3D switching, scene lifecycle), `threeCommitGraph.js` and `twoCommitGraph.js` (Three.js scene ownership and node interaction), `layoutFilter.js` (filter state), `modelScope.js` (scope narrowing), and `layoutCalculator.js` (a client-side layout kept in parity with Rust for hosts without a Tauri backend). `src/pages/VisualizerPage.jsx` is a thin host: it supplies the loaded model, the Rust-backed `computeLayout` callback with IPC progress and watchdog handling, node-click routing, and the SEQ-03 header/overlay slots. The previous duplicate under `src/features/visualizer/` was removed. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; coordinate policy is intentionally isolated there for later revision.
 
+### 2D Lane Width and Z Scale
+
+The SVG graph and HTML FACT/Time table share lane geometry from `graph2DLayout.js`.
+The graph pane width is `21 + max(1, laneCount) * 56 + 10` CSS pixels, reserving space for
+the last EXPERIENCE label before the table. The table fills the remaining width; the split
+container scrolls horizontally when the lanes and minimum table width exceed the viewport.
+No percentage-based width or lane-count cap may clip the rightmost lanes.
+
+In 2D, successful layout completion commits both geometry and its Z scale. Table row height
+is `30 * zScaleFactor` pixels; the renderer uses the measured table row/header dimensions to
+align FACT dots and branch endpoints. Rejected layout requests retain the previous geometry
+and row scale. Time modes preserve newest-first, equally spaced 2D rows; in 3D they continue
+to determine Z-coordinate distances. Vertical scrolling remains owned by the FACT table and
+is mirrored synchronously to the SVG.
+
 ### Scope Selection and Render Budget (Large Packages)
 
 A 60,000-entity package cannot be laid out or rendered whole, so the visualizer narrows the model **before** layout rather than trimming geometry afterwards:
@@ -54,8 +69,8 @@ A 60,000-entity package cannot be laid out or rendered whole, so the visualizer 
 | Stage | Mechanism | Location |
 | --- | --- | --- |
 | **Scope prompt** | An unscoped model above `scopePromptThreshold` (default 2,000 entities) is not laid out at all. The stage shows a prompt asking for a PERSON or EXPERIENCE selection, and `compute_visualizer_layout` is never invoked. | `HasmVisualizerComponent.jsx` |
-| **Scope narrowing** | `scopeModel(model, { personIds, experienceIds })` keeps the selected EXPERIENCEs plus their ancestors (so branch/merge lines stay connected) and descendants, the FACTs on those branches, the owning PERSONs, and only LINKs whose `related_ids` are entirely inside the scope. Accessors read both camelCase (Tauri) and snake_case (bundled samples). | `modelScope.js` |
-| **Composed controls** | The EXPERIENCE option list is filtered by the PERSON selection, and EXPERIENCE selections outside a newly chosen PERSON set are dropped automatically. | `HasmVisualizerComponent.jsx` |
+| **Scope narrowing** | `scopeModel(model, { personIds, experienceIds })` expands descendants from the selected EXPERIENCEs, then adds ancestors for connectivity without expanding those ancestors into sibling branches. FACTs follow those branches; additional PERSON-owned FACTs are included only without an explicit EXPERIENCE selection. Only fully contained LINKs are retained. Accessors read both camelCase (Tauri) and snake_case (bundled samples). | `modelScope.js` |
+| **Composed controls** | The EXPERIENCE option list is filtered by the PERSON selection, and EXPERIENCE selections outside a newly chosen PERSON set are dropped automatically. The PERSON control is hidden when fewer than two PERSONs exist. | `HasmVisualizerComponent.jsx` |
 | **Render budget** | `limitRenderedNodes(payload, maxRenderedNodes)` (default 4,000) keeps every EXPERIENCE node and trims surplus FACT nodes, surfacing a warning naming how many were withheld. | `threeCommitGraph.js` |
 | **Timeline budget** | Z-axis ticks are evenly sampled to at most `MAX_TIMELINE_TICKS` (60) and label textures are cached by text and color, instead of one canvas-backed sprite per distinct FACT timestamp. | `threeCommitGraph.js` |
 | **GPU allocation** | All FACT commits share one `BoxGeometry`; only materials differ per node. | `threeCommitGraph.js` |
