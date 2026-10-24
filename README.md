@@ -1,152 +1,170 @@
-# HASM Model Editor 🌟
+# HASM Desktop Model Editor 🌿
 
-HASM is a local model format for organizing **people, experiences, facts, and links**. 🧩
-The HASM Model Editor is a small desktop app for opening that model, browsing its sections, and editing entity details. ✍️
+HASM is a local model format for organizing **people, experiences, facts, and links**. This desktop app helps you create or open a model, explore it as a graph, and edit its entities. 🧩
 
-## What is HASM? 💡
+> **In short:** choose a model folder → explore its graph → create or edit entities → save locally. 📂🔎✍️
 
-HASM keeps model data close to the files that describe it: folders hold entity Markdown, while a local SQLite database helps the app browse and save structured metadata. 📁🗃️
+## 🖥️ About the HASM desktop app
 
-## Repository status and contribution policy
+The **HASM Desktop Model Editor** is a local-first workspace for structuring and exploring a person’s experiences and the facts connected to them. It brings a 3D graph view and editable entity details together in one desktop application. 🧭
 
-Thank you for your interest in this repository and for taking the time to explore the project. HASM is currently in an early stage of development, and its maturity remains limited. The project is being developed gradually and intentionally, step by step, at a pace that is appropriate for its current stage.
+### 🧩 The four model building blocks
 
-At this time, external contributions are not being accepted. The repository is being shaped and refined independently by the maintainer, and the current focus is on establishing a stable foundation before broader collaboration is considered. We sincerely appreciate your interest and kindly ask that you respect this direction while the project continues to evolve.
+| Type | What it represents |
+|---|---|
+| 👤 **PERSON** | A person at the center of a model. |
+| 🌱 **EXPERIENCE** | A timeline or context for organizing experiences; experiences can form branches. |
+| 📍 **FACT** | An event or piece of information, optionally associated with one or more experiences. |
+| 🔗 **LINK** | A directed relationship between model entities. |
 
-The editor is designed for a simple loop:
+Together, these entities form a connected model that you can browse visually, rather than a collection of disconnected notes. 🕸️
 
-- 📂 Open a model folder
-- 🧭 Browse PERSON, EXPERIENCE, FACT, and LINK
-- 🔎 Open an entity detail view
-- 💾 Edit and save metadata
-- 🎨 Switch the workspace color pattern
+### 💾 Local files, readable Markdown
 
-## Current flow 🔄
+Each entity has a folder containing a human-readable `main.md` file and an `assets/` folder for related media. A local SQLite database stores structured metadata and relationships, helping the app load, edit, and visualize the model. HASM Markdown files can also be opened in the companion editor; after external edits, refresh the entity in the desktop app to load the latest content. 📝
+
+### 🧭 Typical workflow
+
+1. 📂 Open an existing model folder or create a new workspace.
+2. 🛡️ Let HASM validate the workspace and load its data.
+3. 🕸️ Explore people, experiences, facts, and links in the visualizer.
+4. ➕ Create entities and relationships, or open an entity to inspect it.
+5. ✍️ Edit its details or Markdown, then save or refresh the view.
+
+## ✨ What the app can do
+
+| Feature | Status | What it means |
+|---|---:|---|
+| 🚀 App and model checks | ✅ | Check the HASM Markdown app and validate a selected model before use. |
+| 📂 Open or create a model | ✅ | Choose an existing workspace or scaffold a new one. |
+| 🕸️ Explore the model | ✅ | View entities in the 3D visualizer, with layout filters and scope controls. |
+| ➕ Create entities and links | ✅ | Create PERSON, EXPERIENCE, FACT, and LINK records; invalid creation is rejected and failed writes are rolled back. |
+| 📝 View and edit entity details | ✅ | Load entity details and save metadata to the local model database. |
+| 🔄 Work with Markdown | ✅ | Open the companion HASM Markdown app, detect external file changes, and refresh the displayed content. |
+| 🛡️ Navigation and recovery | ✅ | Protect model-dependent routes and guide users through model and Markdown error states. |
+
+Automated frontend, IPC-contract, and Rust tests cover the documented evaluation flows. Some full desktop/GUI scenarios remain manual acceptance checks; the visualizer geometry smoke test is opt-in. See [`docs/eval/`](docs/eval/) for coverage details. 🧪
+
+## 🔄 How it works
 
 ```mermaid
 flowchart LR
-	A[🚀 Boot] --> B[📂 Open model folder]
-	B --> C[⚙️ Tauri opens workspace]
-	C --> D[🗃️ Sync folders with main.db]
-	D --> E[🧭 Browse entities]
-	E --> F[🔎 View entity details]
-	F --> G[✍️ Edit and save]
-	G --> H[🔄 Refresh workspace]
-	H --> E
-	E -.-> I[🎨 Change color pattern]
+    A[🚀 Start app] --> B{📂 Open or create model}
+    B --> C[🛡️ Validate workspace]
+    C --> D[🕸️ Explore visualizer]
+    D --> E[🔎 Open entity]
+    E --> F[✍️ Edit details or Markdown]
+    F --> G[💾 Save and refresh]
+    G --> D
 ```
 
-## Status 🧩
-
-| Area | Status | Short description |
-|---|---|---|
-| App boot | ✅ | Start the desktop workspace flow |
-| Model open | ✅ | Open a model folder and read its sections |
-| Entity browsing | ✅ | Browse PERSON, EXPERIENCE, FACT, and LINK |
-| Entity details | ✅ | Read and edit detail records |
-| Save and refresh | ✅ | Save through Tauri and reload the workspace |
-| New model creation | 🚧 | Planned next |
-| Rich relationship visualization | 🚧 | Planned after the core editor |
-
-## Tech stack 🛠️
+## 🛠️ Technology
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite)](https://vite.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=black)](https://tauri.app/)
 [![Rust](https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![SQLite](https://img.shields.io/badge/SQLite-local-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
-- 🖥️ Frontend: React + Vite
-- ⚡ Desktop shell and bridge: Tauri 2
-- 🦀 Backend: Rust
-- 🗃️ Storage: local folders, Markdown, and SQLite `main.db`
-- 🎨 Theme package: `src/hasm_color_pattern`
-- 📝 Logging package: `src/hasm_logger`
+* 🖥️ **Frontend:** React, Vite, and Three.js
+* ⚡ **Desktop app and IPC:** Tauri 2
+* 🦀 **Backend:** Rust
+* 🗃️ **Model storage:** folders, Markdown, and a local SQLite database (`main.db`, with legacy `hasm.db` support)
+* 🎨 **Theme helpers:** `src/hasm_color_pattern`
+* 📝 **Logging helpers:** `src/hasm_logger`
 
-## Getting started ▶️
+## ▶️ Get started
 
-Install dependencies:
+### Requirements
+
+Install [Node.js](https://nodejs.org/), [Rust](https://www.rust-lang.org/tools/install), and the platform prerequisites for [Tauri](https://tauri.app/start/prerequisites/).
+
+### Set up and run
 
 ```bash
+git clone --recurse-submodules https://github.com/HibiyaHaraki/hasm.git
+cd hasm
 npm install
-```
-
-Run the app in development mode:
-
-```bash
 npm run tauri dev
 ```
 
-Build for production:
+If you already cloned without submodules, initialize them before building:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Build
 
 ```bash
 npm run build
 npm run tauri:build
 ```
 
-`npm run build` now performs three steps in sequence:
+`npm run build` syncs the Tauri icons, builds and stages the `hasm_markdown` companion app, then builds the frontend. `npm run tauri:build` packages the desktop app. 📦
 
-1. Runs `npm run sync:tauri-icons` to copy HASM logo PNG files from `hasm_logo/logo/hasm/` into `src-tauri/icons/`, then generates required platform icon files (`icon.ico`, `icon.icns`) from the same source.
-2. Builds the `hasm_markdown` submodule in release mode and stages `src-tauri/binaries/hasm_markdown.exe`.
-3. Builds the frontend.
+## 🧪 Tests
 
-`npm run tauri:build` re-runs icon sync for CI safety and then packages the desktop application.
-
-## Test commands
-
-Run all sequence-aligned evaluation tests:
+Run the complete sequence-aligned frontend evaluation suite:
 
 ```bash
 npm run test:seq-md
 ```
 
-Run a specific sequence test set:
+Run a focused frontend evaluation:
 
 ```bash
-npm run test:seq-md-01
-npm run test:seq-md-02
-npm run test:seq-md-03
-npm run test:seq-md-04
-npm run test:seq-md-05
+npm run test:eval-01
+npm run test:eval-02
+npm run test:eval-03
+npm run test:eval-04
+npm run test:eval-05
+npm run test:eval-07
+npm run test:eval-08
 ```
 
-## Project structure 📁
+The Rust command tests are run from `src-tauri`:
+
+```bash
+cargo test app_commands
+cargo test model_commands
+cargo test visualizer_commands
+cargo test entity_editor_commands
+cargo test external_editor_commands
+cargo test switches_workspace_cleanly_with_and_without_lock_release
+cargo test entity_creation_commands
+```
+
+## 📁 Project map
 
 ```text
 src/
-├── features/hasm/          # Boot, open, browse, detail, and Tauri API flow
-├── hasm_color_pattern/      # Reusable color patterns and theme helpers
+├── features/hasm/          # Workspace, entity, and Tauri API flows
+├── hasm_color_pattern/      # Color patterns and theme helpers
 ├── hasm_logger/             # Frontend logging helpers
-├── App.jsx                 # App entry component
-└── main.jsx                # React entry point
+├── hasm_visualizer/          # Reusable 3D visualizer
+└── pages/                   # Application screens
 src-tauri/
-├── src/hasm/                # Rust commands, services, types, and definitions
-├── src/hasm_logger/         # Rust logging support
-├── icons/                   # Generated Tauri icon assets (synced from hasm_logo)
-└── Cargo.toml              # Rust dependencies and build settings
-hasm_logo/
-└── logo/hasm/               # Source logo assets used to generate app icons
-scripts/
-├── build-hasm-markdown.ps1  # Builds and stages hasm_markdown executable
-└── sync-tauri-icons.ps1     # Copies logos and generates Tauri icon files
+├── src/hasm/                 # Rust commands, model, and services
+├── src/hasm_logger/          # Rust logging helpers
+└── icons/                    # Tauri app icons (generated from the logo source)
+hasm_logo/                    # Logo assets and generators
 docs/
-├── arch/                    # Architecture and sequence plans
-├── req/                     # Requirements
-└── eval/                    # Evaluation and test specifications
-package.json                # Frontend scripts and dependencies
-vite.config.js              # Vite configuration
+├── arch/                     # Architecture and sequence documentation
+├── req/                      # Requirements
+└── eval/                     # Evaluation plans and test coverage
+test/                         # Frontend, IPC, and visualizer tests
+scripts/                      # Build and icon-sync scripts
 ```
 
-## Roadmap 🗺️
+## 📚 More information
 
-1. 🚧 **Workspace creation**: create a new HASM folder from the app.
-2. 🧪 **Validation and recovery**: clearer checks for missing or invalid model data.
-3. 🌐 **Relationship views**: make links and experience paths easier to explore.
-4. 📦 **Import and export**: support more practical model exchange workflows.
+The architecture, requirements, and evaluation documents are under [`docs/`](docs/). Start with the [system overview](docs/arch/01-system-overview.md), [directory structure](docs/arch/02-directory-structure-overview.md), and [evaluation plans](docs/eval/).
 
-The detailed architecture, requirements, and evaluation plans live in [`docs/`](docs/), including the current sequence documents for loading, visualization, editing, recovery, and entity creation. 📚
+## 🤝 Contributions
 
-## License 📜
+HASM is still under active development, and external contributions are not being accepted at this time. Thank you for your interest and understanding. 💚
 
-This project is licensed under the GNU General Public License v3.0.
-See [LICENSE](LICENSE) for details.
+## 📜 License
+
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
