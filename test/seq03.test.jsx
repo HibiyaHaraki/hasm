@@ -3,6 +3,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import VisualizerPage from "../src/pages/VisualizerPage";
 import * as api from "../src/features/hasm/api";
+import { computeVisualizerLayoutJS } from "../src/hasm_visualizer/layoutCalculator.js";
+import { graphWidthForLaneCount, ROW_HEIGHT_PX, TABLE_HEADER_HEIGHT_PX } from "../src/hasm_visualizer/graph2DLayout.js";
 
 const { createCommitGraph, selectNode } = vi.hoisted(() => ({ createCommitGraph: vi.fn(() => () => {}), selectNode: vi.fn() }));
 vi.mock("../src/features/hasm/api", () => ({
@@ -175,5 +177,111 @@ describe("SEQ-03 visualizer lifecycle", () => {
     selectOptions(screen.getByLabelText("PERSON scope"), ["person-0"]);
 
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+  });
+
+  it("TC-03-REACT-SCOPE-004 hides PERSON selection for a single PERSON", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer();
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    expect(screen.queryByLabelText("PERSON scope")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("EXPERIENCE scope")).toBeInTheDocument();
+  });
+
+  it("TC-03-REACT-SCOPE-005 toggles EXPERIENCEs by plain click within a PERSON scope", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    const scopedFixture = {
+      ...scopeFixtureModel,
+      experiences: scopeFixtureModel.experiences.map((experience) => ({ ...experience, personId: "person-1" })),
+      facts: scopeFixtureModel.facts.map((fact) => ({ ...fact, personIds: ["person-1"] })),
+    };
+    renderVisualizer({ model: scopedFixture, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    selectOptions(screen.getByLabelText("PERSON scope"), ["person-1"]);
+    const select = screen.getByLabelText("EXPERIENCE scope");
+    fireEvent.mouseDown(select.options[1], { button: 0 });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-2"]));
+    fireEvent.mouseDown(select.options[0], { button: 0 });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts).toHaveLength(2));
+    fireEvent.mouseDown(select.options[1], { button: 0 });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-1"]));
+  });
+
+  it("TC-03-REACT-2D-001 sizes the graph from lane count after EXPERIENCE selection", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue({
+      ...payload,
+      nodes3d: [
+        { id: "exp-1", entityType: "EXPERIENCE", x: 0, y: 0, z: 0 },
+        { id: "exp-2", entityType: "EXPERIENCE", x: 0, y: 4, z: 0 },
+      ],
+    });
+    const { container } = renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    const graph = container.querySelector(".HasmVisualizer_GraphPane2D");
+    await vi.waitFor(() => expect(graph.style.width).toBe(`${graphWidthForLaneCount(2)}px`));
+    await vi.waitFor(() => expect(graph.querySelector("svg")?.getAttribute("width")).toBe(String(graphWidthForLaneCount(2))));
+    api.computeVisualizerLayout.mockResolvedValue({
+      ...payload,
+      nodes3d: [{ id: "exp-2", entityType: "EXPERIENCE", x: 0, y: 4, z: 0 }],
+    });
+    selectOptions(screen.getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    await vi.waitFor(() => expect(graph.style.width).toBe(`${graphWidthForLaneCount(1)}px`));
+    await vi.waitFor(() => expect(graph.querySelector("svg")?.getAttribute("width")).toBe(String(graphWidthForLaneCount(1))));
+  });
+
+  it("TC-03-REACT-2D-002 applies Z scale to both SVG FACT spacing and table row height", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    const graphPayload = {
+      ...payload,
+      nodes3d: [
+        { id: "exp-1", entityType: "EXPERIENCE", label: "Research", x: 0, y: 0, z: 0 },
+        { id: "fact-1", entityType: "FACT", label: "Paper", x: 0, y: 0, z: 1, isDirectFact: true },
+        { id: "fact-2", entityType: "FACT", label: "Lecture", x: 0, y: 0, z: 2, isDirectFact: true },
+      ],
+    };
+    api.computeVisualizerLayout.mockResolvedValue(graphPayload);
+    const { container } = renderVisualizer();
+    const split = container.querySelector(".HasmVisualizer_Split2D");
+    const circles = () => Array.from(container.querySelectorAll("circle")).map((circle) => Number(circle.getAttribute("cy")));
+    await vi.waitFor(() => expect(circles()).toEqual([TABLE_HEADER_HEIGHT_PX + 45, TABLE_HEADER_HEIGHT_PX + 15]));
+    for (const scale of [2, 0.5]) {
+      fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: String(scale) } });
+      await vi.waitFor(() => {
+        expect(api.computeVisualizerLayout.mock.calls.at(-1)[1].zScaleFactor).toBe(scale);
+        expect(split.style.getPropertyValue("--HasmVisualizer-row-height")).toBe(`${ROW_HEIGHT_PX * scale}px`);
+        expect(circles()).toEqual([TABLE_HEADER_HEIGHT_PX + 45 * scale, TABLE_HEADER_HEIGHT_PX + 15 * scale]);
+      });
+    }
+    api.computeVisualizerLayout.mockRejectedValueOnce(new Error("Layout calculation stalled"));
+    fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: "1.7" } });
+    expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
+    expect(split.style.getPropertyValue("--HasmVisualizer-row-height")).toBe("15px");
+    expect(circles()).toEqual([TABLE_HEADER_HEIGHT_PX + 22.5, TABLE_HEADER_HEIGHT_PX + 7.5]);
+    switchTo3D();
+    await vi.waitFor(() => expect(createCommitGraph).toHaveBeenCalled());
+  });
+});
+
+describe("SEQ-03 Z scale geometry", () => {
+  it("TC-03-ZSCALE-001 scales layout Z coordinates in every time mode", () => {
+    const model = {
+      people: [],
+      experiences: [{ experience_id: "exp-1" }],
+      facts: [
+        { fact_id: "fact-1", experience_ids: ["exp-1"], occurred_at: "2024-01-01" },
+        { fact_id: "fact-2", experience_ids: ["exp-1"], occurred_at: "2024-02-01" },
+      ],
+      links: [],
+    };
+    for (const timeScaleMode of ["Linear", "Logarithmic", "SequentialIndex"]) {
+      const base = computeVisualizerLayoutJS(model, { timeScaleMode, zScaleFactor: 1 });
+      for (const zScaleFactor of [0.5, 2]) {
+        const scaled = computeVisualizerLayoutJS(model, { timeScaleMode, zScaleFactor });
+        const fact = scaled.nodes3d.find((node) => node.id === "fact-2");
+        expect(fact.z).toBeGreaterThan(0);
+        expect(fact.z).toBeCloseTo(base.nodes3d.find((node) => node.id === fact.id).z * zScaleFactor);
+      }
+    }
   });
 });
