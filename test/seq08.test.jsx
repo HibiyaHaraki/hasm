@@ -39,6 +39,22 @@ afterEach(() => {
 });
 
 describe("SEQ-08 entity creation navigation and forms", () => {
+  it("TC-08-REACT-LINK-001 includes URL arrays in all four creation payloads", async () => {
+    for (const [type, create] of [["PERSON", api.createPerson], ["EXPERIENCE", api.createExperience], ["FACT", api.createFact], ["LINK", api.createLink]]) {
+      create.mockResolvedValue({});
+      api.loadHasmModelDb.mockResolvedValue(model);
+      render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model, path: "C:/fixture.hasm" } }]}>
+        <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
+      </MemoryRouter>);
+      fireEvent.click(screen.getByRole("button", { name: type }));
+      fireEvent.click(screen.getByRole("button", { name: "Add link" }));
+      fireEvent.change(screen.getByLabelText("Link 1"), { target: { value: "https://example.org/source" } });
+      fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+      await vi.waitFor(() => expect(create).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ link: ["https://example.org/source"] })));
+      await screen.findByTestId("location");
+      cleanup(); vi.resetAllMocks();
+    }
+  });
   it("TC-08-REACT-001 shows Create New Entity button on Visualizer and moves to creation page", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
     api.computeVisualizerLayout.mockResolvedValue({ nodes3d: [], lines3d: [], warnings: [] });

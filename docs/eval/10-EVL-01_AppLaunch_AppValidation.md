@@ -5,6 +5,18 @@ Tests are structured across three test levels: **Desktop App Level (E2E / Integr
 
 Automated React and IPC coverage for this specification runs through `npm run test:eval-01`; the Rust command coverage runs through `cargo test app_commands` from `src-tauri`.
 
+## External-Link Schema Compatibility
+
+| Test ID | Requirement | Level / automated target | Expected result |
+| --- | --- | --- | --- |
+| `TC-01-RUST-LINK-001` | `REQ-01-RULE-008` | `service::external_link_tests::migrates_legacy_link_columns_idempotently_without_changing_relationships` | All four legacy tables gain `link` with `[]`; repeating migration succeeds; existing names and graph `link_ids` remain intact. |
+| `TC-01-RUST-LINK-002` | `REQ-01-RULE-008` | `entity_creation_commands::tests::scaffolds_workspace_and_entity_directories` | Both scaffolded databases include the four URL-array columns before any entity is created. |
+| `TC-01-E2E-LINK-001` | `REQ-01-RULE-008` | Packaged desktop acceptance (manual) | Open a legacy model through selection/CLI, edit URLs, close and reopen; entity URLs persist without startup network access. |
+
+Run migration coverage with `cargo test external_link` and scaffolding coverage
+with `cargo test entity_creation_commands` from `src-tauri`. The packaged desktop
+scenario is not replaced by component or Rust tests.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)

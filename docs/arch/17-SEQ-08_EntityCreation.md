@@ -14,6 +14,8 @@ pub struct CreateWorkspaceRequest {
 // Payload for create_person command
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreatePersonRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub person_name: String,
     pub person_description: String,
     pub security_level: i32,
@@ -23,6 +25,8 @@ pub struct CreatePersonRequest {
 // Payload for create_experience command
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateExperienceRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub experience_name: String,
     pub experience_description: String,
     pub security_level: i32,
@@ -32,6 +36,8 @@ pub struct CreateExperienceRequest {
 // Payload for create_fact command
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateFactRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub fact_name: String,
     pub fact_description: String,
     pub start_time: Option<String>, // ISO8601 String
@@ -43,6 +49,8 @@ pub struct CreateFactRequest {
 // Payload for create_link command
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateLinkRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub link_type: String, // e.g. "causes", "references", "mentors"
     pub link_description: String,
     pub origin_entity_type: EntityType, // "Person" | "Experience" | "Fact"
@@ -64,6 +72,13 @@ pub struct EntityCreationPayload {
 ```
 
 ### 1.2 Time Constraints Policy Matrix
+
+All four creation forms share the external URL editor described in
+[SEQ-04](./13-SEQ-04_Entity_Editing.md). The optional IPC `link` array defaults to
+`[]`, is validated before insertion/filesystem scaffolding, and is stored as JSON
+in the new entity row. The auto-generated PERSON root EXPERIENCE starts with its
+own empty array; PERSON URLs are not copied into it. Workspace scaffolding and
+creation reuse `service::ensure_schema`, including legacy-column migration.
 
 | Operation | Timeout Rule | Timeout Value | Timeout Action & Rollback |
 | --- | --- | --- | --- |

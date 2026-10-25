@@ -140,6 +140,13 @@ pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<Sa
         model.links.len()
     );
 
+    for links in model.people.iter().map(|entity| &entity.link)
+        .chain(model.experiences.iter().map(|entity| &entity.link))
+        .chain(model.facts.iter().map(|entity| &entity.link))
+        .chain(model.links.iter().map(|entity| &entity.link)) {
+        crate::hasm::definitions::validate_external_links(links)?;
+    }
+
     let root = validate_model_root(model_root)?;
     let mut connection = open_connection(&root)?;
     sync_directories_to_db(&connection, &root)?;
@@ -186,7 +193,7 @@ pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, St
     // Step 2. Query person row and compose detail payload with markdown content.
     let row = connection
         .query_row(
-            "SELECT person_id, person_name, person_description_path, birthday, die, link_ids
+            "SELECT person_id, person_name, person_description_path, birthday, die, link_ids, link
              FROM person WHERE person_id = ?1",
             [person_id.to_string()],
             |row| {
@@ -197,15 +204,17 @@ pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, St
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             },
         )
         .optional()
         .map_err(|error| error.to_string())?;
 
-    if let Some((person_id, person_name, description_path, birthday, die, link_ids)) = row {
+    if let Some((person_id, person_name, description_path, birthday, die, link_ids, link)) = row {
         info!("get_person_detail success: entity_id={}", entity_id);
         return Ok(Person {
+            link: parse_external_links(&link)?,
             person_id: parse_uuid_or_nil(&person_id)?,
             person_name,
             person_description_path: description_path.clone(),
@@ -241,7 +250,7 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
     let row = connection
         .query_row(
             "SELECT experience_id, person_id, experience_name, experience_description_path,
-                    parent_experience_ids, link_ids
+                    parent_experience_ids, link_ids, link
              FROM experience WHERE experience_id = ?1",
             [experience_id.to_string()],
             |row| {
@@ -252,6 +261,7 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             },
         )
@@ -265,10 +275,12 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
         description_path,
         parent_experience_ids,
         link_ids,
+        link,
     )) = row
     {
         info!("get_experience_detail success: entity_id={}", entity_id);
         return Ok(Experience {
+            link: parse_external_links(&link)?,
             experience_id: parse_uuid_or_nil(&experience_id)?,
             person_id: parse_uuid_or_nil(&person_id)?,
             experience_name,
@@ -299,7 +311,7 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
     // Step 2. Query fact row and compose detail payload with markdown content.
     let row = connection
         .query_row(
-            "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
+            "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link
              FROM fact WHERE fact_id = ?1",
             [fact_id.to_string()],
             |row| {
@@ -311,17 +323,19 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
                     row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
                 ))
             },
         )
         .optional()
         .map_err(|error| error.to_string())?;
 
-    if let Some((fact_id, fact_name, occurred_at, description_path, experience_ids, person_ids, link_ids)) =
+    if let Some((fact_id, fact_name, occurred_at, description_path, experience_ids, person_ids, link_ids, link)) =
         row
     {
         info!("get_fact_detail success: entity_id={}", entity_id);
         return Ok(Fact {
+            link: parse_external_links(&link)?,
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_name,
             occurred_at,
@@ -353,7 +367,7 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
     // Step 2. Query link row and compose detail payload with markdown content.
     let row = connection
         .query_row(
-            "SELECT link_id, link_name, link_type, link_description_path, related_ids
+            "SELECT link_id, link_name, link_type, link_description_path, related_ids, link
              FROM link WHERE link_id = ?1",
             [link_id.to_string()],
             |row| {
@@ -363,15 +377,17 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         )
         .optional()
         .map_err(|error| error.to_string())?;
 
-    if let Some((link_id, link_name, link_type, description_path, related_ids)) = row {
+    if let Some((link_id, link_name, link_type, description_path, related_ids, link)) = row {
         info!("get_link_detail success: entity_id={}", entity_id);
         return Ok(Link {
+            link: parse_external_links(&link)?,
             link_id: parse_uuid_or_nil(&link_id)?,
             link_name,
             link_type,
@@ -389,6 +405,7 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
 }
 
 pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResult, String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
     info!(
         "save_person_detail start: model_root={}, person_id={}",
@@ -412,6 +429,7 @@ pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResul
 }
 
 pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<SaveResult, String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
     info!(
         "save_experience_detail start: model_root={}, experience_id={}",
@@ -435,6 +453,7 @@ pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<S
 }
 
 pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
     info!(
         "save_fact_detail start: model_root={}, fact_id={}",
@@ -458,6 +477,7 @@ pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, S
 }
 
 pub fn save_link_detail(model_root: &str, detail: &Link) -> Result<SaveResult, String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
     info!(
         "save_link_detail start: model_root={}, link_id={}",
@@ -555,7 +575,7 @@ fn open_connection(model_root: &Path) -> Result<Connection, String> {
     Ok(connection)
 }
 
-fn ensure_schema(connection: &Connection) -> Result<(), String> {
+pub(super) fn ensure_schema(connection: &Connection) -> Result<(), String> {
     connection
         .execute_batch(
             "CREATE TABLE IF NOT EXISTS person (
@@ -596,6 +616,25 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     let _ = connection.execute("ALTER TABLE fact ADD COLUMN occurred_at TEXT NOT NULL DEFAULT ''", []);
+
+    // SEQ-MD-01/02: additive migration preserves legacy rows and graph link_ids.
+    let transaction = connection.unchecked_transaction().map_err(|error| error.to_string())?;
+    for table in ["person", "experience", "fact", "link"] {
+        let has_link = {
+            let mut statement = transaction.prepare(&format!("PRAGMA table_info({table})"))
+                .map_err(|error| error.to_string())?;
+            let columns = statement.query_map([], |row| row.get::<_, String>(1))
+                .map_err(|error| error.to_string())?;
+            let columns = columns.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?;
+            columns.iter().any(|column| column == "link")
+        };
+        if !has_link {
+            transaction.execute(&format!("ALTER TABLE {table} ADD COLUMN link TEXT NOT NULL DEFAULT '[]'"), [])
+                .map_err(|error| format!("ERR_LINK_SCHEMA_MIGRATION: {table}: {error}"))?;
+            info!("[SEQ-MD-01][LINK-SCHEMA] added external URL array to {table}");
+        }
+    }
+    transaction.commit().map_err(|error| error.to_string())?;
 
     // Expression indexes matching the list ORDER BY keys, so a 60k-entity package is
     // streamed from an index instead of a full temporary B-tree sort on every load.
@@ -805,6 +844,8 @@ fn ensure_entity_row(
 }
 
 fn save_person_row(connection: &Connection, model_root: &Path, detail: &Person) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
+    info!("[SEQ-MD-04][EXTERNAL-LINKS] saving PERSON references; count={}", detail.link.len());
     debug!("save_person_row: person_id={}", detail.person_id);
     let description_path = sanitize_relative_path(
         &detail.person_description_path,
@@ -814,14 +855,15 @@ fn save_person_row(connection: &Connection, model_root: &Path, detail: &Person) 
 
     connection
         .execute(
-            "INSERT INTO person (person_id, person_name, person_description_path, birthday, die, link_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "INSERT INTO person (person_id, person_name, person_description_path, birthday, die, link_ids, link)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(person_id) DO UPDATE SET
                 person_name = excluded.person_name,
                 person_description_path = excluded.person_description_path,
                 birthday = excluded.birthday,
                 die = excluded.die,
-                link_ids = excluded.link_ids",
+                link_ids = excluded.link_ids,
+                link = excluded.link",
             params![
                 detail.person_id.to_string(),
                 detail.person_name,
@@ -829,6 +871,7 @@ fn save_person_row(connection: &Connection, model_root: &Path, detail: &Person) 
                 detail.birthday,
                 detail.die,
                 to_json_uuid_array(&detail.link_ids),
+                serde_json::to_string(&detail.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -842,6 +885,8 @@ fn save_experience_row(
     detail: &Experience,
 ) -> Result<(), String> {
     debug!("save_experience_row: experience_id={}", detail.experience_id);
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
+    info!("[SEQ-MD-04][EXTERNAL-LINKS] saving EXPERIENCE references; count={}", detail.link.len());
     let description_path = sanitize_relative_path(
         &detail.experience_description_path,
         Experience::default_markdown_path(&detail.experience_id),
@@ -851,14 +896,15 @@ fn save_experience_row(
     connection
         .execute(
             "INSERT INTO experience (experience_id, person_id, experience_name, experience_description_path,
-                                     parent_experience_ids, link_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                                     parent_experience_ids, link_ids, link)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(experience_id) DO UPDATE SET
                 person_id = excluded.person_id,
                 experience_name = excluded.experience_name,
                 experience_description_path = excluded.experience_description_path,
                 parent_experience_ids = excluded.parent_experience_ids,
-                link_ids = excluded.link_ids",
+                link_ids = excluded.link_ids,
+                link = excluded.link",
             params![
                 detail.experience_id.to_string(),
                 detail.person_id.to_string(),
@@ -866,6 +912,7 @@ fn save_experience_row(
                 description_path,
                 to_json_uuid_array(&detail.parent_experience_ids),
                 to_json_uuid_array(&detail.link_ids),
+                serde_json::to_string(&detail.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -874,6 +921,8 @@ fn save_experience_row(
 }
 
 fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
+    info!("[SEQ-MD-04][EXTERNAL-LINKS] saving FACT references; count={}", detail.link.len());
     debug!("save_fact_row: fact_id={}", detail.fact_id);
     let description_path = sanitize_relative_path(
         &detail.fact_description_path,
@@ -883,15 +932,16 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
 
     connection
         .execute(
-                "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(fact_id) DO UPDATE SET
                 fact_name = excluded.fact_name,
                      occurred_at = excluded.occurred_at,
                 fact_description_path = excluded.fact_description_path,
                 experience_ids = excluded.experience_ids,
                 person_ids = excluded.person_ids,
-                link_ids = excluded.link_ids",
+                link_ids = excluded.link_ids,
+                link = excluded.link",
             params![
                 detail.fact_id.to_string(),
                 detail.fact_name,
@@ -900,6 +950,7 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
                 to_json_uuid_array(&detail.experience_ids),
                 to_json_uuid_array(&detail.person_ids),
                 to_json_uuid_array(&detail.link_ids),
+                serde_json::to_string(&detail.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -908,6 +959,8 @@ fn save_fact_row(connection: &Connection, model_root: &Path, detail: &Fact) -> R
 }
 
 fn save_link_row(connection: &Connection, model_root: &Path, detail: &Link) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&detail.link)?;
+    info!("[SEQ-MD-04][EXTERNAL-LINKS] saving LINK references; count={}", detail.link.len());
     debug!("save_link_row: link_id={}", detail.link_id);
     let description_path = sanitize_relative_path(
         &detail.link_description_path,
@@ -917,19 +970,21 @@ fn save_link_row(connection: &Connection, model_root: &Path, detail: &Link) -> R
 
     connection
         .execute(
-            "INSERT INTO link (link_id, link_name, link_type, link_description_path, related_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO link (link_id, link_name, link_type, link_description_path, related_ids, link)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(link_id) DO UPDATE SET
                 link_name = excluded.link_name,
                 link_type = excluded.link_type,
                 link_description_path = excluded.link_description_path,
-                related_ids = excluded.related_ids",
+                related_ids = excluded.related_ids,
+                link = excluded.link",
             params![
                 detail.link_id.to_string(),
                 detail.link_name,
                 detail.link_type,
                 description_path,
                 to_json_uuid_array(&detail.related_ids),
+                serde_json::to_string(&detail.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| error.to_string())?;
@@ -960,6 +1015,7 @@ fn list_people(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     for row in rows {
         let (person_id, person_name, birthday, die) = row.map_err(|error| error.to_string())?;
         let person = Person {
+            link: Vec::new(),
             person_id: parse_uuid_or_nil(&person_id)?,
             person_name,
             person_description_path: String::new(),
@@ -1002,6 +1058,7 @@ fn list_experiences(connection: &Connection) -> Result<Vec<EntitySummary>, Strin
     for row in rows {
         let (experience_id, person_id, experience_name) = row.map_err(|error| error.to_string())?;
         let experience = Experience {
+            link: Vec::new(),
             experience_id: parse_uuid_or_nil(&experience_id)?,
             person_id: parse_uuid_or_nil(&person_id)?,
             experience_name,
@@ -1046,6 +1103,7 @@ fn list_facts(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     for row in rows {
         let (fact_id, fact_name, occurred_at, person_ids, link_ids) = row.map_err(|error| error.to_string())?;
         let fact = Fact {
+            link: Vec::new(),
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_name,
             occurred_at,
@@ -1088,6 +1146,7 @@ fn list_links(connection: &Connection) -> Result<Vec<EntitySummary>, String> {
     for row in rows {
         let (link_id, link_name, link_type) = row.map_err(|error| error.to_string())?;
         let link = Link {
+            link: Vec::new(),
             link_id: parse_uuid_or_nil(&link_id)?,
             link_name,
             link_type,
@@ -1117,7 +1176,7 @@ fn load_people(
 ) -> Result<Vec<Person>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT person_id, person_name, person_description_path, birthday, die, link_ids
+            "SELECT person_id, person_name, person_description_path, birthday, die, link_ids, link
              FROM person ORDER BY COALESCE(NULLIF(person_name, ''), person_id)",
         )
         .map_err(|error| error.to_string())?;
@@ -1131,16 +1190,18 @@ fn load_people(
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut people = Vec::new();
     for row in rows {
-        let (person_id, person_name, description_path, birthday, die, link_ids) =
+        let (person_id, person_name, description_path, birthday, die, link_ids, link) =
             row.map_err(|error| error.to_string())?;
 
         people.push(Person {
+            link: parse_external_links(&link)?,
             person_id: parse_uuid_or_nil(&person_id)?,
             person_name,
             person_description_path: description_path.clone(),
@@ -1170,7 +1231,7 @@ fn load_experiences(
     let mut statement = connection
         .prepare(
             "SELECT experience_id, person_id, experience_name, experience_description_path,
-                    parent_experience_ids, link_ids
+                    parent_experience_ids, link_ids, link
              FROM experience ORDER BY COALESCE(NULLIF(experience_name, ''), experience_id)",
         )
         .map_err(|error| error.to_string())?;
@@ -1184,6 +1245,7 @@ fn load_experiences(
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?,
             ))
         })
         .map_err(|error| error.to_string())?;
@@ -1197,9 +1259,11 @@ fn load_experiences(
             description_path,
             parent_experience_ids,
             link_ids,
+            link,
         ) = row.map_err(|error| error.to_string())?;
 
         experiences.push(Experience {
+            link: parse_external_links(&link)?,
             experience_id: parse_uuid_or_nil(&experience_id)?,
             person_id: parse_uuid_or_nil(&person_id)?,
             experience_name,
@@ -1228,7 +1292,7 @@ fn load_facts(
 ) -> Result<Vec<Fact>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids
+            "SELECT fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link
              FROM fact ORDER BY COALESCE(NULLIF(fact_name, ''), fact_id)",
         )
         .map_err(|error| error.to_string())?;
@@ -1243,16 +1307,18 @@ fn load_facts(
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut facts = Vec::new();
     for row in rows {
-        let (fact_id, fact_name, occurred_at, description_path, experience_ids, person_ids, link_ids) =
+        let (fact_id, fact_name, occurred_at, description_path, experience_ids, person_ids, link_ids, link) =
             row.map_err(|error| error.to_string())?;
 
         facts.push(Fact {
+            link: parse_external_links(&link)?,
             fact_id: parse_uuid_or_nil(&fact_id)?,
             fact_name,
             occurred_at,
@@ -1282,7 +1348,7 @@ fn load_links(
 ) -> Result<Vec<Link>, String> {
     let mut statement = connection
         .prepare(
-            "SELECT link_id, link_name, link_type, link_description_path, related_ids
+            "SELECT link_id, link_name, link_type, link_description_path, related_ids, link
              FROM link ORDER BY COALESCE(NULLIF(link_name, ''), link_id)",
         )
         .map_err(|error| error.to_string())?;
@@ -1295,16 +1361,18 @@ fn load_links(
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
             ))
         })
         .map_err(|error| error.to_string())?;
 
     let mut links = Vec::new();
     for row in rows {
-        let (link_id, link_name, link_type, description_path, related_ids) =
+        let (link_id, link_name, link_type, description_path, related_ids, link) =
             row.map_err(|error| error.to_string())?;
 
         links.push(Link {
+            link: parse_external_links(&link)?,
             link_id: parse_uuid_or_nil(&link_id)?,
             link_name,
             link_type,
@@ -1320,6 +1388,68 @@ fn load_links(
     }
 
     Ok(links)
+}
+
+fn parse_external_links(value: &str) -> Result<Vec<String>, String> {
+    let links = serde_json::from_str::<Vec<String>>(value)
+        .map_err(|error| format!("ERR_INVALID_EXTERNAL_LINK_DATA: {error}"))?;
+    crate::hasm::definitions::validate_external_links(&links)?;
+    Ok(links)
+}
+
+#[cfg(test)]
+mod external_link_tests {
+    use super::*;
+
+    // TC-01-RUST-LINK-001
+    #[test]
+    fn migrates_legacy_link_columns_idempotently_without_changing_relationships() {
+        let connection = Connection::open_in_memory().unwrap();
+        ensure_schema(&connection).unwrap();
+        for table in ["person", "experience", "fact", "link"] {
+            connection.execute(&format!("ALTER TABLE {table} DROP COLUMN link"), []).unwrap();
+            let id_column = format!("{table}_id");
+            connection.execute(&format!("INSERT INTO {table} ({id_column}) VALUES (?1)"), ["legacy-id"]).unwrap();
+        }
+        connection.execute("UPDATE person SET person_name = 'Ada', link_ids = '[\"11111111-1111-1111-1111-111111111111\"]'", []).unwrap();
+        ensure_schema(&connection).unwrap();
+        ensure_schema(&connection).unwrap();
+        for table in ["person", "experience", "fact", "link"] {
+            let links: String = connection.query_row(&format!("SELECT link FROM {table}"), [], |row| row.get(0)).unwrap();
+            assert_eq!(links, "[]");
+        }
+        let retained: (String, String) = connection.query_row("SELECT person_name, link_ids FROM person", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+        assert_eq!(retained, ("Ada".into(), "[\"11111111-1111-1111-1111-111111111111\"]".into()));
+    }
+
+    #[test]
+    fn rejects_corrupt_external_link_storage_instead_of_returning_empty_arrays() {
+        for value in ["null", "{}", "[1]", "not-json", "[\"file:///secret\"]"] {
+            assert!(parse_external_links(value).is_err(), "{value}");
+        }
+    }
+
+    #[test]
+    fn external_links_survive_full_model_read_and_save() {
+        let demo = crate::hasm::visualizer_commands::create_visualizer_demo_workspace().unwrap();
+        let mut model = read_model_database(&demo.path).unwrap();
+        let urls = vec!["https://example.org/path?q=value#fragment".to_string(), "https://x.com/test/status/1".to_string()];
+        for links in model.people.iter_mut().map(|entity| &mut entity.link)
+            .chain(model.experiences.iter_mut().map(|entity| &mut entity.link))
+            .chain(model.facts.iter_mut().map(|entity| &mut entity.link))
+            .chain(model.links.iter_mut().map(|entity| &mut entity.link)) {
+            *links = urls.clone();
+        }
+        save_model_database(&demo.path, &model).unwrap();
+        let model = read_model_database_with_progress(&demo.path, false, &mut |_, _, _| {}).unwrap();
+        for links in model.people.iter().map(|entity| &entity.link)
+            .chain(model.experiences.iter().map(|entity| &entity.link))
+            .chain(model.facts.iter().map(|entity| &entity.link))
+            .chain(model.links.iter().map(|entity| &entity.link)) {
+            assert_eq!(links, &urls);
+        }
+        fs::remove_dir_all(demo.path).unwrap();
+    }
 }
 
 fn read_entity_directories(model_root: &Path, entity_type: &str) -> Result<Vec<Uuid>, String> {

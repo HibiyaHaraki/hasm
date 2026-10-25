@@ -293,8 +293,8 @@ mod tests {
         let fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333333").unwrap();
         let model = ModelDatabase {
             people: vec![],
-            experiences: vec![Experience { experience_id, person_id: Uuid::nil(), experience_name: "Research".to_string(), experience_description_path: "EXPERIENCE/x/main.md".to_string(), parent_experience_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
-            facts: vec![Fact { fact_id, fact_name: "Publication".to_string(), occurred_at: "2026-01-15".to_string(), fact_description_path: "FACT/x/main.md".to_string(), experience_ids: vec![experience_id], person_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            experiences: vec![Experience { link: Vec::new(), experience_id, person_id: Uuid::nil(), experience_name: "Research".to_string(), experience_description_path: "EXPERIENCE/x/main.md".to_string(), parent_experience_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            facts: vec![Fact { link: Vec::new(), fact_id, fact_name: "Publication".to_string(), occurred_at: "2026-01-15".to_string(), fact_description_path: "FACT/x/main.md".to_string(), experience_ids: vec![experience_id], person_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
             links: vec![],
         };
         let linear = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "Linear".to_string(), z_scale_factor: 1.0 });
@@ -407,8 +407,8 @@ mod tests {
         let person_id = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
         let experience_id = Uuid::parse_str("22222222-2222-2222-2222-222222222225").unwrap();
         let model = ModelDatabase {
-            people: vec![crate::hasm::definitions::Person { person_id, person_name: "Ada".to_string(), person_description_path: String::new(), birthday: String::new(), die: String::new(), link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
-            experiences: vec![crate::hasm::definitions::Experience { experience_id, person_id, experience_name: "Life stream".to_string(), experience_description_path: String::new(), parent_experience_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            people: vec![crate::hasm::definitions::Person { link: Vec::new(), person_id, person_name: "Ada".to_string(), person_description_path: String::new(), birthday: String::new(), die: String::new(), link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
+            experiences: vec![crate::hasm::definitions::Experience { link: Vec::new(), experience_id, person_id, experience_name: "Life stream".to_string(), experience_description_path: String::new(), parent_experience_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }],
             facts: vec![],
             links: vec![],
         };
@@ -420,15 +420,15 @@ mod tests {
     }
 
     fn experience(experience_id: Uuid, name: &str, parent_experience_ids: Vec<Uuid>) -> crate::hasm::definitions::Experience {
-        crate::hasm::definitions::Experience { experience_id, person_id: Uuid::nil(), experience_name: name.to_string(), experience_description_path: String::new(), parent_experience_ids, link_ids: vec![], markdown: String::new(), markdown_path: String::new() }
+        crate::hasm::definitions::Experience { link: Vec::new(), experience_id, person_id: Uuid::nil(), experience_name: name.to_string(), experience_description_path: String::new(), parent_experience_ids, link_ids: vec![], markdown: String::new(), markdown_path: String::new() }
     }
 
     fn fact(fact_id: Uuid, name: &str, occurred_at: &str, experience_id: Uuid) -> Fact {
-        Fact { fact_id, fact_name: name.to_string(), occurred_at: occurred_at.to_string(), fact_description_path: String::new(), experience_ids: vec![experience_id], person_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }
+        Fact { link: Vec::new(), fact_id, fact_name: name.to_string(), occurred_at: occurred_at.to_string(), fact_description_path: String::new(), experience_ids: vec![experience_id], person_ids: vec![], link_ids: vec![], markdown: String::new(), markdown_path: String::new() }
     }
 
     fn link(name: &str, related_ids: Vec<Uuid>) -> Link {
-        Link { link_id: Uuid::nil(), link_name: name.to_string(), link_type: "references".to_string(), link_description_path: String::new(), related_ids, markdown: String::new(), markdown_path: String::new() }
+        Link { link: Vec::new(), link_id: Uuid::nil(), link_name: name.to_string(), link_type: "references".to_string(), link_description_path: String::new(), related_ids, markdown: String::new(), markdown_path: String::new() }
     }
 }
 

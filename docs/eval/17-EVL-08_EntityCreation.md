@@ -38,6 +38,17 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 ## 4. Automated Coverage Inventory (Implemented)
 
+External URLs (`REQ-08-016`) are covered by `TC-08-REACT-LINK-001` in
+`test/seq08.test.jsx` (all four creation payloads include the editor's array) and
+`creates_person_experience_fact_and_link_in_real_workspace` (all four arrays
+round-trip through SQLite; the auto-created root stream remains empty).
+`scaffolds_workspace_and_entity_directories` checks all four URL-array defaults
+in both scaffolded databases. Domain validation tests reject unsafe URL arrays.
+`TC-08-IPC-LINK-001` checks the four JS creation invokes with URL arrays;
+`entity_editor_commands_external_links_round_trip_through_registered_tauri_invokes`
+in `src-tauri/tests/entity_editor_commands_ipc.rs` exercises actual
+native Tauri creation dispatch, serde, unsafe-URL rejection, and persistence.
+
 The following test cases are now mapped to runnable suites and verified through real HASM workspace fixtures.
 
 | EVL Test ID | Automated Test Target | Status |

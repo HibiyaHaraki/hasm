@@ -8,6 +8,29 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### External-Link Coverage
+
+| Test ID / target | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-LINK-001` in `test/seq04.test.jsx` | `REQ-04-RULE-010`, `REQ-04-RULE-012` | Every entity loads icons, adds URLs, saves ordered arrays, cancels to last save, and clears to `[]`. |
+| `TC-04-REACT-LINK-002` | `REQ-04-RULE-011`, `REQ-04-RULE-012` | Database errors retain input; unsafe URLs never reach save IPC and have no clickable preview. |
+| `TC-04-REACT-LINK-003` | `REQ-04-RULE-012` | Reference click calls OS opener with the stored URL; opener rejection is visible. |
+| `TC-04-REACT-LINK-004` | `REQ-04-RULE-011`, `REQ-04-RULE-012` | Scheme validation and exact/subdomain classification reject spoofed site names. |
+| `TC-04-REACT-LINK-005` | `REQ-04-RULE-012` | Markdown refresh retains unsaved URL edits. |
+| `TC-04-REACT-LINK-006` | `REQ-04-RULE-009`, `REQ-04-RULE-010` | Save patches route-model URLs and invalidates verification without a package reload. |
+| `TC-04-IPC-LINK-002` in `test/eval-04-ipc.test.js` | `REQ-04-RULE-010` | All four JS invoke names/arguments retain the URL array; production save command registration is present. |
+| `TC-04-IPC-LINK-001`: `entity_editor_commands_external_links_round_trip_through_registered_tauri_invokes` in `src-tauri/tests/entity_editor_commands_ipc.rs` | `REQ-04-RULE-010`, `REQ-04-RULE-011`, `REQ-08-016` | Tauri mock-runtime dispatch uses actual generated command handlers and serde: all four saves round-trip multiple URLs, reject unsafe/malformed payloads without replacing saved data, clear arrays, and accept legacy omitted fields. All four creation invokes persist valid arrays and reject unsafe URLs. Markdown body remains unchanged. |
+| `service::external_link_tests::external_links_survive_full_model_read_and_save` | `REQ-04-RULE-010` | Whole-model persistence and metadata-only loading retain every entity's URLs. |
+| `service::external_link_tests::rejects_corrupt_external_link_storage_instead_of_returning_empty_arrays` | `REQ-04-RULE-011` | Corrupt/non-array/non-string/unsafe stored values fail explicitly. |
+| `definitions::tests::validates_external_url_arrays_without_logging_contents` | `REQ-04-RULE-011` | Empty arrays and HTTP(S) URLs pass; relative, credential-bearing, unsafe-scheme and whitespace URLs fail. |
+
+Run `npm run test:eval-04`, `cargo test entity_editor_commands`, and
+`cargo test external_link` (Cargo commands from `src-tauri`).
+`cargo test --tests` runs the complete Rust unit and native integration coverage.
+These cover component -> JS invoke, native Tauri dispatch -> serde -> SQLite,
+and command registration separately. A packaged desktop/browser launch and
+visual inspection of every theme/mobile breakpoint remain manual checks.
+
 | Test IDs covered | Executable test file / command | CI job |
 | --- | --- | --- |
 | `TC-04-REACT-001`, `TC-04-REACT-007`, `TC-04-REACT-009`, `TC-04-REACT-PERF-001`, `TC-04-REACT-PERF-002`, `TC-04-E2E-004` route return | `test/seq04.test.jsx` via `npm run test:eval-04` | Frontend: EVAL-04 React and IPC tests |

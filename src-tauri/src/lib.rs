@@ -3,7 +3,7 @@
 //! ## Purpose
 //! Library script for HASM Tauri app.
 
-mod hasm;
+pub mod hasm;
 #[allow(unused_imports)]
 #[path = "hasm_logger/src/tauri/logger.rs"]
 mod logger;

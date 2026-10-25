@@ -27,6 +27,7 @@
 * It shall verify that both source and target entities physically exist in `HasmModel` memory before executing SQLite insertions into `LINK`.
 * **`REQ-08-014` (Dedicated Entity Creation Route):** The Visualizer page shall provide a "Create New Entity" action that navigates to a dedicated `/entity-create` route. Frontend forms for PERSON / EXPERIENCE / FACT / LINK shall be split by component so each entity creation design can evolve independently.
 * **`REQ-08-015` (Minimum Bootstrap Before First Visualizer Load):** When a newly created workspace contains zero entities, the frontend shall route to `/initialize-model` and collect only minimum required input (`person_name`). The app shall call `create_person` with fixed bootstrap defaults (`security_level=1`, `create_life_experience=true`) before navigating to `/visualizer`.
+* **`REQ-08-016` (External URL Arrays):** All four creation requests and forms shall support `link: string[]` under `REQ-04-RULE-010` through `REQ-04-RULE-012`. Missing fields shall default to `[]` for older callers. Invalid URLs shall fail before inserting a row or scaffolding entity files. The generated root EXPERIENCE shall keep an independent empty array.
 
 
 

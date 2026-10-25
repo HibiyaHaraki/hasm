@@ -356,7 +356,9 @@ Self-contained and portable: copying this folder alongside `src/hasm_color_patte
 * **`threeCommitGraph.js` / `twoCommitGraph.js`**: Three.js 3D and 2D scene ownership, node interaction, and `limitRenderedNodes` render budgeting.
 * **`layoutCalculator.js`**: Client-side layout kept in parity with the Rust `calculate_layout`, used when no Tauri backend is available.
 * **`layoutFilter.js`**, **`graph2DLayout.js`**, **`sampleModels.js`**, **`visualizer-design.css`**: Filter state, 2D row/lane math, bundled demo packages, and theme-variable styling.
-* **`entity/TicketForm.jsx`**: Form component for ticket metadata editing (name, dates, description, security level).
+* **`src/features/entityTicket/TicketForm.jsx`**: Ticket summary and external URL-array metadata form.
+* **`src/features/entityTicket/ExternalLinksEditor.jsx`** and its co-located CSS: Shared URL-array editor used by the ticket and creation pages; HTTP(S) validation, hostname-based local site icons, accessible controls, and OS browser opener error reporting.
+* **`src-tauri/src/hasm/service.rs`**: The shared `ensure_schema` initializer owns additive external URL column migration for both model loading and workspace creation. Typed getters/saves and whole-model persistence carry `link` separately from graph IDs.
 * **`entity/RefreshButton.jsx`**: Dynamic refresh button component supporting normal, Amber pulsing, and Red danger visual states.
 
 ---
@@ -386,6 +388,14 @@ Self-contained and portable: copying this folder alongside `src/hasm_color_patte
 ---
 
 ### Chapter 6.3: Rust Cargo Integration Tests (`src-tauri/tests/`)
+
+The implemented SEQ-04 native dispatch test lives in
+`src-tauri/tests/entity_editor_commands_ipc.rs`. It uses Tauri's test feature and
+mock runtime to exercise real generated command handlers and serialization,
+not merely direct service calls. The library exports the `hasm` module for this
+integration harness. `src-tauri/build.rs` embeds the Windows v6 Common Controls
+manifest in MSVC integration-test targets so linked dialog entry points remain
+available without duplicating the desktop executable's Tauri-owned manifest.
 
 * **`src-tauri/tests/app_command_tests.rs`**: Tests `reboot_app` `--path` CLI argument passing and app validation commands.
 * **`src-tauri/tests/model_command_tests.rs`**: Tests `check_workspace_lock`, dead PID detection, stale lock cleanup, `release_workspace_lock`, and `switch_workspace_cleanly`.

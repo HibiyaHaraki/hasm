@@ -6,15 +6,17 @@ import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
 import { Button, Col, Container, Row } from "react-bootstrap";
 import "./PanelCard.css";
 import "./EntityDetailPage.css";
+import { isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
 
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
   const [ticket, setTicket] = useState(null); const [form, setForm] = useState(null); const [saving, setSaving] = useState(false); const [changed, setChanged] = useState(false); const [deleted, setDeleted] = useState(false); const [message, setMessage] = useState("");
   const root = state?.path;
+  const [workspaceState, setWorkspaceState] = useState(state);
   const load = async () => { 
     try { const value = await loadEntityDetail(root, entityType, entityId);
       setTicket(value);
-      setForm({ name: value.name }); 
+      setForm({ name: value.name, link: value.detail.link ?? [] });
     } 
     catch (error) { 
       navigate(error?.message?.includes("MARKDOWN") ? "/error-markdown" : "/error-model", { state: { error: error?.message } }); 
@@ -46,14 +48,29 @@ function EntityDetailPage() {
   }
   const save = async (event) => { 
     event.preventDefault();
+    if (form.link.some((url) => !isExternalUrl(url))) {
+      setMessage("Each external link must be an absolute HTTP(S) URL without credentials or whitespace.");
+      return;
+    }
     setSaving(true);
     try { 
       const detail = { ...ticket.detail }; 
       const key = entityType === "PERSON" ? "personName" : entityType === "EXPERIENCE" ? "experienceName" : entityType === "FACT" ? "factName" : "linkName"; 
       detail[key] = form.name; 
+      detail.link = [...form.link];
       await saveEntityDetail(entityType, root, detail); 
       setMessage("Metadata saved. Workspace requires re-verification."); 
       setTicket({ ...ticket, name: form.name, detail }); 
+      const collection = { PERSON: "people", EXPERIENCE: "experiences", FACT: "facts", LINK: "links" }[entityType];
+      const idKey = `${entityType.toLowerCase()}Id`;
+      setWorkspaceState((current) => ({
+        ...current,
+        isVerified: false,
+        ...(current?.model ? { model: {
+          ...current.model,
+          [collection]: current.model[collection].map((item) => item[idKey] === entityId ? { ...item, ...detail } : item),
+        } } : {}),
+      }));
     } 
     catch (error) { 
       setMessage(error?.message || "Save failed"); 
@@ -93,7 +110,7 @@ function EntityDetailPage() {
     <Container as="main" fluid className="ticket-page">
       <header className="ticket-header">
         <div className="d-flex flex-wrap gap-2 mb-2">
-          <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state })}>Back to Visualizer</Button>
+          <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>Back to Visualizer</Button>
           <Button className="btn-hasm-primary" onClick={editMarkdown}>Edit Markdown in HASM App</Button>
         </div>
         <p className="mb-0">{entityType} / {entityId}</p>
@@ -103,7 +120,7 @@ function EntityDetailPage() {
         <Col md={5}>
           <section className="panel-card h-100">
             <h2>Details</h2>
-            <TicketForm value={form} onChange={setForm} onSave={save} onCancel={() => setForm({ name: ticket.name })} saving={saving} />
+            <TicketForm value={form} onChange={setForm} onSave={save} onCancel={() => setForm({ name: ticket.name, link: ticket.detail.link ?? [] })} saving={saving} />
             {message ? <p role="status">{message}</p> : null}
           </section>
         </Col>
