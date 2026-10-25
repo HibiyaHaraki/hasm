@@ -35,6 +35,7 @@ pub struct SaveEntityMetadataRequest {
     pub entity_type: String,
     pub entity_id: Uuid,
     pub name: String,
+    pub link: Vec<String>, // External HTTP(S) URLs; separate from graph link_ids
     pub description: Option<String>,
     pub security_level: i32,
     pub start_time: Option<String>, // ISO8601 String
@@ -94,6 +95,33 @@ pub enum EntityEditorError {
 | **Metadata DB Persistence** (`hasm.db`) | Fixed Hard Timeout | **5,000 ms** | `ROLLBACK` SQLite Transaction; return `ERR_SAVE_TIMEOUT`; preserve form state on React UI. |
 | **mtime Diff / Existence Check** (`check_entity_mtime`) | Instant (Fs Metadata) | **< 10 ms** | Non-blocking background check on Window Focus; return `is_modified` / `is_deleted` booleans. |
 
+### 1.2.1 External URL Array (All Entity Types)
+
+The implemented response is `{ entityType, entityId, name, markdownBody,
+loadedMtimeMs, detail }`; `detail.link` is always a string array. It is not the
+graph `linkIds` field. The frontend sends the full typed detail through
+`save_person_detail`, `save_experience_detail`, `save_fact_detail`, or
+`save_link_detail` with `{ modelRoot, detail }`; the generic
+`save_entity_metadata` name in the historical diagrams denotes this dispatch.
+
+Every ticket uses the shared `ExternalLinksEditor` to add, edit, remove, and open
+multiple references. Save preserves order and full URL text; removing all rows
+sends `[]`. Cancel restores the last loaded/saved array. Save failures retain
+the user's input. Markdown refresh does not reset unsaved URL edits.
+
+Both frontend and backend reject non-HTTP(S), hostless, credential-bearing, or
+whitespace-containing URLs before persisting. The backend rejects malformed
+stored arrays explicitly. Legacy IPC entities without the field deserialize
+with `[]`. Successful saves patch the matching entity in route model state and
+mark it unverified without reloading the package.
+
+Icons are local, theme-aware X/Google marks, a Maps pin, or a generic globe.
+Classification uses parsed hostname boundaries (not substring matching), so
+`x.com.example.org` remains generic. Icons need no remote favicon service.
+Valid references open in the OS browser with `@tauri-apps/plugin-opener`;
+opener failures are displayed. No arbitrary schemes can be opened. Icons and
+controls have accessible names; long URLs wrap within the ticket on mobile.
+
 ### 1.3 Large Package Cost Model
 
 Editing must be independent of package size. On the reference 60,000-entity package the SEQ-04 path is bounded as follows:
@@ -109,6 +137,8 @@ Editing must be independent of package size. On the reference 60,000-entity pack
 ## 2. Entity-Level Domain Validation Rules (Rust `entity.verify()`)
 
 Prior to executing SQLite transactions, the Rust backend instantiates the domain model and invokes `.verify()`. If validation fails, persistence is aborted without modifying the database.
+
+* **All entities:** Validate each external `link` URL as defined above.
 
 * **`Fact` & `Experience` Verification:**
 * `name` MUST NOT be empty or whitespace-only.
@@ -245,9 +275,11 @@ sequenceDiagram
     Note over User,DB: Pre-condition: User edited ticket metadata fields and clicks "Save".
 
     User->>React: Click "Save" Button
+    React->>React: Validate ordered external URL array; preserve edits on error
     React->>React: Set State { isEntitySaving: true }
     
     React->>Bridge: invoke('save_entity_metadata', { entityType, entityId, metadataPayload })
+    Note over React,Rust: Typed save_*_detail dispatch includes detail.link string array
     Bridge->>Rust: IPC: save_entity_metadata(entityType, entityId, metadataPayload)
 
     %% ----------------------------------------------------
@@ -275,6 +307,7 @@ sequenceDiagram
     rect rgb(15, 23, 42)
         Note over Rust,DB: 2. Persist MetaData to hasm.db
         Rust->>DB: Begin SQLite Transaction & UPDATE entity metadata
+        Note over Rust,DB: Persist link as JSON text in the addressed entity row; leave graph linkIds unchanged
         
         break On Save Timeout (> 5,000ms Execution)
             Rust->>DB: ROLLBACK SQLite Transaction
@@ -345,6 +378,19 @@ sequenceDiagram
 
 Triggered when the user clicks **"Back to Visualizer"**. Navigates to `/visualizer`. If edits were saved previously (`is_verified == false`), `SEQ-03` Guard 2 automatically intercepts and routes to `/loading-model` for re-verification before 3D rendering.
 
+All ticket async operations are scoped to the addressed entity and page
+lifetime. Navigating away invalidates pending detail/refresh callbacks, so a
+late database or Markdown failure cannot redirect the returned graph to an
+error page. Late save/editor-launch completions cannot update a different
+ticket. Focus polling catches active errors explicitly, logs them with
+`[SEQ-MD-04][MTIME]`, and displays them without an unhandled rejection.
+Ticket changes reset the prior ticket's loading/saving/notification state.
+
+Returning without a save reuses the verified route model without a whole-model
+reload. Returning after a successful save follows the real protected route into
+SEQ-02, retaining the process's own workspace lock as writable. Both paths are
+covered by the bounded CI navigation suite and native IPC regression.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -355,6 +401,7 @@ sequenceDiagram
     Note over User,Router: Pre-condition: User clicks "Back to Visualizer" button.
 
     User->>React: Click "Back to Visualizer" Button
+    React->>React: Invalidate ticket lifetime; late callbacks cannot navigate
     
     alt Unsaved Changes Exist (isDirty == true)
         React->>User: Render Confirmation Modal ("Discard unsaved changes before leaving?")

@@ -15,6 +15,10 @@ This specification defines the functional, data, time constraint, and validation
 * **[REQ-04-RULE-007] Non-Blocking Window Focus mtime Check:** Window focus events MUST execute a lightweight `mtime` and existence check (< 10ms execution) without locking the UI, triggering database calls, or invoking `hasm_markdown.exe`.
 * **[REQ-04-RULE-008] Constant-Time Edit Invariant:** Loading and saving a single entity ticket MUST cost time independent of the number of entities in the package. Neither operation may scan the package's entity folders or rewrite unrelated rows.
 * **[REQ-04-RULE-009] No Implicit Workspace Reload:** Saving an entity MUST NOT trigger a reload of the whole model. The frontend MUST patch its in-memory model instead of re-invoking `load_hasm_model_db`.
+* **[REQ-04-RULE-010] Shared External URL Array:** PERSON, EXPERIENCE, FACT, and LINK MUST expose `link: string[]`, persisted as JSON in the entity's SQLite `link` column, independently of graph relationship IDs. Order and complete URL strings MUST round-trip through single-entity and whole-model read/save.
+* **[REQ-04-RULE-011] Safe External References:** Each URL MUST be absolute HTTP(S), have a host, and contain neither credentials nor whitespace. Frontend and backend MUST reject invalid references explicitly. Non-array or malformed stored data MUST produce an error, not an empty-array fallback.
+* **[REQ-04-RULE-012] External-Link Editing and Presentation:** All entity tickets MUST support adding, editing, removing, canceling, and opening multiple references; `[]` MUST clear all references. Failures MUST preserve input. Icons MUST identify X, Google, Google Maps, or generic web pages using parsed hostname boundaries, remain readable in the active theme, and require no network fetch. Valid links MUST open in the OS browser through the Tauri opener plugin and display opener errors. Labels MUST be accessible and long URLs MUST wrap.
+* **[REQ-04-RULE-013] Ticket Lifetime Isolation:** Detail loads, Markdown refreshes, saves, external-editor launches, and focus checks MUST NOT update or navigate a page after its addressed ticket has been abandoned. Active focus-check failures MUST be logged and displayed explicitly. Returning without saving MUST reuse the verified route model; returning after saving MUST trigger SEQ-02 re-verification without losing workspace context.
 
 ---
 
@@ -45,6 +49,7 @@ pub struct SaveEntityMetadataRequest {
     pub entity_type: String,
     pub entity_id: Uuid,
     pub name: String,
+    pub link: Vec<String>, // External HTTP(S) URLs, not graph LINK IDs; default [] for legacy IPC
     pub description: Option<String>,
     pub security_level: i32,
     pub start_time: Option<String>, // ISO8601 String
@@ -95,6 +100,13 @@ pub enum EntityEditorError {
 }
 
 ```
+
+The implemented typed IPC saves are `save_person_detail`,
+`save_experience_detail`, `save_fact_detail`, and `save_link_detail`, each taking
+`{ modelRoot, detail }`. `load_entity_detail` returns `detail.link`. Successful
+saves MUST patch the matching route-state entity, mark `isVerified` false, and
+avoid a whole-model reload. Cancel restores the most recent loaded/saved array;
+Markdown refresh MUST preserve unsaved URL edits.
 
 ---
 

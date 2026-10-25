@@ -110,6 +110,7 @@ pub fn create_experience(path: String, payload: CreateExperienceRequest) -> Resu
     let experience_id = Uuid::new_v4();
 
     let experience = Experience {
+        link: payload.link.clone(),
         experience_id,
         person_id: Uuid::nil(),
         experience_name: payload.experience_name.clone(),
@@ -162,6 +163,7 @@ pub fn create_link(path: String, payload: CreateLinkRequest) -> Result<EntityCre
     let link_id = Uuid::new_v4();
 
     let link = Link {
+        link: payload.link.clone(),
         link_id,
         link_name: payload.link_type.clone(),
         link_type: payload.link_type.clone(),
@@ -215,6 +217,7 @@ fn create_person_with_id(
     started: Instant,
 ) -> Result<EntityCreationPayload, String> {
     let person = Person {
+        link: payload.link.clone(),
         person_id,
         person_name: payload.person_name.clone(),
         person_description_path: Person::default_markdown_path(&person_id),
@@ -240,6 +243,7 @@ fn create_person_with_id(
         if payload.create_life_experience {
             let root_experience_id = Uuid::new_v4();
             let root_experience = Experience {
+                link: Vec::new(),
                 experience_id: root_experience_id,
                 person_id,
                 experience_name: format!("{} Root Experience", payload.person_name.trim()),
@@ -290,6 +294,7 @@ fn create_fact_with_id(
 ) -> Result<EntityCreationPayload, String> {
     let occurred_at = payload.start_time.clone().unwrap_or_default();
     let fact = Fact {
+        link: payload.link.clone(),
         fact_id,
         fact_name: payload.fact_name.clone(),
         occurred_at,
@@ -360,44 +365,8 @@ fn open_workspace_connection(root: &Path) -> Result<Connection, String> {
 }
 
 fn ensure_schema(connection: &Connection) -> Result<(), String> {
-    connection
-        .execute_batch(
-            "PRAGMA foreign_keys = ON;
-            CREATE TABLE IF NOT EXISTS person (
-                person_id UUID PRIMARY KEY,
-                person_name TEXT NOT NULL DEFAULT '',
-                person_description_path TEXT NOT NULL DEFAULT '',
-                birthday TEXT NOT NULL DEFAULT '',
-                die TEXT NOT NULL DEFAULT '',
-                link_ids TEXT NOT NULL DEFAULT '[]'
-            );
-            CREATE TABLE IF NOT EXISTS experience (
-                experience_id UUID PRIMARY KEY,
-                person_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
-                experience_name TEXT NOT NULL DEFAULT '',
-                experience_description_path TEXT NOT NULL DEFAULT '',
-                parent_experience_ids TEXT NOT NULL DEFAULT '[]',
-                link_ids TEXT NOT NULL DEFAULT '[]'
-            );
-            CREATE TABLE IF NOT EXISTS fact (
-                fact_id UUID PRIMARY KEY,
-                fact_name TEXT NOT NULL DEFAULT '',
-                occurred_at TEXT NOT NULL DEFAULT '',
-                fact_description_path TEXT NOT NULL DEFAULT '',
-                experience_ids TEXT NOT NULL DEFAULT '[]',
-                person_ids TEXT NOT NULL DEFAULT '[]',
-                link_ids TEXT NOT NULL DEFAULT '[]'
-            );
-            CREATE TABLE IF NOT EXISTS link (
-                link_id UUID PRIMARY KEY,
-                link_name TEXT NOT NULL DEFAULT '',
-                link_type TEXT NOT NULL DEFAULT '',
-                link_description_path TEXT NOT NULL DEFAULT '',
-                related_ids TEXT NOT NULL DEFAULT '[]'
-            );",
-        )
-        .map_err(|error| error.to_string())?;
-    Ok(())
+    connection.execute_batch("PRAGMA foreign_keys = ON;").map_err(|error| error.to_string())?;
+    crate::hasm::service::ensure_schema(connection)
 }
 
 fn rollback_and_cleanup(transaction: Transaction<'_>, created_dirs: &[PathBuf]) {
@@ -408,14 +377,16 @@ fn rollback_and_cleanup(transaction: Transaction<'_>, created_dirs: &[PathBuf]) 
 }
 
 fn insert_person(transaction: &Transaction<'_>, person: &Person) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&person.link)?;
     transaction
         .execute(
-            "INSERT INTO person (person_id, person_name, person_description_path, birthday, die, link_ids)
-             VALUES (?1, ?2, ?3, '', '', '[]')",
+            "INSERT INTO person (person_id, person_name, person_description_path, birthday, die, link_ids, link)
+             VALUES (?1, ?2, ?3, '', '', '[]', ?4)",
             params![
                 person.person_id.to_string(),
                 person.person_name,
                 person.person_description_path,
+                serde_json::to_string(&person.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
@@ -423,16 +394,18 @@ fn insert_person(transaction: &Transaction<'_>, person: &Person) -> Result<(), S
 }
 
 fn insert_experience(transaction: &Transaction<'_>, experience: &Experience) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&experience.link)?;
     transaction
         .execute(
-            "INSERT INTO experience (experience_id, person_id, experience_name, experience_description_path, parent_experience_ids, link_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5, '[]')",
+            "INSERT INTO experience (experience_id, person_id, experience_name, experience_description_path, parent_experience_ids, link_ids, link)
+             VALUES (?1, ?2, ?3, ?4, ?5, '[]', ?6)",
             params![
                 experience.experience_id.to_string(),
                 experience.person_id.to_string(),
                 experience.experience_name,
                 experience.experience_description_path,
                 serde_json::to_string(&experience.parent_experience_ids).map_err(|error| error.to_string())?,
+                serde_json::to_string(&experience.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
@@ -440,16 +413,18 @@ fn insert_experience(transaction: &Transaction<'_>, experience: &Experience) -> 
 }
 
 fn insert_fact(transaction: &Transaction<'_>, fact: &Fact) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&fact.link)?;
     transaction
         .execute(
-            "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5, '[]', '[]')",
+            "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link)
+             VALUES (?1, ?2, ?3, ?4, ?5, '[]', '[]', ?6)",
             params![
                 fact.fact_id.to_string(),
                 fact.fact_name,
                 fact.occurred_at,
                 fact.fact_description_path,
                 serde_json::to_string(&fact.experience_ids).map_err(|error| error.to_string())?,
+                serde_json::to_string(&fact.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
@@ -457,16 +432,18 @@ fn insert_fact(transaction: &Transaction<'_>, fact: &Fact) -> Result<(), String>
 }
 
 fn insert_link(transaction: &Transaction<'_>, link: &Link) -> Result<(), String> {
+    crate::hasm::definitions::validate_external_links(&link.link)?;
     transaction
         .execute(
-            "INSERT INTO link (link_id, link_name, link_type, link_description_path, related_ids)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO link (link_id, link_name, link_type, link_description_path, related_ids, link)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 link.link_id.to_string(),
                 link.link_name,
                 link.link_type,
                 link.link_description_path,
                 serde_json::to_string(&link.related_ids).map_err(|error| error.to_string())?,
+                serde_json::to_string(&link.link).map_err(|error| error.to_string())?,
             ],
         )
         .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
@@ -550,6 +527,15 @@ mod tests {
         assert!(PathBuf::from(&payload.path).join("hasm.db").is_file());
         assert!(PathBuf::from(&payload.path).join("main.db").is_file());
         assert!(PathBuf::from(&payload.path).join(LOCK_DIRECTORY).join(LOCK_FILENAME).is_file());
+        for filename in ["hasm.db", "main.db"] {
+            let connection = Connection::open(root.join(filename)).unwrap();
+            for table in ["person", "experience", "fact", "link"] {
+                let default: String = connection.query_row(
+                    &format!("SELECT dflt_value FROM pragma_table_info('{table}') WHERE name = 'link'"), [], |row| row.get(0),
+                ).unwrap();
+                assert_eq!(default, "'[]'");
+            }
+        }
 
         fs::remove_dir_all(root).unwrap();
     }
@@ -568,7 +554,7 @@ mod tests {
 
     #[test]
     fn verifies_domain_invariants_for_all_entity_types() {
-        let person = Person {
+        let person = Person { link: Vec::new(),
             person_id: Uuid::new_v4(),
             person_name: "Ada".to_string(),
             person_description_path: String::new(),
@@ -581,7 +567,7 @@ mod tests {
         assert!(person.verify(1).is_ok());
         assert!(person.verify(9).is_err());
 
-        let experience = Experience {
+        let experience = Experience { link: Vec::new(),
             experience_id: Uuid::new_v4(),
             person_id: Uuid::nil(),
             experience_name: "Root".to_string(),
@@ -593,7 +579,7 @@ mod tests {
         };
         assert!(experience.verify(2).is_ok());
 
-        let fact = Fact {
+        let fact = Fact { link: Vec::new(),
             fact_id: Uuid::new_v4(),
             fact_name: "Launch".to_string(),
             occurred_at: "2026-01-01".to_string(),
@@ -607,7 +593,7 @@ mod tests {
         assert!(fact.verify(Some("2026-01-01"), Some("2026-02-01"), 3).is_ok());
         assert!(fact.verify(Some("2026-02-01"), Some("2026-01-01"), 3).is_err());
 
-        let link = Link {
+        let link = Link { link: Vec::new(),
             link_id: Uuid::new_v4(),
             link_name: "references".to_string(),
             link_type: "references".to_string(),
@@ -623,10 +609,11 @@ mod tests {
     fn creates_person_experience_fact_and_link_in_real_workspace() {
         let root = temp_workspace_path("all-entities");
         create_hasm_workspace(root.to_string_lossy().to_string()).unwrap();
+        let urls = vec!["https://x.com/test/status/1".to_string(), "https://example.org/source".to_string()];
 
         let person = create_person(
             root.to_string_lossy().to_string(),
-            CreatePersonRequest {
+            CreatePersonRequest { link: urls.clone(),
                 person_name: "John Doe".to_string(),
                 person_description: "Person description".to_string(),
                 security_level: 1,
@@ -642,7 +629,7 @@ mod tests {
 
         let experience = create_experience(
             root.to_string_lossy().to_string(),
-            CreateExperienceRequest {
+            CreateExperienceRequest { link: urls.clone(),
                 experience_name: "Research".to_string(),
                 experience_description: "Experience description".to_string(),
                 security_level: 2,
@@ -653,7 +640,7 @@ mod tests {
 
         let fact = create_fact(
             root.to_string_lossy().to_string(),
-            CreateFactRequest {
+            CreateFactRequest { link: urls.clone(),
                 fact_name: "First Commit".to_string(),
                 fact_description: "Fact description".to_string(),
                 start_time: Some("2026-08-12".to_string()),
@@ -666,7 +653,7 @@ mod tests {
 
         let link = create_link(
             root.to_string_lossy().to_string(),
-            CreateLinkRequest {
+            CreateLinkRequest { link: urls.clone(),
                 link_type: "references".to_string(),
                 link_description: "Link description".to_string(),
                 origin_entity_type: "FACT".to_string(),
@@ -683,6 +670,11 @@ mod tests {
         assert_eq!(model.experiences.len(), 2);
         assert_eq!(model.facts.len(), 1);
         assert_eq!(model.links.len(), 1);
+        assert_eq!(model.people[0].link, urls);
+        assert_eq!(model.experiences.iter().find(|item| item.experience_id == experience.entity_id).unwrap().link, urls);
+        assert!(model.experiences.iter().find(|item| item.experience_id == root_experience_id).unwrap().link.is_empty());
+        assert_eq!(model.facts[0].link, urls);
+        assert_eq!(model.links[0].link, urls);
 
         assert!(root.join("PERSON").join(person.entity_id.to_string()).join("main.md").is_file());
         assert!(root.join("EXPERIENCE").join(experience.entity_id.to_string()).join("main.md").is_file());
@@ -699,7 +691,7 @@ mod tests {
 
         let empty_name_error = create_person(
             root.to_string_lossy().to_string(),
-            CreatePersonRequest {
+            CreatePersonRequest { link: Vec::new(),
                 person_name: "   ".to_string(),
                 person_description: String::new(),
                 security_level: 1,
@@ -711,7 +703,7 @@ mod tests {
 
         let time_error = create_fact(
             root.to_string_lossy().to_string(),
-            CreateFactRequest {
+            CreateFactRequest { link: Vec::new(),
                 fact_name: "Backdated".to_string(),
                 fact_description: String::new(),
                 start_time: Some("2026-08-12".to_string()),
@@ -725,7 +717,7 @@ mod tests {
 
         let person = create_person(
             root.to_string_lossy().to_string(),
-            CreatePersonRequest {
+            CreatePersonRequest { link: Vec::new(),
                 person_name: "Owner".to_string(),
                 person_description: String::new(),
                 security_level: 1,
@@ -735,7 +727,7 @@ mod tests {
         .unwrap();
         let self_loop_error = create_link(
             root.to_string_lossy().to_string(),
-            CreateLinkRequest {
+            CreateLinkRequest { link: Vec::new(),
                 link_type: "references".to_string(),
                 link_description: String::new(),
                 origin_entity_type: "PERSON".to_string(),
@@ -750,7 +742,7 @@ mod tests {
 
         let orphan_error = create_link(
             root.to_string_lossy().to_string(),
-            CreateLinkRequest {
+            CreateLinkRequest { link: Vec::new(),
                 link_type: "references".to_string(),
                 link_description: String::new(),
                 origin_entity_type: "PERSON".to_string(),
@@ -769,7 +761,7 @@ mod tests {
 
         let failed = create_fact_with_id(
             &root,
-            CreateFactRequest {
+            CreateFactRequest { link: Vec::new(),
                 fact_name: "Conflicting".to_string(),
                 fact_description: String::new(),
                 start_time: Some("2026-08-12".to_string()),

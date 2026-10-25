@@ -55,6 +55,10 @@ jobs:
       - name: EVAL-04 React and IPC tests
         run: npm run test:eval-04
 
+      - name: Graph-ticket navigation robustness (3 minute limit)
+        timeout-minutes: 3
+        run: npm run test:robustness
+
       - name: EVAL-05 React and IPC tests
         run: npm run test:eval-05
 
@@ -128,6 +132,7 @@ jobs:
         run: cargo test visualizer_commands
 
       - name: EVAL-04 Rust entity editor tests
+        timeout-minutes: 3
         working-directory: src-tauri
         run: cargo test entity_editor_commands
 

@@ -14,6 +14,7 @@ import CreatePersonForm from "../features/entityCreation/components/CreatePerson
 import { Button, Container, Form } from "react-bootstrap";
 import "../pages/PanelCard.css";
 import "./EntityFormPage.css";
+import { ExternalLinksEditor, isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
 
 const ENTITY_TYPES = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 
@@ -35,18 +36,21 @@ function EntityCreatePage() {
   const [statusMessage, setStatusMessage] = useState("");
 
   const [personForm, setPersonForm] = useState({
+    link: [],
     name: "",
     description: "",
     securityLevel: "1",
     createRootStream: true,
   });
   const [experienceForm, setExperienceForm] = useState({
+    link: [],
     name: "",
     description: "",
     securityLevel: "1",
     parentExperienceIds: "",
   });
   const [factForm, setFactForm] = useState({
+    link: [],
     name: "",
     description: "",
     securityLevel: "1",
@@ -55,6 +59,7 @@ function EntityCreatePage() {
     experienceIds: "",
   });
   const [linkForm, setLinkForm] = useState({
+    link: [],
     linkType: "references",
     description: "",
     securityLevel: "1",
@@ -78,16 +83,23 @@ function EntityCreatePage() {
   }, [model, navigate, path]);
 
   if (!path || !model) return null;
+  const activeForm = { PERSON: personForm, EXPERIENCE: experienceForm, FACT: factForm, LINK: linkForm }[entityType];
+  const setActiveForm = { PERSON: setPersonForm, EXPERIENCE: setExperienceForm, FACT: setFactForm, LINK: setLinkForm }[entityType];
 
   async function submit(event) {
     event.preventDefault();
     if (submitting) return;
+    if (activeForm.link.some((url) => !isExternalUrl(url))) {
+      setStatusMessage("Each external link must be an absolute HTTP(S) URL without credentials or whitespace.");
+      return;
+    }
     setSubmitting(true);
     setStatusMessage("");
 
     try {
       if (entityType === "PERSON") {
         await createPerson(path, {
+          link: personForm.link,
           personName: personForm.name,
           personDescription: personForm.description,
           securityLevel: Number(personForm.securityLevel),
@@ -97,6 +109,7 @@ function EntityCreatePage() {
 
       if (entityType === "EXPERIENCE") {
         await createExperience(path, {
+          link: experienceForm.link,
           experienceName: experienceForm.name,
           experienceDescription: experienceForm.description,
           securityLevel: Number(experienceForm.securityLevel),
@@ -106,6 +119,7 @@ function EntityCreatePage() {
 
       if (entityType === "FACT") {
         await createFact(path, {
+          link: factForm.link,
           factName: factForm.name,
           factDescription: factForm.description,
           securityLevel: Number(factForm.securityLevel),
@@ -119,6 +133,7 @@ function EntityCreatePage() {
         const [originEntityType, originEntityId] = (linkForm.origin || ":").split(":");
         const [targetEntityType, targetEntityId] = (linkForm.target || ":").split(":");
         await createLink(path, {
+          link: linkForm.link,
           linkType: linkForm.linkType,
           linkDescription: linkForm.description,
           securityLevel: Number(linkForm.securityLevel),
@@ -172,6 +187,7 @@ function EntityCreatePage() {
             />
           ) : null}
 
+          <ExternalLinksEditor value={activeForm.link} onChange={(link) => setActiveForm({ ...activeForm, link })} disabled={submitting} />
           <div className="d-flex justify-content-end gap-2 mt-3">
             <Button variant="outline-secondary" className="btn-hasm-outline" onClick={() => navigate("/visualizer", { state: location.state })}>
               Cancel

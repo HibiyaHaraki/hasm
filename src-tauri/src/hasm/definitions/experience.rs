@@ -9,6 +9,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Experience {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub experience_id: Uuid,
     pub person_id: Uuid,
     pub experience_name: String,
@@ -37,6 +39,7 @@ impl Experience {
     }
 
     pub fn verify(&self, security_level: i32) -> Result<(), String> {
+        super::validate_external_links(&self.link)?;
         if self.experience_name.trim().is_empty() {
             return Err("EntityValidationError::EmptyName".to_string());
         }

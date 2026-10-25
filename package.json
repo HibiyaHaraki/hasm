@@ -17,6 +17,7 @@
     "test:eval-05": "vitest run test/seq05.test.jsx test/eval-05-ipc.test.js",
     "test:eval-07": "vitest run test/seq07.test.jsx",
     "test:eval-08": "vitest run test/seq08.test.jsx test/eval-08-ipc.test.js",
+    "test:robustness": "vitest run test/navigation-robustness.test.jsx --maxWorkers=1 --testTimeout=5000 --hookTimeout=5000 --reporter=verbose",
     "test:seq-md-01": "npm run test:eval-01",
     "test:seq-md-02": "npm run test:eval-02",
     "test:seq-md-03": "npm run test:eval-03",
@@ -24,7 +25,7 @@
     "test:seq-md-05": "npm run test:eval-05",
     "test:seq-md-07": "npm run test:eval-07",
     "test:seq-md-08": "npm run test:eval-08",
-    "test:seq-md": "npm run test:eval-01 && npm run test:eval-02 && npm run test:eval-03 && npm run test:eval-04 && npm run test:eval-05 && npm run test:eval-07 && npm run test:eval-08",
+    "test:seq-md": "npm run test:eval-01 && npm run test:eval-02 && npm run test:eval-03 && npm run test:eval-04 && npm run test:eval-05 && npm run test:eval-07 && npm run test:eval-08 && npm run test:robustness",
     "build:markdown": "node ./scripts/build-hasm-markdown.mjs",
     "tauri:build": "npm run sync:tauri-icons && npm run build && tauri build --config src-tauri/tauri.distribution.conf.json"
   },

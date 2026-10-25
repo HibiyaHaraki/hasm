@@ -74,8 +74,26 @@ The reference large package is **60,000 entities** (approximately 15,000 per ent
 ## 2. Lock File Lifecycle & Stale Recovery Rules
 
 1. **Active Lock Check:** When inspecting `.hasm/lock`, Rust reads the recorded Process ID (`holder_pid`).
+   If it equals the current process ID, retain the existing lock and return
+   writable status without treating it as stale or as another writer. This is
+   the normal path when a saved ticket returns through SEQ-02 re-verification.
 2. **Stale Lock Auto-Recovery:** If the recorded `holder_pid` is no longer active in the OS process table (e.g., prior app crash or SIGKILL), Rust removes the stale lock file, logs the cleanup, and acquires a fresh lock (`is_stale_recovered = true`).
 3. **Graceful Release on Window Close (Top-Right "X"):** Tauri's window `tauri://close-requested` event is intercepted. The app executes `release_workspace_lock` (deleting `.hasm/lock`) before exiting the desktop process.
+
+### Navigation-Safe Load Attempts
+
+Each `LoadingModelPage` effect owns its watchdog and progress subscriptions.
+Subscription results are registered individually: a listener arriving after
+unmount or after its sibling registration fails is immediately disposed.
+An abandoned attempt must not check locks, load data, or change routes.
+Success, error, timeout, and unmount all dispose acquired listeners and clear
+the watchdog. An IPC response arriving after timeout cannot leave the error
+page or start storage verification. This cancels frontend ownership, not
+already-issued native operations.
+
+The load/verify commands accept a generic Tauri runtime internally, preserving
+their serialized IPC contracts while allowing the native mock-runtime
+integration test to exercise the real load/verify/layout command chain.
 
 ---
 
@@ -152,13 +170,16 @@ sequenceDiagram
             FS-->>Rust: Return holder_pid (e.g., 5678)
             Rust->>Rust: Inspect OS Process Table for holder_pid
             
-            alt holder_pid is DEAD (Stale Lock from previous crash)
+            alt holder_pid equals current_pid (This process re-verifying a saved ticket)
+                Rust-->>Bridge: Return writable LockStatus without rewriting the lock
+                Bridge-->>React: Continue SEQ-02 load and verification
+            else holder_pid is DEAD (Stale Lock from previous crash)
                 Rust->>FS: Remove stale .hasm/lock file
                 Rust->>FS: Create new .hasm/lock with current PID
                 Rust-->>Bridge: Return Ok(LockStatus { is_locked: false, holder_pid: current_pid, is_stale_recovered: true, is_read_only: false })
                 Bridge-->>React: Resolve Promise
                 React->>React: Set State: { isReadOnly: false } & Display Info Toast ("Recovered stale lock file")
-            else holder_pid is ALIVE (Active process using workspace)
+            else holder_pid is ALIVE in another process (Active workspace)
                 Rust-->>Bridge: Return Ok(LockStatus { is_locked: true, holder_pid: 5678, is_stale_recovered: false, is_read_only: true })
                 Bridge-->>React: Resolve Promise
                 React->>React: Set State: { isReadOnly: true, warning: "Opened in Read-Only Mode" }
