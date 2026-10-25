@@ -378,6 +378,19 @@ sequenceDiagram
 
 Triggered when the user clicks **"Back to Visualizer"**. Navigates to `/visualizer`. If edits were saved previously (`is_verified == false`), `SEQ-03` Guard 2 automatically intercepts and routes to `/loading-model` for re-verification before 3D rendering.
 
+All ticket async operations are scoped to the addressed entity and page
+lifetime. Navigating away invalidates pending detail/refresh callbacks, so a
+late database or Markdown failure cannot redirect the returned graph to an
+error page. Late save/editor-launch completions cannot update a different
+ticket. Focus polling catches active errors explicitly, logs them with
+`[SEQ-MD-04][MTIME]`, and displays them without an unhandled rejection.
+Ticket changes reset the prior ticket's loading/saving/notification state.
+
+Returning without a save reuses the verified route model without a whole-model
+reload. Returning after a successful save follows the real protected route into
+SEQ-02, retaining the process's own workspace lock as writable. Both paths are
+covered by the bounded CI navigation suite and native IPC regression.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -388,6 +401,7 @@ sequenceDiagram
     Note over User,Router: Pre-condition: User clicks "Back to Visualizer" button.
 
     User->>React: Click "Back to Visualizer" Button
+    React->>React: Invalidate ticket lifetime; late callbacks cannot navigate
     
     alt Unsaved Changes Exist (isDirty == true)
         React->>User: Render Confirmation Modal ("Discard unsaved changes before leaving?")

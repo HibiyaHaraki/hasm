@@ -8,11 +8,11 @@ use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 
 #[tauri::command]
-pub fn compute_visualizer_layout(
-    app: AppHandle,
+pub fn compute_visualizer_layout<R: Runtime>(
+    app: AppHandle<R>,
     model: ModelDatabase,
     filter: LayoutFilterRequest,
 ) -> Result<RenderPayload, String> {
@@ -272,7 +272,7 @@ fn z_step(mode: &str, scale: f32) -> f32 {
     }
 }
 
-fn emit_progress(app: &AppHandle, current: usize, total: usize, message: &str) -> Result<(), String> {
+fn emit_progress<R: Runtime>(app: &AppHandle<R>, current: usize, total: usize, message: &str) -> Result<(), String> {
     app.emit("visualizer-layout-progress", serde_json::json!({
         "current": current,
         "total": total,

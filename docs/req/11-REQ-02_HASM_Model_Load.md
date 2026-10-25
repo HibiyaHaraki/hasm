@@ -15,6 +15,8 @@ This specification defines the functional, data, time constraint, and error hand
 * **[REQ-02-RULE-007] Linear Scale Invariant:** Every phase of the model load and storage verification path MUST be at worst linear in the number of entities. No phase may perform a per-entity scan of a collection whose size grows with the package.
 * **[REQ-02-RULE-008] Metadata-Only Load Invariant:** `load_hasm_model_db` MUST NOT read entity Markdown bodies from disk. The returned model carries `markdownPath` for every entity and an empty `markdown`; bodies are read only when a single entity ticket is opened under SEQ-04.
 * **[REQ-02-RULE-009] Idempotent Bootstrap Invariant:** Re-opening an unchanged package MUST NOT write any row to `main.db`. Folder-to-database bootstrap MUST insert only entity folders that have no corresponding row.
+* **[REQ-02-RULE-010] Reentrant Process Ownership:** A lock with the current process's PID MUST remain writable during repeat load/re-verification without rewriting the lock or reporting stale recovery. A different live PID MUST remain read-only.
+* **[REQ-02-RULE-011] Load Attempt Lifetime:** Each load attempt MUST own and release its watchdog and listeners on success, error, timeout, or unmount. Partial/late subscription results MUST be disposed. Abandoned attempts MUST NOT start subsequent IPC or change routes; a completion after timeout MUST NOT override the error page. Already-issued native operations need not be canceled.
 
 ---
 

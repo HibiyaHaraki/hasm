@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Runtime};
 
 // Minimum wall-clock gap between progress emits so large packages stream smooth,
 // frequent updates without flooding the IPC channel on every single row.
@@ -34,6 +34,10 @@ pub fn check_workspace_lock(path: String) -> Result<LockStatus, String> {
     let holder_pid = fs::read_to_string(&lock_path)
         .ok()
         .and_then(|contents| contents.trim().parse::<u32>().ok());
+    if holder_pid == Some(std::process::id()) {
+        info!("[SEQ-MD-02][LOCK] retaining workspace lock owned by this process");
+        return Ok(unlocked_status(false));
+    }
     if holder_pid.is_some_and(process_is_active) {
         warn!("[SEQ-MD-02][LOCK] workspace is active in another process");
         return Ok(LockStatus {
@@ -70,7 +74,7 @@ pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) 
 }
 
 #[tauri::command]
-pub fn load_hasm_model_db(app: AppHandle, path: String) -> Result<ModelDatabase, String> {
+pub fn load_hasm_model_db<R: Runtime>(app: AppHandle<R>, path: String) -> Result<ModelDatabase, String> {
     emit_progress(&app, "DB_LOAD", 0, 1, "Opening workspace database")?;
 
     let mut last_emit = Instant::now();
@@ -104,8 +108,8 @@ pub fn load_hasm_model_db(app: AppHandle, path: String) -> Result<ModelDatabase,
 }
 
 #[tauri::command]
-pub fn verify_hasm_storage(
-    app: AppHandle,
+pub fn verify_hasm_storage<R: Runtime>(
+    app: AppHandle<R>,
     path: String,
     model: ModelDatabase,
 ) -> Result<VerificationResult, String> {
@@ -162,7 +166,7 @@ fn process_is_active(pid: u32) -> bool {
     system.process(Pid::from_u32(pid)).is_some()
 }
 
-fn emit_progress(app: &AppHandle, step: &str, current: usize, total: usize, message: &str) -> Result<(), String> {
+fn emit_progress<R: Runtime>(app: &AppHandle<R>, step: &str, current: usize, total: usize, message: &str) -> Result<(), String> {
     let event_name = if step == "STORAGE_VERIFY" { "model-verify-progress" } else { "model-load-progress" };
     app.emit(event_name, ProgressPayload {
         step: step.to_string(), current, total, percentage: (current as f32 / total as f32) * 100.0, message: message.to_string(),
@@ -177,8 +181,8 @@ fn expected_markdown_paths(model: &ModelDatabase) -> Vec<String> {
         .collect()
 }
 
-fn find_unreferenced_entity_folders(
-    app: Option<&AppHandle>,
+fn find_unreferenced_entity_folders<R: Runtime>(
+    app: Option<&AppHandle<R>>,
     root: &Path,
     expected: &[String],
 ) -> Result<Vec<String>, String> {
@@ -267,12 +271,38 @@ mod tests {
         let root = fixture_workspace();
         let root_string = root.to_string_lossy().to_string();
         assert!(!check_workspace_lock(root_string.clone()).unwrap().is_read_only);
-        assert!(check_workspace_lock(root_string.clone()).unwrap().is_read_only);
+        for _ in 0..12 {
+            let status = check_workspace_lock(root_string.clone()).unwrap();
+            assert!(!status.is_read_only);
+            assert!(!status.is_stale_recovered);
+            assert_eq!(status.holder_pid, Some(std::process::id()));
+        }
         release_workspace_lock(root_string.clone()).unwrap();
         fs::create_dir_all(root.join(LOCK_DIRECTORY)).unwrap();
         fs::write(root.join(LOCK_DIRECTORY).join(LOCK_FILENAME), "999999").unwrap();
         assert!(check_workspace_lock(root_string.clone()).unwrap().is_stale_recovered);
         release_workspace_lock(root_string).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn keeps_other_live_process_workspaces_read_only() {
+        let root = fixture_workspace();
+        let root_string = root.to_string_lossy().to_string();
+        check_workspace_lock(root_string.clone()).unwrap();
+        let mut system = System::new();
+        let current = Pid::from_u32(std::process::id());
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::Some(&[current]), true, ProcessRefreshKind::nothing(),
+        );
+        let other_pid = system.process(current).unwrap().parent().unwrap().as_u32();
+        assert_ne!(other_pid, std::process::id());
+        let lock = root.join(LOCK_DIRECTORY).join(LOCK_FILENAME);
+        fs::write(&lock, other_pid.to_string()).unwrap();
+        let status = check_workspace_lock(root_string).unwrap();
+        assert!(status.is_read_only);
+        assert_eq!(status.holder_pid, Some(other_pid));
+        assert_eq!(fs::read_to_string(lock).unwrap(), other_pid.to_string());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -318,7 +348,7 @@ mod tests {
         let model = service::read_model_database(&root.to_string_lossy()).unwrap();
         assert_eq!((model.people.len(), model.experiences.len(), model.facts.len(), model.links.len()), (1, 1, 1, 1));
         assert!(expected_markdown_paths(&model).iter().all(|path| root.join(path).is_file()));
-        assert!(find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
+        assert!(find_unreferenced_entity_folders::<tauri::Wry>(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -342,7 +372,7 @@ mod tests {
         fs::write(extra.join("main.md"), "# Unreferenced\n\nFixture content.").unwrap();
 
         assert_eq!(
-            find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap(),
+            find_unreferenced_entity_folders::<tauri::Wry>(None, &root, &expected_markdown_paths(&model)).unwrap(),
             vec!["PERSON/55555555-5555-5555-5555-555555555555/main.md"]
         );
         fs::remove_dir_all(root).unwrap();
@@ -389,7 +419,7 @@ mod tests {
 
         // Storage verification must stay linear: a quadratic scan of this fixture would
         // not complete inside the SEQ-02 budget.
-        assert!(find_unreferenced_entity_folders(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
+        assert!(find_unreferenced_entity_folders::<tauri::Wry>(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
 
         fs::remove_dir_all(root).unwrap();
     }

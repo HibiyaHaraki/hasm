@@ -21,6 +21,42 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 Desktop rows requiring an installed GUI driver remain acceptance scenarios.
 
+### Bounded Navigation Robustness in CI
+
+Run `npm run test:robustness`. The Frontend CI job executes it with a hard
+`timeout-minutes: 3`; each test/hook is limited to five seconds and one worker is
+used. The suite uses fake time, controlled promises, actual page components,
+protected routes, the real 2D FACT table click handler, and the real JS IPC
+wrappers. Only the native `invoke`/event transport and unused 3D renderer are
+mocked. No GPU, browser download, network, or real-time sleeps are required.
+
+| Test ID | Requirement | Test name / expected result |
+| --- | --- | --- |
+| `TC-NAV-001` | `REQ-03-RULE-018` | Progress after layout completion cannot rearm the watchdog or produce a model error. |
+| `TC-NAV-002` | `REQ-03-RULE-018`, `REQ-03-RULE-019` | Twelve graph -> real FACT ticket -> graph cycles under StrictMode leave no timers/listeners and require no package reload. |
+| `TC-NAV-003`, `TC-NAV-004` | `REQ-03-RULE-018`, `REQ-04-RULE-013` | Late ticket/layout errors cannot replace the current route. |
+| `TC-NAV-005` | `REQ-03-RULE-018` | Late graph listener registration is immediately disposed. |
+| `TC-NAV-006`, `TC-NAV-007` | `REQ-02-RULE-011` | Abandoned/partially failed loader subscriptions release resources and never start a lock check. |
+| `TC-NAV-008` | `REQ-04-RULE-013` | Save -> Back -> protected guard -> load -> verify -> graph succeeds without leaking listeners. |
+| `TC-NAV-009`, `TC-NAV-010` | `REQ-02-RULE-011`, `REQ-03-RULE-018` | Genuine stalled requests still fail; progress extends only an active watchdog; a late load completion cannot override its error. |
+| `TC-NAV-011`, `TC-NAV-012` | `REQ-03-RULE-018`, `REQ-04-RULE-013` | Superseded layout failures and late Markdown refresh errors cannot invalidate a returned graph. |
+| `TC-NAV-013` | `REQ-02-RULE-006` | Genuine storage corruption still routes to the error page. |
+| `TC-NAV-IPC-001` | `REQ-02-RULE-010`, `REQ-03-RULE-019` | Native Tauri dispatch repeats save/load/verify/layout 12 times across all four entity types; lock remains writable, saved metadata persists, Markdown remains intact, and actual missing storage is rejected. |
+
+The native regression is `entity_editor_commands_navigation_robustness` in
+`src-tauri/tests/entity_editor_commands_ipc.rs`. It runs in the existing
+EVAL-04 Rust CI step (`cargo test entity_editor_commands`), now limited to three
+minutes, after the earlier Rust steps have compiled the test targets. Its own
+runtime budget is 120 seconds. Local measurement: frontend command approximately
+10 seconds including npm/Vitest startup; native integration tests below one
+second excluding compilation. These measurements are evidence, not a promise
+of hosted-runner speed; CI enforces the hard limits.
+
+Before the lifecycle fix, the first eight deterministic frontend cases all
+failed, including a rendered graph being sent to `/error-model` ten simulated
+seconds after a late progress event. These tests reproduce application races,
+not a diagnosis of a particular user's workspace corruption.
+
 ### Adaptive 2D and Selection Regression Acceptance
 
 | Test ID | Requirement | Expected result |

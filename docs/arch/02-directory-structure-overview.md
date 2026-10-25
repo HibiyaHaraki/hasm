@@ -365,6 +365,17 @@ Self-contained and portable: copying this folder alongside `src/hasm_color_patte
 
 ## Chapter 6: Test Script Architecture
 
+* **`test/navigation-robustness.test.jsx`**: Cross-page SEQ-02/03/04 navigation
+  regression using actual pages, protected routes, and JS IPC wrappers with
+  controlled native transport, fake timers, and StrictMode replay. Run with
+  `npm run test:robustness`; the dedicated CI step is capped at three minutes.
+* **`src-tauri/tests/entity_editor_commands_ipc.rs`**:
+  `entity_editor_commands_navigation_robustness` dispatches actual native
+  load/verify/layout/ticket/save commands over a temporary populated SQLite
+  package, repeating all four entity types without network or GPU dependencies.
+  Runtime-generic Tauri `AppHandle<R>` signatures permit mock-runtime testing
+  without changing serialized production IPC contracts.
+
 ### Chapter 6.1: Desktop Integration Tests (`tests/e2e/`)
 
 * **`01_app_launch.spec.js`**: Validates `SEQ-01` boot checks and path selection flows.

@@ -1,4 +1,4 @@
-use hasm_lib::hasm::{commands, entity_creation_commands, entity_editor_commands, visualizer_commands};
+use hasm_lib::hasm::{commands, entity_creation_commands, entity_editor_commands, model_commands, visualizer_commands};
 use serde_json::{json, Value};
 
 // TC-04-IPC-LINK-001: exercise generated command dispatch, serde, and SQLite together.
@@ -94,4 +94,74 @@ fn entity_editor_commands_external_links_round_trip_through_registered_tauri_inv
         assert_eq!(loaded["detail"]["link"], urls);
     }
     std::fs::remove_dir_all(demo.path).unwrap();
+}
+
+// TC-NAV-IPC-001: the actual load/verify/layout commands must survive repeated saved tickets.
+#[test]
+fn entity_editor_commands_navigation_robustness() {
+    let started = std::time::Instant::now();
+    let app = tauri::test::mock_builder()
+        .invoke_handler(tauri::generate_handler![
+            model_commands::check_workspace_lock,
+            model_commands::load_hasm_model_db,
+            model_commands::verify_hasm_storage,
+            visualizer_commands::compute_visualizer_layout,
+            entity_editor_commands::load_entity_detail,
+            commands::save_person_detail,
+            commands::save_experience_detail,
+            commands::save_fact_detail,
+            commands::save_link_detail,
+        ])
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+    let invoke = |command: &str, body: Value| {
+        tauri::test::get_ipc_response(&window, tauri::webview::InvokeRequest {
+            cmd: command.into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "http://tauri.localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(body),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.into(),
+        }).unwrap_or_else(|error| panic!("{command}: {error}")).deserialize::<Value>().unwrap()
+    };
+    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    for cycle in 0..3 {
+        for (entity_type, id, name_key) in [
+            ("PERSON", "11111111-1111-1111-1111-111111111111", "personName"),
+            ("EXPERIENCE", "22222222-2222-2222-2222-222222222221", "experienceName"),
+            ("FACT", "33333333-3333-3333-3333-333333333331", "factName"),
+            ("LINK", "44444444-4444-4444-4444-444444444444", "linkName"),
+        ] {
+            let loaded = invoke("load_entity_detail", json!({ "modelRoot": demo.path, "entityType": entity_type, "entityId": id }));
+            let mut detail = loaded["detail"].clone();
+            detail[name_key] = json!(format!("{entity_type} cycle {cycle}"));
+            detail["link"] = json!(["https://example.org/reference"]);
+            invoke(&format!("save_{}_detail", entity_type.to_lowercase()), json!({ "modelRoot": demo.path, "detail": detail }));
+            let lock = invoke("check_workspace_lock", json!({ "path": demo.path }));
+            assert_eq!(lock["isReadOnly"], false);
+            assert_eq!(lock["isStaleRecovered"], false);
+            let model = invoke("load_hasm_model_db", json!({ "path": demo.path }));
+            let verification = invoke("verify_hasm_storage", json!({ "path": demo.path, "model": model }));
+            assert_eq!(verification["missingEntities"], json!([]));
+            let layout = invoke("compute_visualizer_layout", json!({
+                "model": model, "filter": { "timeScaleMode": "SequentialIndex", "zScaleFactor": 1.0 }
+            }));
+            assert!(!layout["nodes3d"].as_array().unwrap().is_empty());
+            let reloaded = invoke("load_entity_detail", json!({ "modelRoot": demo.path, "entityType": entity_type, "entityId": id }));
+            assert_eq!(reloaded["detail"][name_key], detail[name_key]);
+            assert_eq!(reloaded["detail"]["link"], detail["link"]);
+            assert_eq!(reloaded["markdownBody"], loaded["markdownBody"]);
+        }
+    }
+    // Actual corruption must still fail, rather than being hidden by the lifecycle guards.
+    let fact_path = std::path::Path::new(&demo.path).join("FACT")
+        .join("33333333-3333-3333-3333-333333333331").join("main.md");
+    std::fs::remove_file(fact_path).unwrap();
+    let model = hasm_lib::hasm::service::read_model_database(&demo.path).unwrap();
+    let error = model_commands::verify_hasm_storage(app.handle().clone(), demo.path.clone(), model).unwrap_err();
+    assert!(error.contains("ERR_MISSING_STORAGE_FOLDER"));
+    std::fs::remove_dir_all(demo.path).unwrap();
+    assert!(started.elapsed() < std::time::Duration::from_secs(120));
 }

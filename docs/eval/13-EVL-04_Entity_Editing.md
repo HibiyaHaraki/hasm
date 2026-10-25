@@ -8,6 +8,16 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Navigation Lifetime Regression
+
+`npm run test:robustness` runs actual graph, ticket, loader, and protected-route
+components through the real JS IPC wrappers with only the native transport
+mocked. `TC-NAV-002` covers twelve read-only inspection/return cycles;
+`TC-NAV-003`/`012` cover late load/refresh errors after leaving a ticket;
+`TC-NAV-008` covers save/return/re-verification. These trace
+`REQ-04-RULE-013`. See [EVAL-03](./12-EVL-03_Visualizer.md) for all race cases,
+three-minute CI limits, and native dispatch coverage (`TC-NAV-IPC-001`).
+
 ### External-Link Coverage
 
 | Test ID / target | Requirement | Expected result |
