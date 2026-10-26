@@ -1,5 +1,6 @@
 import { Button, Form } from "react-bootstrap";
 import "./TicketForm.css";
+import { ExternalLinksEditor } from "./ExternalLinksEditor";
 
 export function TicketForm({ value, onChange, onSave, onCancel, saving }) {
   return (
@@ -8,6 +9,7 @@ export function TicketForm({ value, onChange, onSave, onCancel, saving }) {
         <Form.Label>Summary</Form.Label>
         <Form.Control value={value.name} onChange={(event) => onChange({ ...value, name: event.target.value })} />
       </Form.Group>
+      <ExternalLinksEditor value={value.link} onChange={(link) => onChange({ ...value, link })} disabled={saving} />
       <div className="ticket-actions d-flex gap-2">
         <Button type="submit" className="btn-hasm-primary" disabled={saving}>Save</Button>
         <Button variant="outline-secondary" className="btn-hasm-outline" onClick={onCancel}>Cancel</Button>

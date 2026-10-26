@@ -17,6 +17,21 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 Desktop rows are acceptance scenarios; they are not yet automated with a packaged Tauri E2E driver.
 
+### Return-from-Ticket Robustness
+
+`npm run test:robustness` covers `TC-NAV-006`/`007` (late/partial subscription
+cleanup), `TC-NAV-008` (saved ticket return through the real loader),
+`TC-NAV-010` (timeout is terminal), and `TC-NAV-013` (real active errors remain
+visible), tracing `REQ-02-RULE-011`. The three-minute CI budget and complete
+inventory are documented in [EVAL-03](./12-EVL-03_Visualizer.md).
+
+`cargo test model_commands` covers `REQ-02-RULE-010` with
+`creates_recovers_and_releases_workspace_locks` (twelve same-process checks
+remain writable) and `keeps_other_live_process_workspaces_read_only` (a distinct
+live PID remains read-only without changing its lock).
+`TC-NAV-IPC-001` in `src-tauri/tests/entity_editor_commands_ipc.rs` exercises
+actual native load and verification dispatch after twelve saved tickets.
+
 ---
 
 ## 1. Desktop App Level Tests (E2E / System Integration)

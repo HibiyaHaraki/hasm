@@ -9,6 +9,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Link {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub link_id: Uuid,
     pub link_name: String,
     pub link_type: String,
@@ -40,6 +42,7 @@ impl Link {
     }
 
     pub fn verify(&self) -> Result<(), String> {
+        super::validate_external_links(&self.link)?;
         if self.link_type.trim().is_empty() {
             return Err("EntityValidationError::EmptyLinkType".to_string());
         }

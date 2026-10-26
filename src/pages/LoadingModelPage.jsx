@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   checkWorkspaceLock,
@@ -20,7 +20,6 @@ function LoadingModelPage() {
   const navigate = useNavigate();
   const path = location.state?.path;
   const redirectReason = location.state?.redirectReason || "";
-  const watchdogRef = useRef();
   const [state, setState] = useState({ progress: 0, message: "Initializing workspace...", notice: "" });
 
   useEffect(() => {
@@ -38,12 +37,22 @@ function LoadingModelPage() {
     }
 
     let active = true;
-    let unlistenLoad = () => {};
-    let unlistenVerify = () => {};
-    const fail = (message) => active && navigate("/error-model", { replace: true, state: { error: message } });
+    let watchdog;
+    const listeners = [];
+    const stop = () => {
+      active = false;
+      window.clearTimeout(watchdog);
+      listeners.splice(0).forEach((unlisten) => unlisten());
+    };
+    const fail = (message) => {
+      if (!active) return;
+      stop();
+      logger.error("[SEQ-MD-02][LOAD] model load failed", message);
+      navigate("/error-model", { replace: true, state: { error: message } });
+    };
     const resetWatchdog = (message) => {
-      window.clearTimeout(watchdogRef.current);
-      watchdogRef.current = window.setTimeout(() => fail(message), WATCHDOG_MS);
+      window.clearTimeout(watchdog);
+      watchdog = window.setTimeout(() => fail(message), WATCHDOG_MS);
     };
     const handleProgress = (event) => {
       const progress = event?.payload || event;
@@ -54,10 +63,13 @@ function LoadingModelPage() {
 
     async function load() {
       try {
-        [unlistenLoad, unlistenVerify] = await Promise.all([
-          subscribeToTauriEvent("model-load-progress", handleProgress),
-          subscribeToTauriEvent("model-verify-progress", handleProgress),
-        ]);
+        // SEQ-MD-02: register ownership individually, including partial/late IPC resolution.
+        await Promise.all(["model-load-progress", "model-verify-progress"].map(async (name) => {
+          const unlisten = await subscribeToTauriEvent(name, handleProgress);
+          if (!active) unlisten();
+          else listeners.push(unlisten);
+        }));
+        if (!active) return;
         const lock = await withTimeout(checkWorkspaceLock(path), 3000, "Lock check timed out");
         if (!active) return;
         window.sessionStorage.setItem("hasm-active-workspace", path);
@@ -70,8 +82,8 @@ function LoadingModelPage() {
         if (!active) return;
         resetWatchdog("Storage verification stalled");
         const verification = await verifyHasmStorage(path, model);
-        window.clearTimeout(watchdogRef.current);
         if (active) {
+          stop();
           const totalEntities =
             (model.people?.length || 0) +
             (model.experiences?.length || 0) +
@@ -87,19 +99,12 @@ function LoadingModelPage() {
           navigate("/visualizer", { replace: true, state: { path, model, isVerified: true, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities } });
         }
       } catch (error) {
-        window.clearTimeout(watchdogRef.current);
-        logger.error("[SEQ-MD-02][LOAD] model load failed", error);
         fail(error?.message || String(error));
       }
     }
 
     load();
-    return () => {
-      active = false;
-      window.clearTimeout(watchdogRef.current);
-      unlistenLoad();
-      unlistenVerify();
-    };
+    return stop;
   }, [navigate, path]);
 
   return (

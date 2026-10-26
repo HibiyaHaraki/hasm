@@ -13,6 +13,7 @@ This specification defines the functional, data, and behavioral requirements for
 * **[REQ-01-RULE-005] Frontend Hard Timeout Enforcement:** All IPC calls interacting with external systems or the File System MUST enforce a hard timeout on the frontend to prevent UI thread lockup.
 * **[REQ-01-RULE-006] Multi-Process Double-Booting Allowance:** The application MUST allow multiple OS process instances to run concurrently (double-booting), where each process operates with its own isolated memory space, React state, and backend context.
 * **[REQ-01-RULE-007] Quoted Windows Path Compatibility:** The application MUST trim whitespace and remove matching outer double quotes from workspace paths received through CLI arguments or manual input before validation and loading. Quotes within a path remain literal.
+* **[REQ-01-RULE-008] External-Link Schema Compatibility:** New workspaces MUST initialize a `link TEXT NOT NULL DEFAULT '[]'` JSON-array column in all four entity tables. Existing workspaces MUST receive missing columns through a transactional, idempotent migration on database open during the SEQ-02 hand-off, without changing existing metadata or graph relationships. Schema errors MUST propagate to the existing load/scaffold error flow. Path validation MUST remain filesystem-only, and startup MUST NOT contact external URLs or icon services.
 
 ---
 

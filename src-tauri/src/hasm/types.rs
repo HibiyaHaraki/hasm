@@ -167,6 +167,8 @@ pub struct WorkspacePathPayload {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePersonRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub person_name: String,
     pub person_description: String,
     pub security_level: i32,
@@ -176,6 +178,8 @@ pub struct CreatePersonRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateExperienceRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub experience_name: String,
     pub experience_description: String,
     pub security_level: i32,
@@ -185,6 +189,8 @@ pub struct CreateExperienceRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFactRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub fact_name: String,
     pub fact_description: String,
     pub start_time: Option<String>,
@@ -196,6 +202,8 @@ pub struct CreateFactRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLinkRequest {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub link_type: String,
     pub link_description: String,
     pub origin_entity_type: String,

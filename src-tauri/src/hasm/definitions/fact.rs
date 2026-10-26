@@ -9,6 +9,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Fact {
+    #[serde(default)]
+    pub link: Vec<String>,
     pub fact_id: Uuid,
     pub fact_name: String,
     pub occurred_at: String,
@@ -38,6 +40,7 @@ impl Fact {
     }
 
     pub fn verify(&self, start_time: Option<&str>, end_time: Option<&str>, security_level: i32) -> Result<(), String> {
+        super::validate_external_links(&self.link)?;
         if self.fact_name.trim().is_empty() {
             return Err("EntityValidationError::EmptyName".to_string());
         }

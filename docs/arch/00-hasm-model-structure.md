@@ -13,6 +13,10 @@ The HASM model represents subjective human experiences, facts, persons, and rela
 * **FACT**: Concrete historical event bounded by time.
 * **LINK**: Directed relationship connecting any two entities.
 
+All four entity types additionally expose **`link: string[]`** for related external
+pages (SNS posts, websites, Google Maps, etc.). This URL array is independent of
+the graph entity `LINK`, `link_ids`/`linkIds`, and `related_ids`/`relatedIds`.
+
 To achieve clean separation between human-readable content and structural metadata, HASM uses a hybrid persistence architecture:
 
 1. **Local File System (HASM Markdown & Assets)**: Large text contents, detailed descriptions, and media assets are stored as standard Markdown files (`main.md`) and asset directories (`assets/`). This ensures offline accessibility, compatibility with external text editors, and seamless version control via Git.
@@ -57,6 +61,7 @@ erDiagram
         TEXT life_experience_id FK "UUID"
         TEXT person_name
         TEXT person_description
+        TEXT link "JSON array of external URL strings; default []"
         INTEGER security_level
     }
 
@@ -64,6 +69,7 @@ erDiagram
         TEXT experience_id PK "UUID"
         TEXT experience_name
         TEXT experience_description
+        TEXT link "JSON array of external URL strings; default []"
         INTEGER security_level
     }
 
@@ -76,6 +82,7 @@ erDiagram
         TEXT fact_id PK "UUID"
         TEXT fact_name
         TEXT fact_description
+        TEXT link "JSON array of external URL strings; default []"
         TEXT occurred_at "ISO8601 occurrence timestamp"
         TEXT start_time "ISO8601 Datetime"
         TEXT end_time "ISO8601 Datetime"
@@ -91,6 +98,7 @@ erDiagram
         TEXT link_id PK "UUID"
         TEXT link_type
         TEXT link_description
+        TEXT link "JSON array of external URL strings; default []"
         TEXT origin_entity_type "PERSON | EXPERIENCE | FACT"
         TEXT origin_entity_id "UUID"
         TEXT target_entity_type "PERSON | EXPERIENCE | FACT"
@@ -118,6 +126,42 @@ erDiagram
 ---
 
 ### Detailed Schema Definitions
+
+#### Shared external-page field: `link`
+
+Every PERSON, EXPERIENCE, FACT, and LINK has `link: Vec<String>` in Rust and
+`link: string[]` in JSON/IPC. In each corresponding SQLite table, the column is
+`link TEXT NOT NULL DEFAULT '[]'`, storing a JSON array, not comma-delimited text.
+For example:
+
+```json
+{
+  "link": [
+    "https://x.com/example/status/123",
+    "https://www.google.com/maps/place/Tokyo",
+    "https://example.org/article?source=hasm#section"
+  ]
+}
+```
+
+* Arrays preserve input order and complete URL strings, including query and
+  fragment. An empty array is valid; no external reference is mandatory.
+* Each item must be an absolute HTTP(S) URL with a host, without embedded
+  credentials or whitespace. Unsafe schemes, malformed items, and non-array
+  storage are explicit errors, never silently replaced with an empty array.
+* New workspace scaffolding and existing-workspace opens share
+  `service::ensure_schema`. Its transactional, idempotent migration adds the
+  column only if absent, preserving existing rows and graph relationships.
+* The implemented database is `main.db`; legacy `hasm.db` is supported by the
+  existing compatibility path. New scaffolding initializes both with the field.
+  Missing fields in legacy serialized entities/creation requests default to `[]`.
+* Detail getters, all four typed saves, creation commands, and whole-model
+  read/save include the field. URLs are metadata, not Markdown assets or graph
+  edges. Saving references does not download, validate reachability, or fetch
+  favicons from the referenced sites.
+* Entity pages display locally rendered, theme-aware X, Google, Google Maps,
+  or generic web icons based on the parsed hostname. Opening a valid reference
+  uses the OS browser through the Tauri opener plugin, with visible errors.
 
 #### PERSON
 
@@ -249,6 +293,7 @@ classDiagram
     }
 
     class Person {
+        +Vec~String~ link
         +Uuid person_id
         +Uuid life_experience_id
         +String person_name
@@ -259,6 +304,7 @@ classDiagram
     }
 
     class Experience {
+        +Vec~String~ link
         +Uuid experience_id
         +String experience_name
         +String experience_description
@@ -271,6 +317,7 @@ classDiagram
     }
 
     class Fact {
+        +Vec~String~ link
         +Uuid fact_id
         +String fact_name
         +String fact_description
@@ -291,6 +338,7 @@ classDiagram
     }
 
     class Link {
+        +Vec~String~ link
         +Uuid link_id
         +String link_type
         +String link_description

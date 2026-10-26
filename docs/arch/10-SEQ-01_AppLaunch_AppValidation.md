@@ -17,6 +17,13 @@ This document details the complete sequence for application startup, binary vali
 
 4. **Workspace Creation Entry Point (Create New):** Triggers the native OS save dialog to specify a target directory path (e.g. `/path/to/MyLife.hasm`), handing off execution to `create_hasm_workspace` (`SEQ-08`).
 
+5. **External-link schema compatibility:** New scaffolding creates `link TEXT NOT
+   NULL DEFAULT '[]'` in PERSON, EXPERIENCE, FACT, and LINK. Opening an existing
+   workspace hands off to SEQ-02, where the shared schema initializer adds missing
+   columns transactionally and idempotently. Existing entity data and graph
+   `linkIds` remain unchanged. Path validation itself does not open/migrate the
+   database or make network requests. The array contract is defined in
+   [the model specification](./00-hasm-model-structure.md).
 
 
 ---
@@ -136,6 +143,7 @@ sequenceDiagram
                 Bridge-->>React: Resolve Promise
                 React->>Router: navigate('/loading-model', { state: { path: selectedDirectoryPath } })
                 Note over React,Router: Proceed to SEQ-02
+                Note over Rust,FS: SEQ-02 DB open adds missing external link columns with [] defaults
             else Path Invalid
                 Rust-->>Bridge: Return Err(AppValidationError)
                 Bridge-->>React: Reject Promise
@@ -154,6 +162,7 @@ sequenceDiagram
                 Dialog-->>React: Return targetDirectoryPath
                 React->>Bridge: invoke('create_hasm_workspace', { targetDirectoryPath })
                 Note over Bridge,Rust: Hand-off to SEQ-08 Chapter 1 (Scaffolding Sequence)
+                Note over Rust,FS: Shared schema creates link JSON-array columns in all four entity tables
                 Bridge-->>React: Resolve Promise (WorkspacePathPayload)
                 React->>Router: navigate('/loading-model', { state: { path: targetDirectoryPath } })
                 Note over React,Router: Proceed to SEQ-02

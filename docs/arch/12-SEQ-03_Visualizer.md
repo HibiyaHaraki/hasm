@@ -43,6 +43,24 @@ The Open Workspace page (`/select`) includes **Test 3D commit graph** for develo
 
 ## 2. Sequence Architecture Chapters
 
+### Navigation and Watchdog Ownership
+
+`VisualizerPage` owns a page lifetime and the identity of the current layout
+request. Only a pending current request may consume progress or reset the
+10-second watchdog. Completion, failure, supersession, and leaving the page
+invalidate that identity. Late progress after completion is ignored: it must
+not restart a timer and incorrectly route a rendered graph to `/error-model`.
+Late failures from abandoned requests are logged at debug level and cannot
+change the current route. Genuine current-request failures and stalls retain
+their existing error/filter-reversion behavior.
+
+Progress listeners resolving after cleanup are disposed immediately, including
+React StrictMode's setup/cleanup replay. Lifetime setup uses a layout effect
+because the shared visualizer starts layout in its child passive effect.
+The host does not modify the visualizer submodule or native event payloads.
+Node-to-ticket navigation preserves the full workspace route state, including
+read-only and warning information.
+
 ### Implemented Module Mapping
 
 The current implementation owns the entire visualizer surface in the reusable `src/hasm_visualizer` package: `HasmVisualizerComponent.jsx` (toolbar, PERSON/EXPERIENCE scope selection, 2D/3D switching, scene lifecycle), `threeCommitGraph.js` and `twoCommitGraph.js` (Three.js scene ownership and node interaction), `layoutFilter.js` (filter state), `modelScope.js` (scope narrowing), and `layoutCalculator.js` (a client-side layout kept in parity with Rust for hosts without a Tauri backend). `src/pages/VisualizerPage.jsx` is a thin host: it supplies the loaded model, the Rust-backed `computeLayout` callback with IPC progress and watchdog handling, node-click routing, and the SEQ-03 header/overlay slots. The previous duplicate under `src/features/visualizer/` was removed. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; coordinate policy is intentionally isolated there for later revision.
