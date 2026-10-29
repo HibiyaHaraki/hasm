@@ -10,6 +10,66 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### Reader-first ticket and inline metadata editors
+
+Every ticket initially renders readable content, with no form, input, select,
+textarea, Save, or Cancel controls mounted. The summary is the page heading;
+Markdown is the main reading area and metadata/external links form a quiet
+sidebar on wide screens. Content wraps and stacks on narrow screens.
+
+Clicking the summary, Details values, or an external-link value replaces only
+that section with `TicketForm`. These text-like content triggers are native
+keyboard-accessible buttons with focus/hover affordances. Only one metadata
+section is editable at a time; other metadata triggers are disabled until
+Save or Cancel. External references have a separate **Open** action so editing
+and browser navigation are distinct.
+
+| Section | Editable payload fields |
+| --- | --- |
+| Summary | The current entity's `*Name` |
+| PERSON details | `birthday`, `die`, `linkIds` |
+| EXPERIENCE details | `personId`, `parentExperienceIds`, `linkIds` |
+| FACT details | `occurredAt`, `experienceIds`, `personIds`, `linkIds` |
+| LINK details | `linkType`, `relatedIds` |
+| External links | Ordered `link` URL array, independent of graph relationships |
+
+Relationship UUID arrays are edited as comma-separated UUIDs and converted
+back to arrays only on Save; empty arrays remain `[]`. Invalid UUIDs, empty
+summaries/relationship types, self-links, and unsafe URLs are displayed before
+dispatch. Existing native validation remains authoritative.
+
+The page sends the current full typed detail through the existing
+`save_*_detail` wrapper, patching only the active section. Success restores
+reading mode and updates the route model without a package reload. Cancel or
+Escape discards the draft with no invoke; blur never saves. Save/refresh are
+serialized, duplicate submissions are ignored, and Cancel is disabled during
+save. Failures retain the active draft and display/log the error. Focus
+returns to the original content trigger after closing the editor.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant React as EntityDetailPage
+    participant Form as TicketForm
+    participant IPC as save_*_detail
+    User->>React: Read ticket (no editing form)
+    User->>React: Click summary, details, or link value
+    React->>Form: Mount only the selected section's draft
+    alt Cancel or Escape
+        Form->>React: Discard draft; no IPC call
+    else Save
+        Form->>React: Validate active section
+        React->>IPC: Current typed detail plus active-section patch
+        alt Persistence succeeds
+            IPC-->>React: Saved
+            React->>React: Patch route model; return to reading mode
+        else Persistence fails
+            IPC-->>React: Error
+            React->>Form: Keep draft; display error
+        end
+    end
+```
+
 ### Read-only rendered Markdown
 
 `MarkdownPanel` renders `markdownBody` as HTML using `markdown-it` with raw
@@ -23,6 +83,9 @@ The preview header contains **Edit Markdown in HASM App** (SEQ-05) and
 unsaved metadata. HTTP(S) preview links use the OS opener and display failures;
 relative/non-HTTP(S) destinations are rejected with a visible message.
 Editing the document remains delegated to the external application.
+Clicking non-link Markdown content, or pressing Enter/Space while the preview
+itself is focused, invokes that same external editor action. Selecting text
+does not launch the editor; links keep their separate OS-browser behavior.
 
 ### 1.1 IPC Data Definitions (Rust / TypeScript Interface)
 

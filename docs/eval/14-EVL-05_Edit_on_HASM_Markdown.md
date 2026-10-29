@@ -12,6 +12,8 @@ Automated React and IPC coverage runs through `npm run test:eval-05`; Rust comma
 | --- | --- | --- |
 | `TC-05-REACT-001` to `TC-05-REACT-005` | `test/seq05.test.jsx` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
 | `TC-05-REACT-006` (all four entity types): rendered preview button -> real JS wrapper -> mocked native transport, asserting exact invoke name/payload | `test/seq05.test.jsx` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
+| `TC-05-REACT-007`: document click and focused Enter/Space launch the existing editor without an inline Markdown form | `test/seq05.test.jsx` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
+| `TC-05-REACT-008`: selecting document text or activating a hyperlink does not launch the external editor | `test/seq05.test.jsx` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
 | SEQ-05 launch IPC argument contract | `test/eval-05-ipc.test.js` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
 | `TC-05-RUST-001` to `TC-05-RUST-004` target-path, payload, and missing-resource checks | `src-tauri/src/hasm/external_editor_commands.rs` via `cargo test external_editor_commands` | Rust: EVAL-05 Rust external editor tests |
 | Markdown binary build/staging contract | `npm run build:markdown` and `Test-Path src-tauri/binaries/hasm_markdown.exe` | Frontend: Build frontend |

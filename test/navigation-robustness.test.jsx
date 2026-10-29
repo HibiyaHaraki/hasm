@@ -114,7 +114,8 @@ describe("bounded graph-ticket navigation robustness", () => {
       // Click the real FACT table row, rather than replacing either page with a route stub.
       fireEvent.click(screen.getByText("Publication", { selector: "td" }));
       await flush();
-      expect(screen.getByRole("textbox", { name: "Summary" })).toHaveValue("Publication");
+      expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent("Publication");
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
       await flush();
       await emit("visualizer-layout-progress");
@@ -191,6 +192,7 @@ describe("bounded graph-ticket navigation robustness", () => {
   it("TC-NAV-008 save-return revalidates through real routes and API wrappers without listener leaks", async () => {
     const view = renderFlow(`/entity-detail/FACT/${id}`, true);
     await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Summary" }), { target: { value: "Updated" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await flush();
@@ -205,6 +207,21 @@ describe("bounded graph-ticket navigation robustness", () => {
     view.unmount();
     await flush();
     expect(listeners.filter((entry) => !entry.disposed)).toEqual([]);
+  });
+
+  it("TC-NAV-INLINE-001 clicked detail content saves through the real typed invoke wrapper", async () => {
+    renderFlow(`/entity-detail/FACT/${id}`);
+    await flush();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
+    fireEvent.change(screen.getByLabelText("Occurred at"), { target: { value: "2026-10-29" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", {
+      modelRoot: path, detail: { ...fact, occurredAt: "2026-10-29" },
+    });
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("2026-10-29");
   });
 
   it("TC-NAV-009 an active stalled layout still fails after progress stops", async () => {

@@ -132,7 +132,12 @@ flowchart TB
         MarkdownCheck -->|OK LINK| LD
 
         %% MetaData Save Action (DB Only)
-        SaveMetaAction(["Edit & Save MetaData"]):::action --> SaveMetadata[["Tauri: save_entity_metadata (hasm.db)"]]:::tauri
+        ReadTicket(["Read ticket without editing forms"]):::action --> ClickMeta(["Click summary, details, or link content"]):::action
+        ClickMeta --> InlineEditor["Inline editor for selected section"]:::page
+        InlineEditor --> CancelMeta(["Cancel / Escape: discard draft"]):::action
+        CancelMeta --> ReadTicket
+        InlineEditor --> SaveMetaAction(["Save selected metadata section"]):::action
+        SaveMetaAction --> SaveMetadata[["Tauri: save_entity_metadata (hasm.db)"]]:::tauri
         SaveMetadata -->|Set is_verified = false| PD
         SaveMetadata -->|Set is_verified = false| ED
         SaveMetadata -->|Set is_verified = false| FD
@@ -143,7 +148,7 @@ flowchart TB
     %% 5. Common Actions (SEQ-04 Ch.5 & SEQ-05)
     %% ----------------------------------------------------
     subgraph CommonActions["5. Common Actions"]
-        LaunchHasmApp(["Edit Markdown in HASM App"]):::action --> LaunchAppCmd[["Tauri: launch_external_markdown_app"]]:::tauri
+        LaunchHasmApp(["Click Markdown content or Edit Markdown in HASM App"]):::action --> LaunchAppCmd[["Tauri: launch_external_markdown_app"]]:::tauri
         LaunchAppCmd -->|Fire-and-Forget Spawn| ExternalAppWindow["hasm_markdown.exe App Window"]:::page
 
         WindowFocus(["Window Focus Event"]):::action --> CheckMtime[["Tauri: check_entity_mtime"]]:::tauri

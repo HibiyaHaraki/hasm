@@ -7,18 +7,98 @@
 
 .ticket-page {
   min-height: 100vh;
-  padding: 24px;
+  max-width: 1440px;
+  padding: 32px;
+  color: var(--theme-text);
+  font-family: "Yu Mincho", "游明朝", Georgia, serif;
+  line-height: 1.75;
+  letter-spacing: 0.03em;
 }
 
 .ticket-header {
-  border: 1px solid var(--theme-border);
-  background: var(--theme-soft);
-  padding: 18px;
-  margin-bottom: 14px;
+  border-bottom: 1px solid var(--theme-border);
+  padding-bottom: 24px;
+  margin-bottom: 24px;
 }
 
 .ticket-header h1 {
   margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-reading-hint,
+.ticket-detail-label {
+  font-size: 0.9rem;
+}
+
+.ticket-reading-hint {
+  margin-block: 12px;
+}
+
+.ticket-content-trigger.btn,
+.ticket-content-trigger.btn:disabled {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--theme-text);
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+  letter-spacing: 0.03em;
+  opacity: 1;
+}
+
+.ticket-content-trigger.btn:not(:disabled):hover,
+.ticket-content-trigger.btn:focus-visible {
+  color: var(--theme-text);
+  background: var(--theme-soft);
+  border-color: var(--theme-border);
+}
+
+.ticket-content-trigger.btn:focus-visible {
+  outline: 2px solid var(--theme-text);
+  outline-offset: 2px;
+}
+
+.ticket-summary-trigger.btn {
+  font-size: inherit;
+  line-height: 1.4;
+}
+
+.ticket-section {
+  min-width: 0;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.ticket-section h2 {
+  font-size: 1.2rem;
+}
+
+.ticket-detail-row {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.ticket-detail-row:last-child {
+  margin-bottom: 0;
+}
+
+.ticket-status {
+  padding-block: 12px;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+.ticket-page .form-text {
+  color: var(--theme-text);
 }
 
 @media (max-width: 700px) {

@@ -8,6 +8,24 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Reader-First Inline Editing
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-INLINE-001` (all entity types) | `REQ-04-RULE-015` | Readable summary/links/Markdown appear with no mounted form/input/select/textarea or Save/Cancel controls. |
+| `TC-04-REACT-INLINE-002` | `REQ-04-RULE-016` | Summary click focuses its only input; blur does not save, Escape discards, focus returns to content, and explicit Save preserves other fields. |
+| `TC-04-REACT-INLINE-003` (all entity types) | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Detail edits produce exact typed payloads, keep summary/Markdown/URLs unchanged, and restore reading mode. |
+| `TC-04-REACT-INLINE-004` | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Bad UUID input never invokes save; a pending save disables Cancel/Refresh and suppresses duplicate submits; failure retains input and Cancel discards it. |
+| `TC-04-REACT-LINK-001` to `006` | `REQ-04-RULE-012`, `REQ-04-RULE-016` | Explicitly enter the link editor before mutating; successful saves/cancels close it, refresh retains drafts, and separate Open actions surface browser failures. |
+| `TC-04-IPC-INLINE-001` in `src-tauri/tests/entity_editor_commands_ipc.rs` | `REQ-04-RULE-017` | All four native generated save handlers deserialize typed detail updates, persist them to SQLite and reload unchanged summary/Markdown. Included in `entity_editor_commands_external_links_round_trip_through_registered_tauri_invokes`. |
+
+Run the React rows via `npm run test:eval-04`. Run native rows with
+`cargo test --manifest-path src-tauri/Cargo.toml --test entity_editor_commands_ipc`.
+`TC-NAV-002` asserts reading mode during repeated visits; `TC-NAV-008` clicks
+the summary before saving through the actual JS IPC wrapper and route flow.
+`TC-NAV-INLINE-001` clicks Details and verifies the exact `save_fact_detail`
+invoke through that same real JS wrapper.
+
 ### Rendered Markdown Coverage
 
 `npm run test:eval-04` includes the following component tests:

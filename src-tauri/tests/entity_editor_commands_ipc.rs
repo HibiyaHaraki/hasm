@@ -64,6 +64,40 @@ fn entity_editor_commands_external_links_round_trip_through_registered_tauri_inv
         assert_eq!(invoke("load_entity_detail", request.clone()).unwrap()["detail"]["link"], json!([]));
         detail.as_object_mut().unwrap().remove("link");
         save(detail).unwrap();
+
+        // TC-04-IPC-INLINE-001: reader-first detail editors keep typed metadata intact.
+        let fields = match entity_type {
+            "PERSON" => json!({
+                "birthday": "1815-12-10", "die": "1852-11-27",
+                "linkIds": ["44444444-4444-4444-4444-444444444444"]
+            }),
+            "EXPERIENCE" => json!({
+                "personId": "11111111-1111-1111-1111-111111111111",
+                "parentExperienceIds": ["22222222-2222-2222-2222-222222222222"],
+                "linkIds": ["44444444-4444-4444-4444-444444444444"]
+            }),
+            "FACT" => json!({
+                "occurredAt": "2026-10-29",
+                "experienceIds": ["22222222-2222-2222-2222-222222222221"],
+                "personIds": ["11111111-1111-1111-1111-111111111111"],
+                "linkIds": ["44444444-4444-4444-4444-444444444444"]
+            }),
+            "LINK" => json!({
+                "linkType": "supports",
+                "relatedIds": ["11111111-1111-1111-1111-111111111111", "33333333-3333-3333-3333-333333333331"]
+            }),
+            _ => unreachable!(),
+        };
+        let before = invoke("load_entity_detail", request.clone()).unwrap();
+        let mut edited = before["detail"].clone();
+        for (field, value) in fields.as_object().unwrap() {
+            edited[field] = value.clone();
+        }
+        save(edited.clone()).unwrap();
+        let after = invoke("load_entity_detail", request).unwrap();
+        assert_eq!(after["detail"], edited);
+        assert_eq!(after["markdownBody"], before["markdownBody"]);
+        assert_eq!(after["name"], before["name"]);
     }
     let create_cases = [
         ("PERSON", json!({

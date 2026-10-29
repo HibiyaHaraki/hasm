@@ -15,7 +15,10 @@ export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loadi
 
   async function openLink(event) {
     const anchor = event.target.closest("a");
-    if (!anchor) return;
+    if (!anchor) {
+      if (!loading && window.getSelection()?.isCollapsed !== false) edit();
+      return;
+    }
     const href = anchor.getAttribute("href");
     if (href?.startsWith("#")) return;
     event.preventDefault();
@@ -51,7 +54,15 @@ export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loadi
         </div>
       </Card.Header>
       <Card.Body>
+        <p id="markdown-edit-hint" className="markdown-edit-hint">Click the document to edit in HASM Markdown.</p>
         <article className="markdown-preview" aria-label="Markdown preview"
+          tabIndex={loading ? -1 : 0} aria-describedby="markdown-edit-hint" aria-disabled={loading}
+          onKeyDown={(event) => {
+            if (event.target === event.currentTarget && !loading && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              edit();
+            }
+          }}
           onClick={openLink} dangerouslySetInnerHTML={{ __html: html }} />
         {linkError ? <p role="alert">Could not open Markdown link: {linkError}</p> : null}
       </Card.Body>

@@ -43,9 +43,10 @@ function SiteIcon({ site }) {
   );
 }
 
-export function ExternalLinksEditor({ value, onChange, disabled = false }) {
+export function ExternalLinkPreview({ url, children }) {
   const [error, setError] = useState("");
-  async function open(event, url) {
+  const site = externalLinkSite(url);
+  async function open(event) {
     event.preventDefault();
     setError("");
     try {
@@ -55,35 +56,61 @@ export function ExternalLinksEditor({ value, onChange, disabled = false }) {
     }
   }
   return (
+    <>
+      <a className="external-link-preview" href={url} target="_blank" rel="noopener noreferrer"
+        onClick={open}>
+        {children ?? <><SiteIcon site={site} /><span>{site.name}: {url}</span></>}
+      </a>
+      {error ? <p role="alert">Could not open external link: {error}</p> : null}
+    </>
+  );
+}
+
+export function ExternalLinksView({ value, onEdit, disabled }) {
+  return value.length ? (
+    <ul className="external-links-read">
+      {value.map((url, index) => (
+        <li key={`${index}-${url}`}>
+          <Button id={`ticket-link-read-${index}`} className="ticket-content-trigger external-link-value" disabled={disabled}
+            aria-label={`Edit external link ${index + 1}`} onClick={onEdit}>
+            <SiteIcon site={externalLinkSite(url)} /><span>{url}</span>
+          </Button>
+          {isExternalUrl(url) ? <ExternalLinkPreview url={url}>
+            <span className="visually-hidden">Open link {index + 1}: </span>Open
+          </ExternalLinkPreview> : <p role="alert">Invalid external URL: {url}</p>}
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <Button id="ticket-links-read" className="ticket-content-trigger" disabled={disabled} onClick={onEdit}
+      aria-label="Edit external links">No external links</Button>
+  );
+}
+
+export function ExternalLinksEditor({ value, onChange, disabled = false, autoFocus = false }) {
+  return (
     <fieldset className="external-links" disabled={disabled}>
       <legend>External links</legend>
       <p className="external-links-help">Related pages, SNS messages, or maps. Use a full HTTP(S) URL.</p>
       {value.map((url, index) => {
-        const site = externalLinkSite(url);
         const valid = isExternalUrl(url);
         return (
           <div className="external-link-row" key={index}>
             <Form.Group controlId={`external-link-${index}`} className="external-link-field">
               <Form.Label>Link {index + 1}</Form.Label>
-              <Form.Control type="url" required value={url} isInvalid={!valid}
+              <Form.Control type="url" required value={url} isInvalid={!valid} autoFocus={autoFocus && index === 0}
                 aria-describedby={!valid ? `external-link-error-${index}` : undefined}
                 onChange={(event) => onChange(value.map((item, position) => position === index ? event.target.value : item))} />
               {!valid ? <Form.Control.Feedback type="invalid" id={`external-link-error-${index}`}>Enter an absolute HTTP(S) URL without credentials or whitespace.</Form.Control.Feedback> : null}
             </Form.Group>
             <Button type="button" className="btn-hasm-outline" variant="outline-secondary"
               aria-label={`Remove link ${index + 1}`} onClick={() => onChange(value.filter((_, position) => position !== index))}>Remove</Button>
-            {valid ? (
-              <a className="external-link-preview" href={url} target="_blank" rel="noopener noreferrer"
-                onClick={(event) => open(event, url)}>
-                <SiteIcon site={site} /><span>{site.name}: {url}</span>
-              </a>
-            ) : null}
+            {valid ? <ExternalLinkPreview url={url} /> : null}
           </div>
         );
       })}
-      <Button type="button" className="btn-hasm-outline" variant="outline-secondary"
+      <Button type="button" className="btn-hasm-outline" variant="outline-secondary" autoFocus={autoFocus && value.length === 0}
         onClick={() => onChange([...value, ""])}>Add link</Button>
-      {error ? <p role="alert">Could not open external link: {error}</p> : null}
     </fieldset>
   );
 }
