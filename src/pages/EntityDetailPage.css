@@ -21,6 +21,12 @@
   margin-bottom: 24px;
 }
 
+.ticket-entity-identity {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
 .ticket-header h1 {
   margin-bottom: 0;
   overflow-wrap: anywhere;

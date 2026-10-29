@@ -75,8 +75,9 @@ sequenceDiagram
 
 ### Readable entity references and related LINK information
 
-The ticket header shows entity type and title, not its UUID. Read-only owner,
-parent experience, people, experience, graph-link and LINK-endpoint fields
+The ticket header shows the entity identity as `{TYPE}/{UUID}` above its
+human-readable title for PERSON, EXPERIENCE, FACT and LINK tickets. Read-only
+owner, parent experience, people, experience, graph-link and LINK-endpoint fields
 resolve identifiers to their entity titles using the existing route model.
 Missing references explicitly read `Unavailable PERSON`, `Unavailable
 EXPERIENCE`, `Unavailable LINK`, or `Unavailable entity`; unnamed records use

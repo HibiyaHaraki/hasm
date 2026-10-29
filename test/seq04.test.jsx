@@ -28,6 +28,11 @@ describe("SEQ-04 entity ticket", () => {
       { linkId: "link-unrelated", linkName: "Unrelated relationship", linkType: "references", relatedIds: ["person-ada", "fact-notes"] },
     ],
   };
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-REF-009 displays the %s identity and UUID in the header", async (type) => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket(type);
+    expect(await screen.findByText(`${type}/id-1`)).toBeInTheDocument();
+  });
   it.each([
     ["PERSON", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
     ["EXPERIENCE", { personId: "person-ada" }, "PERSON", "person-ada", "Ada Lovelace"],
@@ -98,7 +103,8 @@ describe("SEQ-04 entity ticket", () => {
     const view = renderTicket(type, { path: "C:/demo", model: referenceModel });
     const values = await screen.findByRole("region", { name: "Details" });
     for (const title of titles) expect(values).toHaveTextContent(title);
-    for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(view.container).not.toHaveTextContent(id);
+    for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(values).not.toHaveTextContent(id);
+    for (const id of ["person-ada", "exp-life", "exp-research"]) expect(view.container).not.toHaveTextContent(id);
     expect(view.container.querySelector("form, input, select, textarea")).toBeNull();
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });

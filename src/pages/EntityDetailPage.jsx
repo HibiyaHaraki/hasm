@@ -252,7 +252,7 @@ function EntityDetailPage() {
         <div className="d-flex flex-wrap gap-2 mb-2">
           <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>Back to Visualizer</Button>
         </div>
-        <p className="mb-0">{entityType}</p>
+        <p className="ticket-entity-identity">{entityType}/{entityId}</p>
         <p className="ticket-reading-hint">Click the summary or external links to edit, or choose Edit details. Save or cancel before editing another field.</p>
         {editing === "summary" ? (
           <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
