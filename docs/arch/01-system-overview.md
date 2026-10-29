@@ -60,7 +60,7 @@ flowchart TB
         DataSelectIF -->|No| SelectPage["Select Model Page (/select)"]:::page
         SelectPage --> SelectMode{"Select Mode"}:::cond
         
-        SelectMode -->|Open Existing| OpenModelAction(["Browse Folder / Native Dialog"]):::action
+        SelectMode -->|Open Existing| OpenModelAction(["Enter path or Browse workspace folder (.hasm included)"]):::action
         SelectMode -->|Create New HASM| CreateModelAction(["Click Create New HASM"]):::action
         
         CreateModelAction --> OSDialog["OS Native Save Directory Dialog"]:::modal
@@ -132,7 +132,9 @@ flowchart TB
         MarkdownCheck -->|OK LINK| LD
 
         %% MetaData Save Action (DB Only)
-        ReadTicket(["Read ticket without editing forms"]):::action --> ClickMeta(["Click summary, details, or link content"]):::action
+        ReadTicket(["Read ticket without editing forms"]):::action --> ClickMeta(["Click summary, Edit details, or external-link content"]):::action
+        ReadTicket --> OpenReference(["Click Details entity link: open typed ticket"]):::action
+        OpenReference --> LoadEntityDetail
         ClickMeta --> InlineEditor["Inline editor for selected section"]:::page
         InlineEditor --> CancelMeta(["Cancel / Escape: discard draft"]):::action
         CancelMeta --> ReadTicket

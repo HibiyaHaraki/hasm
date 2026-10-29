@@ -7,10 +7,12 @@ import VisualizerPage from "../src/pages/VisualizerPage";
 import EntityDetailPage from "../src/pages/EntityDetailPage";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
 import ProtectedRoute from "../src/features/navigation/ProtectedRoute";
+import SelectModelPage from "../src/pages/SelectModelPage";
 
-const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn() }));
+const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), open: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: bridge.listen }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: bridge.open }));
 vi.mock("../src/hasm_visualizer/threeCommitGraph.js", async () => ({
   ...await vi.importActual("../src/hasm_visualizer/threeCommitGraph.js"),
   createCommitGraph: vi.fn(() => () => {}),
@@ -49,6 +51,7 @@ function renderFlow(start = "/visualizer", strict = false, workspaceModel = mode
         <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} />
       </Route>
       <Route path="/loading-model" element={<LoadingModelPage />} />
+      <Route path="/select" element={<SelectModelPage />} />
       <Route path="/error-model" element={<h1>Model loading error</h1>} />
       <Route path="/error-markdown" element={<h1>Markdown error</h1>} />
     </Routes>
@@ -85,6 +88,7 @@ beforeEach(() => {
       case "check_workspace_lock": return { isReadOnly: false, isStaleRecovered: false };
       case "load_hasm_model_db": return model;
       case "verify_hasm_storage": return { missingEntities: [], unreferencedEntities: [] };
+      case "validate_hasm_folder_path": return undefined;
       default: throw new Error(`Unexpected invoke: ${command}`);
     }
   });
@@ -98,6 +102,44 @@ afterEach(() => {
 });
 
 describe("bounded graph-ticket navigation robustness", () => {
+  it.each(["C:\\workspace", path])("TC-NAV-BROWSE-001 browses %s through the native dialog wrapper and real load invokes", async (selectedPath) => {
+    bridge.open.mockResolvedValue(selectedPath);
+    renderFlow("/select");
+    fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+    await flush();
+    expect(bridge.open).toHaveBeenCalledWith({ directory: true, multiple: false, title: "Open a HASM workspace folder (.hasm)" });
+    expect(screen.getByLabelText("Workspace folder")).toHaveValue(selectedPath);
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(bridge.invoke).toHaveBeenCalledWith("validate_hasm_folder_path", { path: selectedPath });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("check_workspace_lock", { path: selectedPath });
+    expect(bridge.invoke).toHaveBeenCalledWith("load_hasm_model_db", { path: selectedPath });
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path: selectedPath, model });
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+  });
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-NAV-REF-002 opens a Details %s reference through the real load invoke", async (target) => {
+    const person = { personId: "person-ada", personName: "Ada Lovelace" };
+    const experience = { experienceId: "exp-life", experienceName: "Life in London" };
+    const otherLink = { linkId: "link-other", linkName: "Further reading", relatedIds: [], linkType: "references" };
+    const relationship = { linkId: "link-source", linkName: "References", relatedIds: [person.personId, experience.experienceId, id, otherLink.linkId], linkType: "references" };
+    const targets = { PERSON: person, EXPERIENCE: experience, FACT: fact, LINK: otherLink };
+    const targetId = targets[target][`${target.toLowerCase()}Id`];
+    const title = targets[target][`${target.toLowerCase()}Name`];
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((command, args) => command === "load_entity_detail"
+      ? Promise.resolve({ ...ticket, name: args.entityId === relationship.linkId ? relationship.linkName : title, detail: args.entityId === relationship.linkId ? relationship : targets[target] })
+      : originalInvoke(command, args));
+    renderFlow(`/entity-detail/LINK/${relationship.linkId}`, false, { ...model, people: [person], experiences: [experience], links: [relationship, otherLink] });
+    await flush();
+    fireEvent.click(screen.getByRole("link", { name: `Open ${target}: ${title}` }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenLastCalledWith("load_entity_detail", { modelRoot: path, entityType: target, entityId: targetId });
+    expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent(title);
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
+  });
   it("TC-NAV-REF-001 opens a related LINK via the real load invoke with reader-friendly endpoint titles", async () => {
     const person = { personId: "11111111-1111-1111-1111-111111111111", personName: "Ada Lovelace" };
     const relationship = { linkId: "44444444-4444-4444-4444-444444444444", linkName: "Ada published notes", linkType: "published", relatedIds: [person.personId, id], link: [] };
@@ -112,7 +154,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     fireEvent.click(open);
     await flush();
     expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: "LINK", entityId: relationship.linkId });
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Ada Lovelace, Publication");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("Ada Lovelace, Publication");
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
   });
@@ -239,7 +281,7 @@ describe("bounded graph-ticket navigation robustness", () => {
       modelRoot: path, detail: { ...fact, occurredAt: "2026-10-29" },
     });
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("2026-10-29");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("2026-10-29");
   });
 
   it("TC-NAV-009 an active stalled layout still fails after progress stops", async () => {

@@ -39,16 +39,26 @@ const REFERENCE_TYPES = {
   linkIds: "LINK",
 };
 
-export function detailDisplayValue(index, field, detail, ticket) {
+export function detailEntityReferences(index, field, detail, ticket) {
   const { key, list } = field;
+  if (!REFERENCE_TYPES[key] && key !== "relatedIds") return null;
   const value = detail[key];
-  if (REFERENCE_TYPES[key] || key === "relatedIds") {
-    const ids = list ? value ?? [] : value ? [value] : [];
-    return ids.length
-      ? ids.map((id) => entityReferenceTitle(index, id, REFERENCE_TYPES[key], ticket)).join(", ")
-      : list ? "None" : "Not set";
-  }
-  return value || "Not set";
+  const ids = list ? value ?? [] : value ? [value] : [];
+  return ids.map((id) => {
+    const type = index.entities.get(id)?.type;
+    return {
+      id,
+      type: !REFERENCE_TYPES[key] || type === REFERENCE_TYPES[key] ? type : undefined,
+      title: entityReferenceTitle(index, id, REFERENCE_TYPES[key], ticket),
+    };
+  });
+}
+
+export function detailDisplayValue(index, field, detail, ticket) {
+  const references = detailEntityReferences(index, field, detail, ticket);
+  return references
+    ? references.length ? references.map(({ title }) => title).join(", ") : field.list ? "None" : "Not set"
+    : detail[field.key] || "Not set";
 }
 
 export function relatedLinkIds(index, entityId, detail) {

@@ -18,6 +18,9 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 | `TC-04-REACT-REF-004` | `REQ-04-RULE-019` | Empty list and unavailable model are distinguished explicitly. |
 | `TC-04-REACT-REF-005` | `REQ-04-RULE-019` | Related LINK opens its detail and resolves endpoint titles with retained workspace/model context. |
 | `TC-04-REACT-REF-006` | `REQ-04-RULE-019` | Saved summary immediately updates endpoint text; unverified workspace shows guidance and disables related navigation without reloading the model. |
+| `TC-04-REACT-REF-007` (11 reference cases) | `REQ-04-RULE-020` | Details links open exact typed tickets for owner, parent, people, experiences, graph links and every LINK endpoint type without starting editing or reloading the workspace. |
+| `TC-04-REACT-REF-008` | `REQ-04-RULE-020` | Drafts disable Details navigation; cancel restores it, while save leaves readable disabled labels and re-verification guidance. |
+| `TC-NAV-REF-002` (all destination types) | `REQ-04-RULE-020` | Details link -> real JS wrapper -> mocked Tauri transport invokes `load_entity_detail` with exact destination type, ID and workspace path, with no whole-model reload. |
 | `TC-NAV-REF-001` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Actual ticket -> real JS wrapper -> mocked Tauri transport invokes `load_entity_detail` with exact LINK identity; destination retains titles with no whole-model reload. |
 
 Run reference component cases with `npm run test:eval-04`, and the
@@ -32,6 +35,7 @@ No native command or serialized schema change is required.
 | `TC-04-REACT-INLINE-002` | `REQ-04-RULE-016` | Summary click focuses its only input; blur does not save, Escape discards, focus returns to content, and explicit Save preserves other fields. |
 | `TC-04-REACT-INLINE-003` (all entity types) | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Detail edits produce exact typed payloads, keep summary/Markdown/URLs unchanged, and restore reading mode. |
 | `TC-04-REACT-INLINE-004` | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Bad UUID input never invokes save; a pending save disables Cancel/Refresh and suppresses duplicate submits; failure retains input and Cancel discards it. |
+| `TC-04-REACT-INLINE-005` (all entity types) | `REQ-04-RULE-016` | Explicit Edit details button reveals the typed form, Save and Cancel; Cancel discards input, removes the form and restores button focus without IPC. |
 | `TC-04-REACT-LINK-001` to `006` | `REQ-04-RULE-012`, `REQ-04-RULE-016` | Explicitly enter the link editor before mutating; successful saves/cancels close it, refresh retains drafts, and separate Open actions surface browser failures. |
 | `TC-04-IPC-INLINE-001` in `src-tauri/tests/entity_editor_commands_ipc.rs` | `REQ-04-RULE-017` | All four native generated save handlers deserialize typed detail updates, persist them to SQLite and reload unchanged summary/Markdown. Included in `entity_editor_commands_external_links_round_trip_through_registered_tauri_invokes`. |
 
@@ -39,7 +43,7 @@ Run the React rows via `npm run test:eval-04`. Run native rows with
 `cargo test --manifest-path src-tauri/Cargo.toml --test entity_editor_commands_ipc`.
 `TC-NAV-002` asserts reading mode during repeated visits; `TC-NAV-008` clicks
 the summary before saving through the actual JS IPC wrapper and route flow.
-`TC-NAV-INLINE-001` clicks Details and verifies the exact `save_fact_detail`
+`TC-NAV-INLINE-001` clicks Edit details and verifies the exact `save_fact_detail`
 invoke through that same real JS wrapper.
 
 ### Rendered Markdown Coverage

@@ -6,6 +6,36 @@ This document details the complete sequence for checking and managing workspace 
 
 ## 1. Data Contracts & Time Constraints
 
+### Workspace selection
+
+The **Open a workspace** page offers manual path entry and a **Browse** button.
+Browse uses `browseWorkspaceDirectory` and the Tauri dialog plugin's native
+`open({ directory: true, multiple: false })` picker, not the Save dialog used
+for creating a workspace. Both ordinary workspace folders and folders ending
+in `.hasm` use the existing directory-based format; no archive import is added.
+Selection fills the path field and disables Open until the existing debounced
+`validate_hasm_folder_path` invoke accepts it. The user then presses **Open**
+to enter the unchanged lock/load/verify flow. Cancellation preserves the current
+path and validation; duplicate picker requests are blocked, and dialog errors
+are logged with `[SEQ-MD-02][SELECT]` and displayed on the page.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Select as SelectModelPage
+    participant Dialog as Native folder picker
+    participant IPC as Tauri commands
+    User->>Select: Browse
+    Select->>Dialog: Open single-folder dialog
+    Dialog-->>Select: Workspace folder (.hasm included) or cancel
+    opt Folder selected
+        Select->>IPC: validate_hasm_folder_path(selected path)
+        IPC-->>Select: Valid or visible error
+        User->>Select: Open (enabled only for valid path)
+        Select->>Select: Navigate to loading-model with selected path
+    end
+```
+
 ### 1.1 IPC Data Definitions (Rust / TypeScript Interface)
 
 ```rust

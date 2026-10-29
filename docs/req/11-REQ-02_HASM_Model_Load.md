@@ -17,6 +17,7 @@ This specification defines the functional, data, time constraint, and error hand
 * **[REQ-02-RULE-009] Idempotent Bootstrap Invariant:** Re-opening an unchanged package MUST NOT write any row to `main.db`. Folder-to-database bootstrap MUST insert only entity folders that have no corresponding row.
 * **[REQ-02-RULE-010] Reentrant Process Ownership:** A lock with the current process's PID MUST remain writable during repeat load/re-verification without rewriting the lock or reporting stale recovery. A different live PID MUST remain read-only.
 * **[REQ-02-RULE-011] Load Attempt Lifetime:** Each load attempt MUST own and release its watchdog and listeners on success, error, timeout, or unmount. Partial/late subscription results MUST be disposed. Abandoned attempts MUST NOT start subsequent IPC or change routes; a completion after timeout MUST NOT override the error page. Already-issued native operations need not be canceled.
+* **[REQ-02-RULE-012] Browse Existing Workspace:** Open a workspace MUST offer a native single-folder Browse action supporting ordinary and `.hasm` workspace folders. Selection MUST fill the path field and pass existing debounced path validation before Open is enabled. Cancellation or re-selecting the same valid folder MUST preserve the current path/validation. Duplicate dialogs MUST be blocked, and native errors MUST be logged and shown. Browse MUST NOT create or modify a workspace or silently treat an archive as a directory; Open MUST use the existing lock/load/verify path.
 
 ---
 

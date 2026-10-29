@@ -17,9 +17,12 @@ textarea, Save, or Cancel controls mounted. The summary is the page heading;
 Markdown is the main reading area and metadata/external links form a quiet
 sidebar on wide screens. Content wraps and stacks on narrow screens.
 
-Clicking the summary, Details values, or an external-link value replaces only
-that section with `TicketForm`. These text-like content triggers are native
-keyboard-accessible buttons with focus/hover affordances. Only one metadata
+Clicking the summary, the explicit **Edit details** button next to the Details
+heading, or an external-link value replaces only that section with `TicketForm`,
+including **Save** and **Cancel**. Details values remain readable, not editing
+triggers, so entity references can be separate navigation links without nested
+interactive controls. All editing triggers are keyboard-accessible buttons
+with focus/hover affordances. Only one metadata
 section is editable at a time; other metadata triggers are disabled until
 Save or Cancel. External references have a separate **Open** action so editing
 and browser navigation are distinct.
@@ -53,7 +56,7 @@ sequenceDiagram
     participant Form as TicketForm
     participant IPC as save_*_detail
     User->>React: Read ticket (no editing form)
-    User->>React: Click summary, details, or link value
+    User->>React: Click summary, Edit details, or external-link value
     React->>Form: Mount only the selected section's draft
     alt Cancel or Escape
         Form->>React: Discard draft; no IPC call
@@ -80,6 +83,14 @@ EXPERIENCE`, `Unavailable LINK`, or `Unavailable entity`; unnamed records use
 `Untitled {TYPE}` (or a LINK's relationship type). Opaque UUIDs remain in
 serialized data and the explicit relationship editor, not in reading-mode
 reference labels. No additional workspace/Markdown load is performed.
+
+Every resolved entity reference in Details is a React Router link to its typed
+ticket route, retaining the workspace/model state. This includes owner, parent,
+people, experiences, graph LINKs, and all LINK endpoint types. Unavailable
+references remain plain readable labels. Draft editing, save/refresh, and an
+unverified workspace disable navigation while preserving reference text;
+unverified tickets display re-verification guidance. Selecting a reference
+never starts an editor.
 
 `EntityReferences.js` builds entity-title and reverse LINK-endpoint indexes,
 memoized per route-model snapshot. Index construction is O(entities + LINK

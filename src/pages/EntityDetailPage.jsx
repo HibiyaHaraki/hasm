@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
 import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
@@ -8,7 +8,7 @@ import "./PanelCard.css";
 import "./EntityDetailPage.css";
 import { ExternalLinksView, isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
-import { createEntityReferenceIndex, detailDisplayValue, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
+import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
 
 const logger = createLogger("entity-detail");
 
@@ -217,6 +217,21 @@ function EntityDetailPage() {
   };
   const currentEntity = { ...ticket, entityType, entityId };
   const relationshipIds = relatedLinkIds(referenceIndex, entityId, ticket.detail);
+  const navigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
+  const renderDetailValue = (field) => {
+    const references = detailEntityReferences(referenceIndex, field, ticket.detail, currentEntity);
+    if (!references) return ticket.detail[field.key] || "Not set";
+    if (!references.length) return field.list ? "None" : "Not set";
+    return references.map(({ id, type, title }, index) => (
+      <span key={`${id}-${index}`}>
+        {index > 0 ? ", " : ""}
+        {type && !navigationDisabled ? (
+          <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+            aria-label={`Open ${type}: ${title}`}>{title}</Link>
+        ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>}
+      </span>
+    ));
+  };
   return (
     <Container as="main" fluid className="ticket-page">
       <header className="ticket-header">
@@ -224,7 +239,7 @@ function EntityDetailPage() {
           <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>Back to Visualizer</Button>
         </div>
         <p className="mb-0">{entityType}</p>
-        <p className="ticket-reading-hint">Click content to edit. Save or cancel before editing another field.</p>
+        <p className="ticket-reading-hint">Click the summary or external links to edit, or choose Edit details. Save or cancel before editing another field.</p>
         {editing === "summary" ? (
           <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
         ) : (
@@ -239,19 +254,27 @@ function EntityDetailPage() {
         </Col>
         <Col lg={4}>
           <section className="ticket-section" aria-labelledby="ticket-details-heading">
-            <h2 id="ticket-details-heading">Details</h2>
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <h2 id="ticket-details-heading" className="mb-0">Details</h2>
+              {editing !== "details" ? (
+                <Button id="ticket-details-read" className="btn-hasm-outline" variant="outline-secondary"
+                  disabled={Boolean(editing) || saving || refreshing} onClick={(event) => beginEdit("details", event)}>
+                  Edit details
+                </Button>
+              ) : null}
+            </div>
+            {workspaceState?.isVerified === false ? <p>Return to Visualizer to re-verify before opening referenced entities.</p> : null}
             {editing === "details" ? (
               <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
             ) : (
-              <Button id="ticket-details-read" className="ticket-content-trigger ticket-details-trigger" aria-label="Edit details"
-                disabled={Boolean(editing) || refreshing} onClick={(event) => beginEdit("details", event)}>
+              <dl className="mb-0">
                 {DETAIL_FIELDS[entityType].map((field) => (
-                  <span className="ticket-detail-row" key={field.key}>
-                    <span className="ticket-detail-label">{field.label}</span>
-                    <span>{detailDisplayValue(referenceIndex, field, ticket.detail, currentEntity)}</span>
-                  </span>
+                  <div className="ticket-detail-row" key={field.key}>
+                    <dt className="ticket-detail-label">{field.label}</dt>
+                    <dd className="mb-0">{renderDetailValue(field)}</dd>
+                  </div>
                 ))}
-              </Button>
+              </dl>
             )}
           </section>
           {entityType !== "LINK" ? (

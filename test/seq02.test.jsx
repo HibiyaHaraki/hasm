@@ -6,6 +6,7 @@ import App from "../src/App";
 import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
+  browseWorkspaceDirectory: vi.fn(),
   checkWorkspaceLock: vi.fn(),
   createHasmWorkspace: vi.fn(),
   createPerson: vi.fn(),

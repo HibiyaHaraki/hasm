@@ -29,13 +29,74 @@ describe("SEQ-04 entity ticket", () => {
     ],
   };
   it.each([
+    ["PERSON", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+    ["EXPERIENCE", { personId: "person-ada" }, "PERSON", "person-ada", "Ada Lovelace"],
+    ["EXPERIENCE", { parentExperienceIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
+    ["EXPERIENCE", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+    ["FACT", { personIds: ["person-ada"] }, "PERSON", "person-ada", "Ada Lovelace"],
+    ["FACT", { experienceIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
+    ["FACT", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+    ["LINK", { relatedIds: ["person-ada"] }, "PERSON", "person-ada", "Ada Lovelace"],
+    ["LINK", { relatedIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
+    ["LINK", { relatedIds: ["fact-notes"] }, "FACT", "fact-notes", "Published notes"],
+    ["LINK", { relatedIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+  ])("TC-04-REACT-REF-007 opens a %s Details reference without editing (case %#)", async (source, fields, target, id, title) => {
+    api.loadEntityDetail.mockImplementation(async (_root, type, requestedId) => requestedId === "id-1"
+      ? { ...detail, detail: fields }
+      : { ...detail, name: title, detail: { [`${type.toLowerCase()}Name`]: title } });
+    renderTicket(source, { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    const reference = region.getByRole("link", { name: `Open ${target}: ${title}` });
+    expect(reference).toHaveAttribute("href", `/entity-detail/${target}/${id}`);
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    fireEvent.click(reference);
+    expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    expect(api.loadEntityDetail).toHaveBeenLastCalledWith("C:/demo", target, id);
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-REF-008 disables Details navigation during drafts and after save", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["person-ada"] } });
+    api.saveEntityDetail.mockResolvedValue({});
+    renderTicket("FACT", { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    expect(region.getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    expect(region.queryByRole("link")).not.toBeInTheDocument();
+    expect(region.getByText("Ada Lovelace")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(region.getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Metadata saved. Workspace requires re-verification.");
+    expect(region.queryByRole("link")).not.toBeInTheDocument();
+    expect(region.getByText("Ada Lovelace")).toHaveAttribute("aria-disabled", "true");
+    expect(region.getByText("Return to Visualizer to re-verify before opening referenced entities.")).toBeInTheDocument();
+  });
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-INLINE-005 explicitly edits and cancels %s Details", async (type) => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket(type);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    expect(screen.getByRole("form", { name: "Edit details" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    const input = screen.getAllByRole("textbox")[0];
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: "Discard this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveFocus();
+    expect(screen.getByRole("region", { name: "Details" })).not.toHaveTextContent("Discard this");
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it.each([
     ["EXPERIENCE", { personId: "person-ada", parentExperienceIds: ["exp-life"] }, ["Ada Lovelace", "Life in London"]],
     ["FACT", { personIds: ["person-ada"], experienceIds: ["exp-life", "exp-research"] }, ["Ada Lovelace", "Life in London", "Analytical Engine research"]],
     ["LINK", { relatedIds: ["person-ada", "exp-research"] }, ["Ada Lovelace", "Analytical Engine research"]],
   ])("TC-04-REACT-REF-001 displays titles instead of IDs in %s reference information", async (type, fields, titles) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: fields });
     const view = renderTicket(type, { path: "C:/demo", model: referenceModel });
-    const values = await screen.findByRole("button", { name: "Edit details" });
+    const values = await screen.findByRole("region", { name: "Details" });
     for (const title of titles) expect(values).toHaveTextContent(title);
     for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(view.container).not.toHaveTextContent(id);
     expect(view.container.querySelector("form, input, select, textarea")).toBeNull();
@@ -58,7 +119,7 @@ describe("SEQ-04 entity ticket", () => {
   it("TC-04-REACT-REF-003 handles unavailable references without displaying opaque IDs", async () => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["missing-person"], experienceIds: ["missing-experience"], linkIds: ["missing-link"] } });
     const view = renderTicket("FACT", { path: "C:/demo", model: referenceModel });
-    const values = await screen.findByRole("button", { name: "Edit details" });
+    const values = await screen.findByRole("region", { name: "Details" });
     expect(values).toHaveTextContent("Unavailable PERSON");
     expect(values).toHaveTextContent("Unavailable EXPERIENCE");
     expect(values).toHaveTextContent("Unavailable LINK");
@@ -66,6 +127,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(view.container).not.toHaveTextContent("missing-person");
     expect(view.container).not.toHaveTextContent("missing-experience");
     expect(view.container).not.toHaveTextContent("missing-link");
+    expect(within(values).queryByRole("link")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-REF-004 shows empty and missing-workspace relationship states explicitly", async () => {
     api.loadEntityDetail.mockResolvedValue(detail);
@@ -83,7 +145,7 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open LINK: Inspired research" }));
     expect(await screen.findByRole("heading", { name: "Inspired research" })).toBeInTheDocument();
     expect(api.loadEntityDetail).toHaveBeenLastCalledWith("C:/demo", "LINK", "link-out");
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Analytical Engine research");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("Analytical Engine research");
     expect(screen.queryByRole("region", { name: "Related LINK entities" })).not.toBeInTheDocument();
   });
   it("TC-04-REACT-REF-006 updates endpoint titles after save and preserves re-verification before related navigation", async () => {
@@ -153,7 +215,7 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Metadata saved. Workspace requires re-verification.");
     expect(api.saveEntityDetail).toHaveBeenCalledWith(type, "C:/demo", { ...stored, ...patch });
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent(type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value);
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-INLINE-004 keeps the editor on validation/save failure and prevents duplicate saves", async () => {
@@ -182,7 +244,8 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("None");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("None");
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveFocus();
   });
   it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-PREVIEW-001 renders formatted Markdown for %s", async (type) => {
     api.loadEntityDetail.mockResolvedValue({

@@ -12,10 +12,16 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | --- | --- | --- |
 | `TC-02-REACT-001` to `TC-02-REACT-005`, `TC-02-REACT-PERF-001`, active-lock and missing-storage route cases | `test/seq02.test.jsx` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
 | SEQ-02 IPC contracts | `test/eval-02-ipc.test.js` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
+| `TC-02-DIALOG-001`: native single-folder options, selection, cancel and errors | `test/eval-02-ipc.test.js` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
+| `TC-02-REACT-BROWSE-001` to `004`: ordinary/.hasm folders, validation, cancel, same selection, duplicate dialogs, errors and stale-path prevention | `test/seq01.test.jsx` via `npm run test:eval-01` | Frontend: EVAL-01 React and IPC tests |
+| `TC-NAV-BROWSE-001`: actual Browse component -> real dialog wrapper -> path-validation invoke -> actual loader lock/load/verify invokes | `test/navigation-robustness.test.jsx` via `npm run test:robustness` | Frontend: navigation robustness tests |
 | `TC-02-RUST-001` to `TC-02-RUST-006` | `src-tauri/src/hasm/model_commands.rs` via `cargo test model_commands` | Rust: EVAL-02 Rust model loading tests |
 | `TC-02-RUST-PERF-001` to `TC-02-RUST-PERF-003` | `src-tauri/src/hasm/model_commands.rs` via `cargo test model_commands` | Rust: EVAL-02 Rust model loading tests |
 
 Desktop rows are acceptance scenarios; they are not yet automated with a packaged Tauri E2E driver.
+Browse coverage traces `REQ-02-RULE-012`. It mocks only native transport in
+`TC-NAV-BROWSE-001`; manually displaying the OS picker still requires desktop
+acceptance testing. `.hasm` means a workspace folder, not an archive file.
 
 ### Return-from-Ticket Robustness
 

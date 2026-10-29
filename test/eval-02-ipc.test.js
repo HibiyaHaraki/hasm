@@ -2,13 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 
 const invoke = vi.fn();
 const listen = vi.fn();
+const dialog = vi.hoisted(() => ({ open: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen }));
+vi.mock("@tauri-apps/plugin-dialog", () => dialog);
 
 const api = await import("../src/features/hasm/api.js");
 
 describe("EVAL-02 Tauri IPC bridge contracts", () => {
+  it("TC-02-DIALOG-001 opens a single-folder picker, including .hasm workspace folders", async () => {
+    dialog.open.mockResolvedValueOnce("C:\\Life.hasm").mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("Native dialog unavailable"));
+    await expect(api.browseWorkspaceDirectory()).resolves.toBe("C:\\Life.hasm");
+    expect(dialog.open).toHaveBeenCalledWith({
+      directory: true, multiple: false, title: "Open a HASM workspace folder (.hasm)",
+    });
+    await expect(api.browseWorkspaceDirectory()).resolves.toBeNull();
+    await expect(api.browseWorkspaceDirectory()).rejects.toThrow("Native dialog unavailable");
+  });
   it("TC-02-IPC-001 invokes documented workspace commands", () => {
     const model = { people: [], experiences: [], facts: [], links: [] };
     api.checkWorkspaceLock("C:/workspace");

@@ -6,6 +6,7 @@ import SelectModelPage from "../src/pages/SelectModelPage";
 import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
+  browseWorkspaceDirectory: vi.fn(),
   createHasmWorkspace: vi.fn(),
   createPerson: vi.fn(),
   createExperience: vi.fn(),
@@ -58,6 +59,57 @@ afterEach(() => {
 });
 
 describe("SEQ-01 app launch validation", () => {
+  it.each(["C:\\workspace", "C:\\Life.hasm"])("TC-02-REACT-BROWSE-001 validates a browsed workspace %s before Open", async (path) => {
+    api.browseWorkspaceDirectory.mockResolvedValue(path);
+    api.validateHasmFolderPath.mockResolvedValue();
+    renderSelect();
+    fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+    await waitFor(() => expect(screen.getByLabelText("Workspace folder")).toHaveValue(path));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open" })).toBeEnabled());
+    expect(api.validateHasmFolderPath).toHaveBeenCalledWith(path);
+    expect(api.createHasmWorkspace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+  });
+  it("TC-02-REACT-BROWSE-002 preserves the current valid path on cancel or same-folder selection", async () => {
+    api.validateHasmFolderPath.mockResolvedValue();
+    api.browseWorkspaceDirectory.mockResolvedValueOnce(null).mockResolvedValueOnce("C:\\Life.hasm");
+    renderSelect();
+    fireEvent.change(screen.getByLabelText("Workspace folder"), { target: { value: "C:\\Life.hasm" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open" })).toBeEnabled());
+    for (let selection = 0; selection < 2; selection += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Browse" })).toBeEnabled());
+      expect(screen.getByLabelText("Workspace folder")).toHaveValue("C:\\Life.hasm");
+      expect(screen.getByRole("button", { name: "Open" })).toBeEnabled();
+    }
+    expect(api.validateHasmFolderPath).toHaveBeenCalledTimes(1);
+  });
+  it("TC-02-REACT-BROWSE-003 prevents duplicate dialogs and displays native errors", async () => {
+    let rejectDialog;
+    api.browseWorkspaceDirectory.mockReturnValue(new Promise((_resolve, reject) => { rejectDialog = reject; }));
+    renderSelect();
+    const browse = screen.getByRole("button", { name: "Browse" });
+    fireEvent.click(browse);
+    fireEvent.click(browse);
+    expect(api.browseWorkspaceDirectory).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Browsing..." })).toBeDisabled();
+    rejectDialog(new Error("Native dialog unavailable"));
+    expect(await screen.findByRole("status")).toHaveTextContent("Native dialog unavailable");
+    expect(screen.getByRole("button", { name: "Browse" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+  });
+  it("TC-02-REACT-BROWSE-004 invalidates an old valid path as soon as a new folder is selected", async () => {
+    api.validateHasmFolderPath.mockResolvedValueOnce().mockRejectedValueOnce(new Error("Missing folder"));
+    api.browseWorkspaceDirectory.mockResolvedValue("C:\\missing");
+    renderSelect();
+    fireEvent.change(screen.getByLabelText("Workspace folder"), { target: { value: "C:\\valid" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+    await waitFor(() => expect(screen.getByLabelText("Workspace folder")).toHaveValue("C:\\missing"));
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    expect(await screen.findByText("Invalid HASM workspace folder.")).toBeInTheDocument();
+  });
   it("TC-01-REACT-001 renders the initial loading state before IPC resolves", () => {
     api.validateHasmMarkdownApp.mockReturnValue(new Promise(() => {}));
     renderBoot();
