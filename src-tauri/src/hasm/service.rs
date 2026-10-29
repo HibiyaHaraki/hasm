@@ -68,6 +68,7 @@ pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
 /// `read_model_database_with_progress` streams rows, so large HASM packages report
 /// continuous progress instead of jumping only at coarse entity-type boundaries.
 pub type ProgressFn<'a> = dyn FnMut(usize, usize, &str) + 'a;
+pub type StageProgressFn<'a> = dyn FnMut(&str, usize, usize, &str) + 'a;
 
 pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
     read_model_database_with_progress(model_root, true, &mut |_, _, _| {})
@@ -81,6 +82,16 @@ pub fn read_model_database_with_progress(
     include_markdown: bool,
     on_progress: &mut ProgressFn,
 ) -> Result<ModelDatabase, String> {
+    read_model_database_with_stage_progress(model_root, include_markdown, &mut |_, current, total, message| {
+        on_progress(current, total, message);
+    })
+}
+
+pub fn read_model_database_with_stage_progress(
+    model_root: &str,
+    include_markdown: bool,
+    on_progress: &mut StageProgressFn,
+) -> Result<ModelDatabase, String> {
     init_logger();
     info!(
         "read_model_database start: model_root={}, include_markdown={}",
@@ -90,17 +101,25 @@ pub fn read_model_database_with_progress(
     let root = validate_model_root(model_root)?;
     let connection = open_connection(&root)?;
 
-    on_progress(0, 1, "Synchronizing workspace folders");
-    sync_directories_to_db_with_progress(&connection, &root, on_progress)?;
-
-    let total = count_all_entities(&connection)?;
-    let mut loaded = 0usize;
+    on_progress("DB_SYNC", 0, 1, "Synchronizing workspace folders");
+    sync_directories_to_db_with_progress(&connection, &root, &mut |current, total, message| {
+        on_progress("DB_SYNC", current, total, message);
+    })?;
+    on_progress("DB_SYNC", 1, 1, "Workspace folders synchronized");
 
     let model = ModelDatabase {
-        people: load_people(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
-        experiences: load_experiences(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
-        facts: load_facts(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
-        links: load_links(&connection, &root, include_markdown, &mut loaded, total, on_progress)?,
+        people: load_metadata_stage(&connection, "PERSON", on_progress, |total, progress| {
+            load_people(&connection, &root, include_markdown, &mut 0, total, progress)
+        })?,
+        experiences: load_metadata_stage(&connection, "EXPERIENCE", on_progress, |total, progress| {
+            load_experiences(&connection, &root, include_markdown, &mut 0, total, progress)
+        })?,
+        facts: load_metadata_stage(&connection, "FACT", on_progress, |total, progress| {
+            load_facts(&connection, &root, include_markdown, &mut 0, total, progress)
+        })?,
+        links: load_metadata_stage(&connection, "LINK", on_progress, |total, progress| {
+            load_links(&connection, &root, include_markdown, &mut 0, total, progress)
+        })?,
     };
 
     info!(
@@ -115,18 +134,22 @@ pub fn read_model_database_with_progress(
     Ok(model)
 }
 
-fn count_all_entities(connection: &Connection) -> Result<usize, String> {
-    let total: i64 = connection
-        .query_row(
-            "SELECT (SELECT COUNT(*) FROM person)
-                  + (SELECT COUNT(*) FROM experience)
-                  + (SELECT COUNT(*) FROM fact)
-                  + (SELECT COUNT(*) FROM link)",
-            [],
-            |row| row.get(0),
-        )
+fn load_metadata_stage<T>(
+    connection: &Connection,
+    entity_type: &str,
+    on_progress: &mut StageProgressFn,
+    load: impl FnOnce(usize, &mut ProgressFn) -> Result<Vec<T>, String>,
+) -> Result<Vec<T>, String> {
+    let total = connection
+        .query_row(&format!("SELECT COUNT(*) FROM {}", entity_type.to_lowercase()), [], |row| row.get::<_, i64>(0))
         .map_err(|error| error.to_string())?;
-    Ok((total.max(0) as usize).max(1))
+    let total = usize::try_from(total).map_err(|error| error.to_string())?;
+    let step = format!("DB_LOAD_{entity_type}");
+    let message = format!("Loading {entity_type} records");
+    on_progress(&step, 0, total, &message);
+    let records = load(total, &mut |current, total, message| on_progress(&step, current, total, message))?;
+    on_progress(&step, total, total, &message);
+    Ok(records)
 }
 
 pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<SaveResult, String> {

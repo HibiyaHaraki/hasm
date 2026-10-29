@@ -18,6 +18,8 @@ This specification defines the functional, data, time constraint, and error hand
 * **[REQ-02-RULE-010] Reentrant Process Ownership:** A lock with the current process's PID MUST remain writable during repeat load/re-verification without rewriting the lock or reporting stale recovery. A different live PID MUST remain read-only.
 * **[REQ-02-RULE-011] Load Attempt Lifetime:** Each load attempt MUST own and release its watchdog and listeners on success, error, timeout, or unmount. Partial/late subscription results MUST be disposed. Abandoned attempts MUST NOT start subsequent IPC or change routes; a completion after timeout MUST NOT override the error page. Already-issued native operations need not be canceled.
 * **[REQ-02-RULE-012] Browse Existing Workspace:** Open a workspace MUST offer a native single-folder Browse action supporting ordinary and `.hasm` workspace folders. Selection MUST fill the path field and pass existing debounced path validation before Open is enabled. Cancellation or re-selecting the same valid folder MUST preserve the current path/validation. Duplicate dialogs MUST be blocked, and native errors MUST be logged and shown. Browse MUST NOT create or modify a workspace or silently treat an archive as a directory; Open MUST use the existing lock/load/verify path.
+* **[REQ-02-RULE-013] Stepper and Optional Loading Detail:** The model loading page MUST default to a four-stage numbered stepper for listener setup, workspace lock check, database metadata load, and storage verification, showing Waiting/In progress/Complete and an accessible current step. Show detail/Hide detail MUST toggle nine accessibly named progress bars: those four stages, folder synchronization, and separate PERSON/EXPERIENCE/FACT/LINK database loads. Toggling MUST preserve work and progress without new IPC. Each entity bar MUST use native per-type current/total counts, including empty types (0/0, finite 100%), with unthrottled stage boundaries and throttled row events. Completed stages MUST remain at 100%; setup/lock percentages MUST be binary. Only the current stage may consume events/reset the watchdog; late prior-stage or invalid percentage events MUST NOT extend it. A later substage or successful command resolution confirms completion, not a 100% event alone. Styling MUST use theme variables and wrap on narrow screens.
+* **[REQ-02-RULE-014] Explicit Visualization Continuation:** After successful load and storage verification of a populated model, React MUST remain on the completion screen and offer Go to visualization rather than navigating automatically. Listeners/timers MUST be released immediately, and the verified model, path, read-only status and warnings MUST be retained until the button passes them to `/visualizer`, without another load/verify. This applies to initial open and return-from-save re-verification. The button MUST NOT be offered before verification succeeds. Empty models MUST retain initialization routing; failures MUST retain error routing.
 
 ---
 
@@ -50,7 +52,7 @@ pub struct ReleaseWorkspaceLockRequest {
 // [REQ-02-DATA-004] Progress Stream Event Payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressPayload {
-    pub step: String, // "DB_LOAD" | "STORAGE_VERIFY"
+    pub step: String, // DB_LOAD, DB_SYNC, DB_LOAD_PERSON/EXPERIENCE/FACT/LINK, STORAGE_VERIFY
     pub current: usize,
     pub total: usize,
     pub percentage: f32,
@@ -89,7 +91,7 @@ pub enum ModelLoadingError {
 * **[REQ-02-FUNC-201] Progress Stream Listener Setup:** React MUST subscribe to `model-load-progress` and `model-verify-progress` events prior to triggering model load commands.
 * **[REQ-02-FUNC-202] Database Connection Verification:** Rust MUST attempt to open `path/hasm.db`. If corrupted or schema validation fails, Rust MUST reject with `DbCorrupted` and React Router MUST navigate to `/error-model`.
 * **[REQ-02-FUNC-203] Load Watchdog Timer Initialization:** React MUST start a 10,000ms Watchdog Timer upon invoking `load_hasm_model_db`.
-* **[REQ-02-FUNC-204] Progress Event Reset:** Receiving a `model-load-progress` event MUST reset the React Watchdog Timer to 0ms and update progress UI state (`current`, `total`, `modelProgress`).
+* **[REQ-02-FUNC-204] Progress Event Reset:** A valid `model-load-progress` event for the current database substage MUST reset the React Watchdog Timer and update its progress UI (`current`, `total`, percentage). Events for completed stages MUST NOT reset timers or regress the UI.
 * **[REQ-02-FUNC-205] Watchdog Timeout Trigger:** If 10,000ms elapses without receiving a progress event, React MUST abort loading, set `modelError = "DB loading stalled"`, and navigate to `/error-model`.
 * **[REQ-02-FUNC-206] Granular Entity Ingestion:** Rust MUST load `PERSON`, `EXPERIENCE`, `FACT`, and `LINK` records sequentially, populating junction relationships and emitting progress events for each step.
 * **[REQ-02-FUNC-207] In-Memory Model Resolution:** Upon successful database load, Rust MUST resolve `Ok(HasmModel)` and store it in Rust backend memory.
@@ -101,13 +103,13 @@ pub enum ModelLoadingError {
 * **[REQ-02-FUNC-303] Chunked Progress Streaming:** Rust MUST emit `model-verify-progress` events during folder scanning.
 * **[REQ-02-FUNC-304] Fatal Missing Directory Handling:** If `VerificationResult.has_fatal_error()` returns `true` (missing required `main.md` directories), Rust MUST reject IPC with `MissingStorageFolder` and React Router MUST navigate to `/error-model`.
 * **[REQ-02-FUNC-305] Verification State Flag Setting:** Upon successful verification completion, Rust MUST set the in-memory `HasmModel` flag `is_verified = true`.
-* **[REQ-02-FUNC-306] Visualizer Navigation:** Upon successful resolution of storage verification, React Router MUST navigate to `/visualizer` passing loaded model context.
+* **[REQ-02-FUNC-306] Visualizer Navigation:** Upon successful storage verification of a populated model, React MUST show Workspace ready and Go to visualization. Only clicking that button may navigate to `/visualizer`, passing the retained verified model context. Empty workspaces continue to initialization.
 
 ### Chapter 4: Large Package Performance (`load_hasm_model_db` / `verify_hasm_storage`)
 
 The reference package for all requirements in this chapter holds **60,000 entities**, approximately 15,000 of each entity type.
 
-* **[REQ-02-FUNC-401] Load Time Budget:** Opening a 60,000-entity package MUST complete lock acquisition, metadata load, and storage verification within **20,000 ms** total on a release build backed by local SSD storage.
+* **[REQ-02-FUNC-401] Load Time Budget:** Opening a 60,000-entity package MUST complete lock acquisition, metadata load, and storage verification within **20,000 ms** total on a release build backed by local SSD storage. Time spent waiting for Go to visualization is excluded.
 * **[REQ-02-FUNC-402] Transactional Folder Bootstrap:** Folder-to-database bootstrap MUST execute inside a single transaction using cached prepared statements. Per-row autocommit MUST NOT be used.
 * **[REQ-02-FUNC-403] Differential Bootstrap:** Before inserting, Rust MUST read the existing entity ID set for each table and MUST issue an `INSERT` only for folders absent from that set (see `[REQ-02-RULE-009]`).
 * **[REQ-02-FUNC-404] Storage Engine Tuning:** Every `main.db` connection MUST apply `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, and a negative `cache_size` before executing any statement.

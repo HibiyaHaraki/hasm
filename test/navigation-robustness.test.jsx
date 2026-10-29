@@ -117,6 +117,9 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(bridge.invoke).toHaveBeenCalledWith("check_workspace_lock", { path: selectedPath });
     expect(bridge.invoke).toHaveBeenCalledWith("load_hasm_model_db", { path: selectedPath });
     expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path: selectedPath, model });
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
     expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
   });
   it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-NAV-REF-002 opens a Details %s reference through the real load invoke", async (target) => {
@@ -264,6 +267,9 @@ describe("bounded graph-ticket navigation robustness", () => {
     await flush();
     fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
     await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
     expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
     expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", { modelRoot: path, detail: { ...fact, factName: "Updated" } });
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(1);
@@ -314,6 +320,8 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
     fireEvent.click(screen.getByRole("button", { name: "ビジュアライザーに戻る" }));
     await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
     expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(1);
   });
@@ -342,6 +350,57 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.getByText("Model loading error")).toBeInTheDocument();
     expect(bridge.invoke.mock.calls.some(([command]) => command === "verify_hasm_storage")).toBe(false);
     expect(listeners.filter((entry) => !entry.disposed)).toEqual([]);
+  });
+
+  it("TC-NAV-PROGRESS-001 real load and verify invokes update separate bars and retain completed steps", async () => {
+    const loading = deferred();
+    const verifying = deferred();
+    const invoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((command, args) => command === "load_hasm_model_db" ? loading.promise
+      : command === "verify_hasm_storage" ? verifying.promise : invoke(command, args));
+    renderFlow("/loading-model");
+    await flush();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getAllByRole("progressbar")).toHaveLength(9);
+    expect(screen.getByRole("progressbar", { name: "Check workspace lock" })).toHaveAttribute("aria-valuenow", "100");
+    await act(async () => {
+      listeners.find((entry) => entry.name === "model-load-progress").handler({
+        payload: { step: "DB_LOAD", current: 1, total: 2, percentage: 50, message: "Loading FACT records" },
+      });
+    });
+    expect(screen.getByRole("progressbar", { name: "Load database metadata" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "0");
+    await act(async () => {
+      const progress = listeners.find((entry) => entry.name === "model-load-progress").handler;
+      progress({ payload: { step: "DB_LOAD_PERSON", current: 0, total: 0, percentage: 100, message: "No PERSON records" } });
+      progress({ payload: { step: "DB_LOAD_EXPERIENCE", current: 0, total: 0, percentage: 100, message: "No EXPERIENCE records" } });
+      progress({ payload: { step: "DB_LOAD_FACT", current: 1, total: 2, percentage: 50, message: "Loading FACT records" } });
+    });
+    expect(screen.getByRole("progressbar", { name: "Load PERSON entities" })).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(screen.getByRole("progressbar", { name: "Load FACT entities" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Load LINK entities" })).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+    await act(async () => loading.resolve(model));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model });
+    await act(async () => {
+      listeners.find((entry) => entry.name === "model-verify-progress").handler({
+        payload: { step: "STORAGE_VERIFY", current: 1, total: 2, percentage: 50, message: "Checking files" },
+      });
+    });
+    expect(screen.getByRole("progressbar", { name: "Load database metadata" })).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "50");
+    await act(async () => verifying.resolve({ missingEntities: [], unreferencedEntities: [] }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    expect(listeners.filter((entry) => !entry.disposed && entry.name.startsWith("model-"))).toEqual([]);
+    await emit("model-load-progress");
+    await act(async () => vi.advanceTimersByTimeAsync(20000));
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+    expect(listeners.filter((entry) => !entry.disposed && entry.name.startsWith("model-"))).toEqual([]);
   });
 
   it("TC-NAV-011 superseded layout failures do not invalidate the newer successful graph", async () => {

@@ -86,7 +86,8 @@ input formats; see [SEQ-05](../arch/14-SEQ-05_Edit_on_HASM_Markdown.md).
 components through the real JS IPC wrappers with only the native transport
 mocked. `TC-NAV-002` covers twelve read-only inspection/return cycles;
 `TC-NAV-003`/`012` cover late load/refresh errors after leaving a ticket;
-`TC-NAV-008` covers save/return/re-verification. These trace
+`TC-NAV-008` covers save/return/re-verification and the explicit Go to
+visualization action on the completion screen. These trace
 `REQ-04-RULE-013`. See [EVAL-03](./12-EVL-03_Visualizer.md) for all race cases,
 three-minute CI limits, and native dispatch coverage (`TC-NAV-IPC-001`).
 

@@ -74,7 +74,8 @@ flowchart TB
         ValidateHASMModel --> ModelCheck{"Model & DB OK?"}:::cond
         
         ModelCheck -->|NG| ErrorHASMModel[/"HASM Model Error Page (/error-model)"/]:::error
-        ModelCheck -->|OK| VisualizePage["3D Visualizer Page (/visualizer)"]:::page
+        ModelCheck -->|OK, populated| ModelReady["Workspace ready: Go to visualization"]:::page
+        ModelReady -->|User clicks Go to visualization| VisualizePage["3D Visualizer Page (/visualizer)"]:::page
     end
 
     %% ----------------------------------------------------

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
@@ -35,7 +35,10 @@ const fixtureModel = {
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return <>
+    <output data-testid="location">{location.pathname}</output>
+    <output data-testid="route-state">{JSON.stringify(location.state)}</output>
+  </>;
 }
 
 function renderLoading(path = "C:/fixture.hasm") {
@@ -59,6 +62,167 @@ afterEach(() => {
 });
 
 describe("SEQ-02 model loading and storage verification", () => {
+  it("TC-02-REACT-PROGRESS-001 defaults to a stepper and expands all loading bars without restarting", async () => {
+    let connect;
+    let unlock;
+    let loaded;
+    let verified;
+    const handlers = {};
+    const subscriptions = new Promise((resolve) => { connect = resolve; });
+    api.subscribeToTauriEvent.mockImplementation((name, handler) => {
+      handlers[name] = handler;
+      return subscriptions;
+    });
+    api.checkWorkspaceLock.mockReturnValue(new Promise((resolve) => { unlock = resolve; }));
+    api.loadHasmModelDb.mockReturnValue(new Promise((resolve) => { loaded = resolve; }));
+    api.verifyHasmStorage.mockReturnValue(new Promise((resolve) => { verified = resolve; }));
+    renderLoading();
+
+    const bar = (name) => screen.getByRole("progressbar", { name });
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Workspace loading steps" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Go to visualization" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getAllByRole("progressbar")).toHaveLength(9);
+    expect(bar("Prepare progress listeners")).toHaveAttribute("aria-valuetext", "In progress, 0%");
+    expect(bar("Check workspace lock")).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+    expect(api.checkWorkspaceLock).not.toHaveBeenCalled();
+
+    await act(async () => connect(() => {}));
+    expect(bar("Prepare progress listeners")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(bar("Check workspace lock")).toHaveAttribute("aria-valuetext", "In progress, 0%");
+    await act(async () => unlock({ isReadOnly: false, isStaleRecovered: false }));
+    expect(bar("Check workspace lock")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(bar("Load database metadata")).toHaveAttribute("aria-valuetext", "In progress, 0%");
+    expect(bar("Verify workspace storage")).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+
+    await act(async () => {
+      for (const percentage of [NaN, -1, 101]) {
+        handlers["model-load-progress"]({ payload: { percentage, message: "Invalid progress" } });
+      }
+      handlers["model-verify-progress"]({ payload: { percentage: 80, message: "Premature verification event" } });
+    });
+    expect(bar("Load database metadata")).toHaveAttribute("aria-valuenow", "0");
+    expect(bar("Verify workspace storage")).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+    expect(screen.queryByText("Invalid progress")).not.toBeInTheDocument();
+    expect(screen.queryByText("Premature verification event")).not.toBeInTheDocument();
+    await act(async () => handlers["model-load-progress"]({
+      payload: { percentage: 50, current: 2, total: 4, message: "Loading FACT records" },
+    }));
+    expect(bar("Load database metadata")).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByText("Loading FACT records (2 / 4)")).toBeInTheDocument();
+    await act(async () => handlers["model-load-progress"]({
+      payload: { percentage: 100, current: 4, total: 4, message: "Metadata ready" },
+    }));
+    expect(bar("Load database metadata")).toHaveAttribute("aria-valuetext", "In progress, 100%");
+    expect(api.verifyHasmStorage).not.toHaveBeenCalled();
+
+    await act(async () => loaded(fixtureModel));
+    expect(bar("Load database metadata")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(bar("Verify workspace storage")).toHaveAttribute("aria-valuetext", "In progress, 0%");
+    await act(async () => {
+      handlers["model-load-progress"]({ payload: { percentage: 10, message: "Late database event" } });
+      handlers["model-verify-progress"]({
+        payload: { percentage: 75, current: 3, total: 4, message: "Verifying workspace storage" },
+      });
+    });
+    expect(screen.queryByText("Late database event")).not.toBeInTheDocument();
+    expect(bar("Load database metadata")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(bar("Verify workspace storage")).toHaveAttribute("aria-valuenow", "75");
+    expect(screen.getAllByRole("progressbar")).toHaveLength(9);
+    await act(async () => verified({ missingEntities: [], unreferencedEntities: [] }));
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Workspace ready" })).toBeInTheDocument();
+    for (const entity of ["PERSON", "EXPERIENCE", "FACT", "LINK"]) {
+      expect(bar(`Load ${entity} entities`)).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(bar("Verify workspace storage")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/visualizer");
+  });
+
+  it("TC-02-REACT-PROGRESS-002 late database events cannot extend the storage watchdog", async () => {
+    vi.useFakeTimers();
+    const handlers = {};
+    api.subscribeToTauriEvent.mockImplementation(async (name, handler) => {
+      handlers[name] = handler;
+      return () => {};
+    });
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockResolvedValue(fixtureModel);
+    api.verifyHasmStorage.mockReturnValue(new Promise(() => {}));
+    renderLoading();
+    await act(async () => { for (let index = 0; index < 15; index += 1) await Promise.resolve(); });
+    expect(api.verifyHasmStorage).toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(9000));
+    await act(async () => handlers["model-load-progress"]({ payload: { percentage: 50, message: "Late progress" } }));
+    await act(async () => vi.advanceTimersByTimeAsync(1001));
+    expect(screen.getByTestId("location")).toHaveTextContent("/error-model");
+  });
+
+  it("TC-02-REACT-PROGRESS-003 tracks each entity type independently while details are collapsed", async () => {
+    const handlers = {};
+    let loaded;
+    api.subscribeToTauriEvent.mockImplementation(async (name, handler) => {
+      handlers[name] = handler;
+      return () => {};
+    });
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockReturnValue(new Promise((resolve) => { loaded = resolve; }));
+    api.verifyHasmStorage.mockReturnValue(new Promise(() => {}));
+    renderLoading();
+    await vi.waitFor(() => expect(api.loadHasmModelDb).toHaveBeenCalled());
+    const emit = async (step, current, total, percentage) => act(async () => handlers["model-load-progress"]({
+      payload: { step, current, total, percentage, message: step },
+    }));
+    await emit("DB_SYNC", 1, 1, 100);
+    await emit("DB_LOAD_PERSON", 1, 2, 50);
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    const bar = (type) => screen.getByRole("progressbar", { name: `Load ${type} entities` });
+    expect(bar("PERSON")).toHaveAttribute("aria-valuenow", "50");
+    expect(bar("EXPERIENCE")).toHaveAttribute("aria-valuenow", "0");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    await emit("DB_LOAD_PERSON", 2, 2, 100);
+    await emit("DB_LOAD_EXPERIENCE", 0, 0, 100);
+    await emit("DB_LOAD_FACT", 1, 4, 25);
+    await emit("DB_LOAD_PERSON", 1, 2, 50);
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(bar("PERSON")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(bar("EXPERIENCE")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(screen.getByText("DB_LOAD_EXPERIENCE (0 / 0)")).toBeInTheDocument();
+    expect(bar("FACT")).toHaveAttribute("aria-valuenow", "25");
+    expect(bar("LINK")).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+    await emit("DB_LOAD_FACT", 4, 4, 100);
+    await emit("DB_LOAD_LINK", 0, 0, 100);
+    await act(async () => loaded(fixtureModel));
+    expect(bar("LINK")).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Go to visualization" })).not.toBeInTheDocument();
+  });
+
+  it("TC-02-REACT-CONTINUE-001 waits for user confirmation and forwards verified read-only and warning context", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: true, isStaleRecovered: false });
+    api.loadHasmModelDb.mockResolvedValue(fixtureModel);
+    api.verifyHasmStorage.mockResolvedValue({ missingEntities: [], unreferencedEntities: ["PERSON/extra/main.md"] });
+    renderLoading();
+    const proceed = await screen.findByRole("button", { name: "Go to visualization" });
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    expect(screen.getByText("Opened in Read-Only Mode")).toBeInTheDocument();
+    fireEvent.click(proceed);
+    expect(screen.getByTestId("location")).toHaveTextContent("/visualizer");
+    expect(JSON.parse(screen.getByTestId("route-state").textContent)).toEqual({
+      path: "C:/fixture.hasm", model: fixtureModel, isVerified: true, isReadOnly: true,
+      warnings: ["PERSON/extra/main.md"],
+    });
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+    expect(api.verifyHasmStorage).toHaveBeenCalledTimes(1);
+  });
+
   it("TC-02-REACT-001 and TC-02-REACT-005 load a populated workspace after subscribing to progress", async () => {
     const progressHandlers = [];
     api.subscribeToTauriEvent.mockImplementation((_name, handler) => {
@@ -71,6 +235,7 @@ describe("SEQ-02 model loading and storage verification", () => {
 
     renderLoading();
 
+    fireEvent.click(await screen.findByRole("button", { name: "Go to visualization" }));
     expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
     expect(api.subscribeToTauriEvent).toHaveBeenCalledWith("model-load-progress", expect.any(Function));
     expect(api.subscribeToTauriEvent).toHaveBeenCalledWith("model-verify-progress", expect.any(Function));
@@ -163,11 +328,12 @@ describe("SEQ-02 model loading and storage verification", () => {
     api.loadHasmModelDb.mockReturnValue(new Promise(() => {}));
 
     renderLoading();
-    await vi.waitFor(() => expect(loadProgressHandler).toBeTypeOf("function"));
-    loadProgressHandler({ payload: { step: "DB_LOAD", current: 2, total: 4, percentage: 50, message: "Loaded fixture metadata" } });
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    await vi.waitFor(() => expect(api.loadHasmModelDb).toHaveBeenCalled());
+    await act(async () => loadProgressHandler({ payload: { step: "DB_LOAD", current: 2, total: 4, percentage: 50, message: "Loaded fixture metadata" } }));
 
-    expect(await screen.findByText("Loaded fixture metadata")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
+    expect(await screen.findByText("Loaded fixture metadata (2 / 4)")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Load database metadata" })).toHaveAttribute("aria-valuenow", "50");
   });
 
   it("TC-02-REACT-PERF-001 loads metadata-only entities exactly once and forwards them to verification", async () => {
@@ -190,6 +356,7 @@ describe("SEQ-02 model loading and storage verification", () => {
 
     renderLoading();
 
+    fireEvent.click(await screen.findByRole("button", { name: "Go to visualization" }));
     expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
     // SEQ-02 must never re-read the package to fill in the Markdown bodies it skipped.
     expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);

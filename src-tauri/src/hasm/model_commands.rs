@@ -78,13 +78,15 @@ pub fn load_hasm_model_db<R: Runtime>(app: AppHandle<R>, path: String) -> Result
     emit_progress(&app, "DB_LOAD", 0, 1, "Opening workspace database")?;
 
     let mut last_emit = Instant::now();
+    let mut last_step = String::new();
     // Metadata-only load: entity Markdown bodies stay on disk until SEQ-04 opens a
     // single ticket, which keeps the SEQ-02 IPC payload proportional to entity count.
-    let model = service::read_model_database_with_progress(&path, false, &mut |current, total, message| {
+    let model = service::read_model_database_with_stage_progress(&path, false, &mut |step, current, total, message| {
         let now = Instant::now();
-        if current >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
+        if step != last_step || current >= total || now.duration_since(last_emit) >= PROGRESS_EMIT_INTERVAL {
             last_emit = now;
-            if let Err(error) = emit_progress(&app, "DB_LOAD", current, total, message) {
+            last_step = step.to_string();
+            if let Err(error) = emit_progress(&app, step, current, total, message) {
                 warn!("[SEQ-MD-02][LOAD] failed to emit progress: {error}");
             }
         }
@@ -169,7 +171,9 @@ fn process_is_active(pid: u32) -> bool {
 fn emit_progress<R: Runtime>(app: &AppHandle<R>, step: &str, current: usize, total: usize, message: &str) -> Result<(), String> {
     let event_name = if step == "STORAGE_VERIFY" { "model-verify-progress" } else { "model-load-progress" };
     app.emit(event_name, ProgressPayload {
-        step: step.to_string(), current, total, percentage: (current as f32 / total as f32) * 100.0, message: message.to_string(),
+        step: step.to_string(), current, total,
+        percentage: if total == 0 { 100.0 } else { (current as f32 / total as f32) * 100.0 },
+        message: message.to_string(),
     }).map_err(|error| error.to_string())
 }
 

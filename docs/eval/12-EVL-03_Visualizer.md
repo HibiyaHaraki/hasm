@@ -37,7 +37,7 @@ mocked. No GPU, browser download, network, or real-time sleeps are required.
 | `TC-NAV-003`, `TC-NAV-004` | `REQ-03-RULE-018`, `REQ-04-RULE-013` | Late ticket/layout errors cannot replace the current route. |
 | `TC-NAV-005` | `REQ-03-RULE-018` | Late graph listener registration is immediately disposed. |
 | `TC-NAV-006`, `TC-NAV-007` | `REQ-02-RULE-011` | Abandoned/partially failed loader subscriptions release resources and never start a lock check. |
-| `TC-NAV-008` | `REQ-04-RULE-013` | Save -> Back -> protected guard -> load -> verify -> graph succeeds without leaking listeners. |
+| `TC-NAV-008` | `REQ-04-RULE-013` | Save -> Back -> protected guard -> load -> verify -> Go to visualization -> graph succeeds without leaking listeners. |
 | `TC-NAV-009`, `TC-NAV-010` | `REQ-02-RULE-011`, `REQ-03-RULE-018` | Genuine stalled requests still fail; progress extends only an active watchdog; a late load completion cannot override its error. |
 | `TC-NAV-011`, `TC-NAV-012` | `REQ-03-RULE-018`, `REQ-04-RULE-013` | Superseded layout failures and late Markdown refresh errors cannot invalidate a returned graph. |
 | `TC-NAV-013` | `REQ-02-RULE-006` | Genuine storage corruption still routes to the error page. |
