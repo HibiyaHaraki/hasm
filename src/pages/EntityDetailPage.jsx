@@ -248,7 +248,7 @@ function EntityDetailPage() {
     const references = detailEntityReferences(referenceIndex, field, ticket.detail, currentEntity);
     if (!references) return ticket.detail[field.key] || "Not set";
     if (!references.length) return field.list ? "None" : "Not set";
-    if (field.key === "linkIds") {
+    if (field.key === "linkIds" || field.key === "relatedIds") {
       return (
         <ul className="ticket-detail-references">
           {references.map(({ id, type, title }) => (

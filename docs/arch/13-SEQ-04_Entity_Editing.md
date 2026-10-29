@@ -100,6 +100,8 @@ never starts an editor.
 
 Graph LINK references are displayed as a bulleted list rather than a
 comma-separated line. Long LINK titles wrap within the Details panel.
+On LINK tickets, each related entity is likewise displayed as its own bullet
+with a readable title and the existing typed navigation behavior.
 
 `EntityReferences.js` builds entity-title and reverse LINK-endpoint indexes,
 memoized per route-model snapshot. Index construction is O(entities + LINK

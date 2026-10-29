@@ -14,7 +14,7 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 | --- | --- | --- |
 | `TC-04-REACT-REF-009` (PERSON, EXPERIENCE, FACT, LINK) | `REQ-04-RULE-018` | Each entity ticket header displays `{TYPE}/{UUID}` above its human-readable title. |
 | `TC-04-REACT-TIME-001` | `REQ-04-RULE-017` | FACT date-only occurrences render as a readable localized date; timestamps render as a readable local date/time with time-zone abbreviation; invalid values remain visible and stored values are unchanged. |
-| `TC-04-REACT-REF-001` | `REQ-04-RULE-018` | EXPERIENCE owner/parents, FACT people/experiences and LINK endpoints display titles without UUIDs or forms; graph LINK references render as wrapping bullets. |
+| `TC-04-REACT-REF-001` | `REQ-04-RULE-018` | EXPERIENCE owner/parents, FACT people/experiences and LINK endpoints display titles without UUIDs or forms; graph LINK references and LINK related entities render as wrapping bullets. |
 | `TC-04-REACT-REF-002` (PERSON, EXPERIENCE, FACT) | `REQ-04-RULE-019` | Incoming/outgoing endpoint references and explicit graph links are deduplicated, unrelated links excluded, and each title has a collapsed accessible disclosure for type and endpoint sub-bullets; long values wrap and editing disables navigation. |
 | `TC-04-REACT-REF-003` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Missing references show unavailable labels without UUID fallbacks or broken navigation. |
 | `TC-04-REACT-REF-004` | `REQ-04-RULE-019` | Empty list and unavailable model are distinguished explicitly. |

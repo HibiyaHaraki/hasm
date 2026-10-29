@@ -137,6 +137,21 @@ describe("SEQ-04 entity ticket", () => {
     expect(view.container).not.toHaveTextContent("link-out");
     expect(view.container).not.toHaveTextContent("link-explicit");
   });
+  it("TC-04-REACT-REF-001 displays LINK related entities as title bullets", async () => {
+    api.loadEntityDetail.mockResolvedValue({
+      ...detail,
+      detail: { relatedIds: ["person-ada", "exp-research"] },
+    });
+    const view = renderTicket("LINK", { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    const bullets = region.getByRole("list");
+    expect(bullets).toHaveClass("ticket-detail-references");
+    expect(within(bullets).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(bullets).getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    expect(within(bullets).getByRole("link", { name: "Open EXPERIENCE: Analytical Engine research" })).toBeInTheDocument();
+    expect(view.container).not.toHaveTextContent("person-ada");
+    expect(view.container).not.toHaveTextContent("exp-research");
+  });
   it.each(["PERSON", "EXPERIENCE", "FACT"])("TC-04-REACT-REF-002 lists incoming, outgoing and explicit LINK entities once for %s", async (type) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { linkIds: ["link-out", "link-out", "link-explicit"], link: ["https://example.org"] } });
     renderTicket(type, { path: "C:/demo", model: referenceModel });
