@@ -5,11 +5,70 @@
   Purpose : Styling for the read-only Markdown preview panel
   ################################################### */
 
-.markdown-panel pre {
+.markdown-panel {
+  min-width: 0;
+  color: var(--theme-text);
+  background-color: var(--theme-soft);
+  border-color: var(--theme-border);
+}
+
+.markdown-panel .card-header {
+  background-color: transparent;
+  border-color: var(--theme-border);
+}
+
+.markdown-preview {
   min-height: 300px;
-  white-space: pre-wrap;
-  font-family: "Yu Mincho", Georgia, serif;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: "Yu Mincho", "游明朝", Georgia, serif;
   line-height: 1.75;
+  letter-spacing: 0.03em;
+}
+
+.markdown-preview a {
+  color: var(--theme-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.markdown-preview pre {
+  padding: 1rem;
+  overflow-x: auto;
+  color: var(--theme-text);
+  background-color: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+}
+
+.markdown-preview code {
+  color: inherit;
+}
+
+.markdown-preview blockquote {
+  padding-left: 1rem;
+  border-left: 2px solid var(--theme-border);
+}
+
+.markdown-preview img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-preview table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  padding: 0.5rem;
+  border: 1px solid var(--theme-border);
+}
+
+.markdown-preview hr {
+  border-color: var(--theme-border);
 }
 
 .refresh-alert {

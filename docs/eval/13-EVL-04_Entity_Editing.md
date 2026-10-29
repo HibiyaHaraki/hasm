@@ -8,6 +8,21 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Rendered Markdown Coverage
+
+`npm run test:eval-04` includes the following component tests:
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-PREVIEW-001` (all four entity types) | `REQ-04-RULE-014` | Semantic headings, strong/emphasis, lists, quotes, fenced code, and tables render; Edit is inside the preview panel. |
+| `TC-04-REACT-PREVIEW-002` | `REQ-04-RULE-014` | Raw script/image HTML stays text and JavaScript destinations never become links. |
+| `TC-04-REACT-PREVIEW-003` | `REQ-04-RULE-014` | HTTP(S) links reach the OS opener; browser failures and relative-link rejection are visible. |
+| `TC-04-REACT-LINK-005` | `REQ-04-RULE-012`, `REQ-04-RULE-014` | Refresh replaces the rendered heading while preserving unsaved URL edits. |
+
+Theme/mobile appearance remains a visual acceptance check. The preview does
+not add native filesystem/asset loading or change the editor's supported
+input formats; see [SEQ-05](../arch/14-SEQ-05_Edit_on_HASM_Markdown.md).
+
 ### Navigation Lifetime Regression
 
 `npm run test:robustness` runs actual graph, ticket, loader, and protected-route

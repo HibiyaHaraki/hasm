@@ -10,6 +10,20 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### Read-only rendered Markdown
+
+`MarkdownPanel` renders `markdownBody` as HTML using `markdown-it` with raw
+HTML disabled and automatic URL linking enabled. Headings, emphasis, lists,
+quotes, tables, and fenced code blocks are displayed as formatted content,
+not source text. The preview uses theme variables, serif reading typography,
+wrapping text, and horizontally scrollable code/tables.
+
+The preview header contains **Edit Markdown in HASM App** (SEQ-05) and
+**Refresh Markdown**. Refresh re-renders the returned body without resetting
+unsaved metadata. HTTP(S) preview links use the OS opener and display failures;
+relative/non-HTTP(S) destinations are rejected with a visible message.
+Editing the document remains delegated to the external application.
+
 ### 1.1 IPC Data Definitions (Rust / TypeScript Interface)
 
 ```rust

@@ -10,6 +10,14 @@ This document provides the detailed architectural specification for invoking the
 
 `npm run build:markdown` builds the corrected `src-tauri/hasm_markdown` submodule and copies its release output `hasm_markdown.exe` to `src-tauri/binaries/hasm_markdown.exe`. Distribution builds package that staged file as a Tauri resource. SEQ-01 validates the packaged resource in distribution builds; SEQ-05 resolves the resource first and uses the same staged file as a development fallback.
 
+The launch button is located beside Refresh in the rendered Markdown preview
+header on every entity ticket. Its IPC identity and native launch contract are
+unchanged. The current editor accepts an entity folder containing `main.md`
+and `assets.json` (or an archive), not a standalone `.md` path. The launcher
+passes the entity folder so the editor opens its `main.md`. Standalone file
+support and folders without the editor's required metadata need a separate
+editor-submodule change; this preview change does not add that support.
+
 ---
 
 ## 1. Data Contracts & Time Constraints

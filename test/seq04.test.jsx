@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import EntityDetailPage from "../src/pages/EntityDetailPage";
@@ -14,6 +14,41 @@ function SavedStateProbe() { const location = useLocation(); return <output data
 function renderTicket(entityType = "PERSON", state = { path: "C:/demo" }) { return render(<MemoryRouter initialEntries={[{ pathname: `/entity-detail/${entityType}/id-1`, state }]}><Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /><Route path="/error-model" element={<LocationProbe />} /><Route path="/error-markdown" element={<LocationProbe />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes></MemoryRouter>); }
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 describe("SEQ-04 entity ticket", () => {
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-PREVIEW-001 renders formatted Markdown for %s", async (type) => {
+    api.loadEntityDetail.mockResolvedValue({
+      ...detail,
+      markdownBody: "# Reading\n\nA **strong** and *quiet* page.\n\n- First item\n- Second item\n\n> Quotation\n\n```js\nconst value = 1;\n```\n\n| Name | Value |\n| --- | --- |\n| Ink | Paper |",
+    });
+    renderTicket(type);
+    const preview = within(await screen.findByRole("article", { name: "Markdown preview" }));
+    expect(preview.getByRole("heading", { name: "Reading", level: 1 })).toBeInTheDocument();
+    expect(preview.getByText("strong").tagName).toBe("STRONG");
+    expect(preview.getByText("quiet").tagName).toBe("EM");
+    expect(preview.getAllByRole("listitem")).toHaveLength(2);
+    expect(preview.getByText("Quotation").closest("blockquote")).toBeInTheDocument();
+    expect(preview.getByText("const value = 1;").closest("pre")).toBeInTheDocument();
+    expect(preview.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Markdown in HASM App" }).closest(".markdown-panel")).toBeInTheDocument();
+  });
+  it("TC-04-REACT-PREVIEW-002 escapes raw HTML and rejects executable Markdown URLs", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, markdownBody: '<script>alert(1)</script>\n\n<img src=x onerror="alert(1)">\n\n[Unsafe](javascript:alert(1))' });
+    renderTicket();
+    const preview = await screen.findByRole("article", { name: "Markdown preview" });
+    expect(preview.querySelector("script, img, [onerror]")).toBeNull();
+    expect(within(preview).queryByRole("link")).not.toBeInTheDocument();
+    expect(preview).toHaveTextContent("<script>alert(1)</script>");
+  });
+  it("TC-04-REACT-PREVIEW-003 opens preview links through the OS and displays failures", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, markdownBody: "[Reference](https://example.org/page)\n\n[Relative](other.md)" });
+    openUrl.mockRejectedValue(new Error("Browser unavailable"));
+    renderTicket();
+    fireEvent.click(await screen.findByRole("link", { name: "Reference" }));
+    expect(openUrl).toHaveBeenCalledWith("https://example.org/page");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Browser unavailable");
+    fireEvent.click(screen.getByRole("link", { name: "Relative" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Only absolute HTTP(S)");
+    expect(openUrl).toHaveBeenCalledTimes(1);
+  });
   it("TC-04-REACT-LINK-001 edits, saves, cancels and clears external links for every entity", async () => {
     for (const type of ["PERSON", "EXPERIENCE", "FACT", "LINK"]) {
       const original = ["https://x.com/ada/status/1", "https://www.google.com/maps/place/Tokyo"];
@@ -87,6 +122,7 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh Markdown" }));
     await screen.findByText("Markdown refreshed.");
     expect(input).toHaveValue("https://example.org/unsaved");
+    expect(within(screen.getByRole("article", { name: "Markdown preview" })).getByRole("heading", { name: "Refreshed" })).toBeInTheDocument();
   });
   it("TC-04-REACT-LINK-006 patches route model URLs and invalidates verification on save", async () => {
     const model = { people: [{ personId: "id-1", personName: "Original", link: [] }], experiences: [], facts: [], links: [] };

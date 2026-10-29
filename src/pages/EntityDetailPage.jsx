@@ -136,6 +136,7 @@ function EntityDetailPage() {
   };
   const editMarkdown = async () => { 
     const lifecycle = lifecycleRef.current;
+    logger.info("[SEQ-MD-05][LAUNCH] opening entity Markdown in HASM App");
     try { 
       await launchExternalMarkdownApp(root, entityType, entityId); 
       if (!lifecycle.active) return;
@@ -143,6 +144,7 @@ function EntityDetailPage() {
     } 
     catch (error) { 
       if (!lifecycle.active) return;
+      logger.error("[SEQ-MD-05][LAUNCH] external editor launch failed", error);
       const text = error?.message || "Failed to launch hasm_markdown.exe process."; 
       setMessage(text.includes("EXECUTABLE_NOT_FOUND") ? "hasm_markdown.exe application binary is missing." : text.includes("DIRECTORY_NOT_FOUND") ? "Entity folder does not exist on disk." : text.includes("LAUNCH_TIMEOUT") ? "Launching HASM Markdown App timed out." : text.includes("PROCESS_SPAWN_FAILED") ? "Failed to launch hasm_markdown.exe process." : text); 
     } 
@@ -152,7 +154,6 @@ function EntityDetailPage() {
       <header className="ticket-header">
         <div className="d-flex flex-wrap gap-2 mb-2">
           <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>Back to Visualizer</Button>
-          <Button className="btn-hasm-primary" onClick={editMarkdown}>Edit Markdown in HASM App</Button>
         </div>
         <p className="mb-0">{entityType} / {entityId}</p>
         <h1>{ticket.name}</h1>
@@ -166,7 +167,7 @@ function EntityDetailPage() {
           </section>
         </Col>
         <Col md={7}>
-          <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} changed={changed} deleted={deleted} loading={saving} />
+          <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} edit={editMarkdown} changed={changed} deleted={deleted} loading={saving} />
         </Col>
       </Row>
     </Container>
