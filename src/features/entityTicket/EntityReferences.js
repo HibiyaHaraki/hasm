@@ -1,3 +1,5 @@
+import { translateTicket } from "./ticketLanguage";
+
 const ENTITY_COLLECTIONS = {
   PERSON: "people",
   EXPERIENCE: "experiences",
@@ -23,12 +25,12 @@ export function createEntityReferenceIndex(model) {
   return { entities, linksByEntity, available: Boolean(model) };
 }
 
-export function entityReferenceTitle(index, id, type, ticket) {
-  if (ticket?.entityId === id && (!type || type === ticket.entityType)) return ticket.name || `Untitled ${ticket.entityType}`;
+export function entityReferenceTitle(index, id, type, ticket, t = translateTicket) {
+  if (ticket?.entityId === id && (!type || type === ticket.entityType)) return ticket.name || t("Untitled {type}", { type: ticket.entityType });
   const match = index.entities.get(id);
-  if (!match || (type && match.type !== type)) return `Unavailable ${type || "entity"}`;
+  if (!match || (type && match.type !== type)) return t("Unavailable {type}", { type: type || t("entity") });
   const name = match.entity[`${match.type.toLowerCase()}Name`]?.trim();
-  return name || (match.type === "LINK" && match.entity.linkType) || `Untitled ${match.type}`;
+  return name || (match.type === "LINK" && match.entity.linkType) || t("Untitled {type}", { type: match.type });
 }
 
 const REFERENCE_TYPES = {
@@ -39,16 +41,26 @@ const REFERENCE_TYPES = {
   linkIds: "LINK",
 };
 
-export function detailDisplayValue(index, field, detail, ticket) {
+export function detailEntityReferences(index, field, detail, ticket, t = translateTicket) {
   const { key, list } = field;
+  if (!REFERENCE_TYPES[key] && key !== "relatedIds") return null;
   const value = detail[key];
-  if (REFERENCE_TYPES[key] || key === "relatedIds") {
-    const ids = list ? value ?? [] : value ? [value] : [];
-    return ids.length
-      ? ids.map((id) => entityReferenceTitle(index, id, REFERENCE_TYPES[key], ticket)).join(", ")
-      : list ? "None" : "Not set";
-  }
-  return value || "Not set";
+  const ids = list ? value ?? [] : value ? [value] : [];
+  return ids.map((id) => {
+    const type = index.entities.get(id)?.type;
+    return {
+      id,
+      type: !REFERENCE_TYPES[key] || type === REFERENCE_TYPES[key] ? type : undefined,
+      title: entityReferenceTitle(index, id, REFERENCE_TYPES[key], ticket, t),
+    };
+  });
+}
+
+export function detailDisplayValue(index, field, detail, ticket) {
+  const references = detailEntityReferences(index, field, detail, ticket);
+  return references
+    ? references.length ? references.map(({ title }) => title).join(", ") : field.list ? "None" : "Not set"
+    : detail[field.key] || "Not set";
 }
 
 export function relatedLinkIds(index, entityId, detail) {

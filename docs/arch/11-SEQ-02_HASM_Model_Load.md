@@ -6,6 +6,36 @@ This document details the complete sequence for checking and managing workspace 
 
 ## 1. Data Contracts & Time Constraints
 
+### Workspace selection
+
+The **Open a workspace** page offers manual path entry and a **Browse** button.
+Browse uses `browseWorkspaceDirectory` and the Tauri dialog plugin's native
+`open({ directory: true, multiple: false })` picker, not the Save dialog used
+for creating a workspace. Both ordinary workspace folders and folders ending
+in `.hasm` use the existing directory-based format; no archive import is added.
+Selection fills the path field and disables Open until the existing debounced
+`validate_hasm_folder_path` invoke accepts it. The user then presses **Open**
+to enter the unchanged lock/load/verify flow. Cancellation preserves the current
+path and validation; duplicate picker requests are blocked, and dialog errors
+are logged with `[SEQ-MD-02][SELECT]` and displayed on the page.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Select as SelectModelPage
+    participant Dialog as Native folder picker
+    participant IPC as Tauri commands
+    User->>Select: Browse
+    Select->>Dialog: Open single-folder dialog
+    Dialog-->>Select: Workspace folder (.hasm included) or cancel
+    opt Folder selected
+        Select->>IPC: validate_hasm_folder_path(selected path)
+        IPC-->>Select: Valid or visible error
+        User->>Select: Open (enabled only for valid path)
+        Select->>Select: Navigate to loading-model with selected path
+    end
+```
+
 ### 1.1 IPC Data Definitions (Rust / TypeScript Interface)
 
 ```rust
@@ -33,7 +63,7 @@ pub struct ReleaseWorkspaceLockRequest {
 // Event payload for progress streaming
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProgressPayload {
-    pub step: String, // "DB_LOAD" | "STORAGE_VERIFY"
+    pub step: String, // DB_LOAD, DB_SYNC, DB_LOAD_PERSON/EXPERIENCE/FACT/LINK, STORAGE_VERIFY
     pub current: usize,
     pub total: usize,
     pub percentage: f32,
@@ -53,7 +83,7 @@ pub struct ProgressPayload {
 
 ### 1.3 Large Package Performance Budget
 
-The reference large package is **60,000 entities** (approximately 15,000 per entity type). All budgets assume a release build on local SSD storage and are measured from `load_hasm_model_db` invocation to `/visualizer` navigation.
+The reference large package is **60,000 entities** (approximately 15,000 per entity type). All budgets assume a release build on local SSD storage and are measured from `load_hasm_model_db` invocation to the verified completion screen. Time spent waiting for the user's Go to visualization action is excluded.
 
 | Phase | Cost Model | Budget (60,000 entities) | Design Constraint |
 | --- | --- | --- | --- |
@@ -80,6 +110,50 @@ The reference large package is **60,000 entities** (approximately 15,000 per ent
 2. **Stale Lock Auto-Recovery:** If the recorded `holder_pid` is no longer active in the OS process table (e.g., prior app crash or SIGKILL), Rust removes the stale lock file, logs the cleanup, and acquires a fresh lock (`is_stale_recovered = true`).
 3. **Graceful Release on Window Close (Top-Right "X"):** Tauri's window `tauri://close-requested` event is intercepted. The app executes `release_workspace_lock` (deleting `.hasm/lock`) before exiting the desktop process.
 
+### Per-stage loading display
+
+`LoadingModelPage` defaults to a compact numbered stepper with **Prepare progress
+listeners**, **Check workspace lock**, **Load database metadata**, and **Verify
+workspace storage**. Each step shows Waiting, In progress, or Complete, and the
+active item has `aria-current="step"`. No progress bars are exposed by default.
+**Show detail** expands nine accessible bars: the four main stages plus folder
+synchronization and separate PERSON, EXPERIENCE, FACT, and LINK database loads.
+**Hide detail** collapses them without restarting work or discarding progress.
+
+The lock check, database load, and storage verification commands are asynchronous
+IPC entry points. Each awaits a `tauri::async_runtime::spawn_blocking` worker for
+its synchronous process-table, SQLite, and filesystem work; none runs that work
+on the Tauri main thread. Worker join failures are logged with SEQ-MD-02 tags and
+returned as IPC errors. Command names, payloads, ordering and progress events are
+unchanged. Scrolling and Show/Hide detail remain available while commands are
+pending; collapsing details only changes visibility, not worker execution.
+
+The existing event payload shape is unchanged. `model-load-progress` now uses
+`DB_SYNC`, `DB_LOAD_PERSON`, `DB_LOAD_EXPERIENCE`, `DB_LOAD_FACT`, and `DB_LOAD_LINK`
+as explicit substage identifiers, alongside initial/final `DB_LOAD` events.
+The staged service reader counts each entity table separately and reports
+current/total relative to that type. Stage boundaries always emit even below
+the 150ms throttle; empty types emit 0/0 with finite 100% completion. The
+database summary percentage weights the five substages equally. Storage still
+uses `model-verify-progress` with `STORAGE_VERIFY`.
+
+Listener setup and lock checking are binary, not estimated. Completed bars remain
+at 100%. A later native substage confirms completion of earlier substages; database
+command resolution confirms all metadata stages, and verification resolution
+confirms storage. A 100% event alone never enables continuation. Late events from
+an earlier stage cannot overwrite completed progress or extend the next watchdog.
+Invalid percentages are logged and ignored without refreshing the watchdog.
+
+After verification succeeds for a populated model, the page releases listeners
+and clears timers, stores the verified model/read-only/warning context in page
+state, and shows **Workspace ready** and **Go to visualization**. It stays at
+`/loading-model` indefinitely without watchdog errors until the user presses that
+button. The click navigates to `/visualizer` with the stored context and performs
+no second load or verification. This also applies to return-from-save
+re-verification. Empty models retain automatic routing to `/initialize-model`.
+Failures retain their existing immediate error routes. All views use wrapping,
+theme-aware styling, with no artificial waits.
+
 ### Navigation-Safe Load Attempts
 
 Each `LoadingModelPage` effect owns its watchdog and progress subscriptions.
@@ -103,7 +177,7 @@ integration test to exercise the real load/verify/layout command chain.
 
 The current implementation owns the SEQ-02 backend IPC in `src-tauri/src/hasm/model_commands.rs` and the frontend lifecycle in `src/pages/LoadingModelPage.jsx`. The Rust loader returns the existing serialized `ModelDatabase` payload, and the frontend transfers that verified payload to `/visualizer`. Tests create a populated temporary `hasm.db` with PERSON, EXPERIENCE, FACT, and LINK rows plus non-empty matching `main.md` and `assets/` folders; no empty workspace fixture is used.
 
-`load_hasm_model_db` streams `model-load-progress` per row via `service::read_model_database_with_progress` (in `src-tauri/src/hasm/service.rs`) instead of only emitting at the four coarse entity-type boundaries. Emits are time-throttled (`PROGRESS_EMIT_INTERVAL`, 150 ms) so large HASM packages still report continuous progress and reset the frontend's 10,000 ms watchdog without flooding the IPC channel. `verify_hasm_storage` applies the same time-based throttle to its per-entity emits, and its `find_unreferenced_entity_folders` folder scan (previously one unthrottled blocking pass with no progress) also streams `model-verify-progress` per scanned folder for the same reason.
+`load_hasm_model_db` streams `model-load-progress` per row via `service::read_model_database_with_stage_progress` (in `src-tauri/src/hasm/service.rs`). Emits are time-throttled (`PROGRESS_EMIT_INTERVAL`, 150 ms), except stage starts/completions, so large HASM packages report continuous progress without flooding IPC and small/empty stages remain observable. The existing `read_model_database_with_progress` callback API delegates to this reader for non-IPC callers. `verify_hasm_storage` applies the same time-based throttle to its per-entity emits, and its `find_unreferenced_entity_folders` folder scan also streams `model-verify-progress` per scanned folder.
 
 #### Large Package Load Path
 
@@ -215,7 +289,7 @@ sequenceDiagram
         Model-->>Rust: Return HasmModel instance with local_path bound
 
         %% Loading PERSON Progress Stream
-        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P1, message: "Loading PERSON..." })
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD_PERSON", current: N, total: PersonTotal, percentage: P1, message: "Loading PERSON..." })
         Bridge-->>React: Listener Callback Fires: ProgressPayload
         React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query PERSON records
@@ -225,7 +299,7 @@ sequenceDiagram
         end
         
         %% Loading EXPERIENCE Progress Stream
-        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P2, message: "Loading EXPERIENCE..." })
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD_EXPERIENCE", current: N, total: ExperienceTotal, percentage: P2, message: "Loading EXPERIENCE..." })
         Bridge-->>React: Listener Callback Fires: ProgressPayload
         React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query EXPERIENCE & EXPERIENCE_TREE records
@@ -235,7 +309,7 @@ sequenceDiagram
         end
         
         %% Loading FACT Progress Stream
-        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P3, message: "Loading FACT..." })
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD_FACT", current: N, total: FactTotal, percentage: P3, message: "Loading FACT..." })
         Bridge-->>React: Listener Callback Fires: ProgressPayload
         React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query FACT & FACT_EXPERIENCE records
@@ -245,7 +319,7 @@ sequenceDiagram
         end
         
         %% Loading LINK Progress Stream
-        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: N, total: Total, percentage: P4, message: "Loading LINK..." })
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD_LINK", current: N, total: LinkTotal, percentage: P4, message: "Loading LINK..." })
         Bridge-->>React: Listener Callback Fires: ProgressPayload
         React->>React: Reset Watchdog Timer to 0ms & Update Smooth UI State:<br/>{ current, total, modelProgress: percentage, loadingMessage }
         Rust->>FS: Query LINK & LINK_RELATION records
@@ -259,7 +333,7 @@ sequenceDiagram
             React->>Router: navigate('/error-model')
         end
 
-        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: Total, total: Total, percentage: 30.0, message: "DB metadata loaded" })
+        Rust-->>Bridge: emit('model-load-progress', { step: "DB_LOAD", current: 1, total: 1, percentage: 100.0, message: "DB metadata loaded" })
         Bridge-->>React: Listener Callback Fires: ProgressPayload
         React->>React: Reset Watchdog Timer to 0ms & Update State: { modelProgress: 30.0, loadingMessage }
 
@@ -310,7 +384,10 @@ sequenceDiagram
     %% ----------------------------------------------------
     %% Final Transition to 3D Visualizer Workspace
     %% ----------------------------------------------------
-    React->>Router: navigate('/visualizer', { state: { modelData: hasmModelInstance, isReadOnly, modelWarnings: result.unreferenced_entities } })
+    React->>React: Dispose listeners, retain verified context, show Workspace ready
+    React-->>User: Go to visualization button (no automatic route change)
+    User->>React: Click Go to visualization
+    React->>Router: navigate('/visualizer', { state: { model: hasmModelInstance, isVerified: true, isReadOnly, warnings: result.unreferenced_entities } })
     Note over React,Router: Transition to 3D Visualizer (`SEQ-03`)
 
 ```

@@ -33,7 +33,28 @@
 }
 
 .markdown-edit-hint {
-  font-size: 0.9rem;
+  font-size: 0.9em;
+}
+
+.markdown-preview h1 {
+  font-size: 2em;
+}
+
+.markdown-panel .markdown-preview h2 {
+  font-size: 1.5em;
+}
+
+.markdown-preview h3 {
+  font-size: 1.25em;
+}
+
+.markdown-preview h4 {
+  font-size: 1.1em;
+}
+
+.markdown-preview h5,
+.markdown-preview h6 {
+  font-size: 1em;
 }
 
 .markdown-preview a {

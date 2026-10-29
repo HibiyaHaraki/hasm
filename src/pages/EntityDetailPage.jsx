@@ -1,22 +1,52 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
 import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
-import { Button, Col, Container, Row } from "react-bootstrap";
+import { Button, Col, Container, Form, Row } from "react-bootstrap";
 import "./PanelCard.css";
 import "./EntityDetailPage.css";
 import { ExternalLinksView, isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
-import { createEntityReferenceIndex, detailDisplayValue, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
+import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
+import { translateTicket } from "../features/entityTicket/ticketLanguage";
 
 const logger = createLogger("entity-detail");
+
+function formatOccurrence(value, language, t) {
+  if (!value) return t("Not set");
+  const locale = language === "ja" ? "ja-JP" : "en-US";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return value;
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(date);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return value;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
 
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
   const [ticket, setTicket] = useState(null); const [form, setForm] = useState(null); const [saving, setSaving] = useState(false); const [changed, setChanged] = useState(false); const [deleted, setDeleted] = useState(false); const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [language, setLanguage] = useState("en");
+  const [textSize, setTextSize] = useState("medium");
+  const t = (text, values) => translateTicket(text, values, language);
   const editTriggerRef = useRef(null);
   const root = state?.path;
   const [workspaceState, setWorkspaceState] = useState(state);
@@ -87,8 +117,8 @@ function EntityDetailPage() {
   }, [ticket, root, entityType, entityId]);
   if (!ticket) {
     return (
-      <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
-        <section className="panel-card">Loading ticket...</section>
+      <Container as="main" fluid lang={language} className={`ticket-page ticket-text-${textSize} panel-layout d-flex align-items-center justify-content-center`}>
+        <section className="panel-card">{t("Loading ticket...")}</section>
       </Container>
     );
   }
@@ -127,11 +157,11 @@ function EntityDetailPage() {
         const raw = form.details[key];
         const values = list && raw.trim() ? raw.split(",").map((value) => value.trim()) : [];
         if ((uuid && !uuidPattern.test(raw.trim())) || (list && values.some((value) => !uuidPattern.test(value)))) {
-          setMessage(`${label} must contain valid entity UUIDs.`);
+          setMessage({ key: "{label} must contain valid entity UUIDs.", label });
           return;
         }
         if (required && !raw.trim()) {
-          setMessage(`${label} must not be empty.`);
+          setMessage({ key: "{label} must not be empty.", label });
           return;
         }
         patch[key] = list ? values : uuid ? raw.trim() : raw;
@@ -217,79 +247,153 @@ function EntityDetailPage() {
   };
   const currentEntity = { ...ticket, entityType, entityId };
   const relationshipIds = relatedLinkIds(referenceIndex, entityId, ticket.detail);
+  const navigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
+  const renderDetailValue = (field) => {
+    if (["occurredAt", "birthday", "die"].includes(field.key)) return formatOccurrence(ticket.detail[field.key], language, t);
+    const references = detailEntityReferences(referenceIndex, field, ticket.detail, currentEntity, t);
+    if (!references) return ticket.detail[field.key] || t("Not set");
+    if (!references.length) return t(field.list ? "None" : "Not set");
+    if (field.key === "linkIds" || field.key === "relatedIds") {
+      return (
+        <ul className="ticket-detail-references">
+          {references.map(({ id, type, title }) => (
+            <li key={id}>
+              {type && !navigationDisabled ? (
+                <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+                  aria-label={t("Open {type}: {title}", { type, title })}>{title}</Link>
+              ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return references.map(({ id, type, title }, index) => (
+      <span key={`${id}-${index}`}>
+        {index > 0 ? ", " : ""}
+        {type && !navigationDisabled ? (
+          <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+            aria-label={t("Open {type}: {title}", { type, title })}>{title}</Link>
+        ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>}
+      </span>
+    ));
+  };
   return (
-    <Container as="main" fluid className="ticket-page">
+    <Container as="main" fluid lang={language} className={`ticket-page ticket-text-${textSize}`}>
       <header className="ticket-header">
-        <div className="d-flex flex-wrap gap-2 mb-2">
-          <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>Back to Visualizer</Button>
+        <div className="ticket-toolbar">
+          <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>{t("Back to Visualizer")}</Button>
+          <Form.Group controlId="ticket-language" className="ticket-preference">
+            <Form.Label>{t("Language")}</Form.Label>
+            <Form.Select value={language} onChange={(event) => {
+              setLanguage(event.target.value);
+              logger.info("[SEQ-MD-04][DISPLAY] ticket language changed");
+            }}>
+              <option value="en" lang="en">English</option>
+              <option value="ja" lang="ja">日本語</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group controlId="ticket-text-size" className="ticket-preference">
+            <Form.Label>{t("Text size")}</Form.Label>
+            <Form.Select value={textSize} onChange={(event) => {
+              setTextSize(event.target.value);
+              logger.info("[SEQ-MD-04][DISPLAY] ticket text size changed");
+            }}>
+              <option value="small">{t("Small")}</option>
+              <option value="medium">{t("Medium")}</option>
+              <option value="large">{t("Large")}</option>
+            </Form.Select>
+          </Form.Group>
         </div>
-        <p className="mb-0">{entityType}</p>
-        <p className="ticket-reading-hint">Click content to edit. Save or cancel before editing another field.</p>
+        <p className="ticket-entity-identity">{entityType}/{entityId}</p>
+        <p className="ticket-reading-hint">{t("Click the summary or external links to edit, or choose Edit details. Save or cancel before editing another field.")}</p>
         {editing === "summary" ? (
-          <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
+          <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
         ) : (
-          <h1 aria-label={ticket.name || "Untitled"}><Button id="ticket-summary-read" className="ticket-content-trigger ticket-summary-trigger" aria-label="Edit summary"
-            disabled={Boolean(editing) || refreshing} onClick={(event) => beginEdit("summary", event)}>{ticket.name || "Untitled"}</Button></h1>
+          <h1 aria-label={ticket.name || t("Untitled")}><Button id="ticket-summary-read" className="ticket-content-trigger ticket-summary-trigger" aria-label={t("Edit summary")}
+            disabled={Boolean(editing) || refreshing} onClick={(event) => beginEdit("summary", event)}>{ticket.name || t("Untitled")}</Button></h1>
         )}
       </header>
-      {message ? <p role="status" className="ticket-status">{message}</p> : null}
+      {message ? <p role="status" className="ticket-status">{typeof message === "string" ? t(message) : t(message.key, { label: t(message.label) })}</p> : null}
       <Row className="g-3 ticket-grid">
         <Col lg={8}>
-          <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} edit={editMarkdown} changed={changed} deleted={deleted} loading={saving || refreshing} />
+          <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} edit={editMarkdown} changed={changed} deleted={deleted} loading={saving || refreshing} t={t} />
         </Col>
         <Col lg={4}>
           <section className="ticket-section" aria-labelledby="ticket-details-heading">
-            <h2 id="ticket-details-heading">Details</h2>
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <h2 id="ticket-details-heading" className="mb-0">{t("Details")}</h2>
+              {editing !== "details" ? (
+                <Button id="ticket-details-read" className="btn-hasm-outline" variant="outline-secondary"
+                  disabled={Boolean(editing) || saving || refreshing} onClick={(event) => beginEdit("details", event)}>
+                  {t("Edit details")}
+                </Button>
+              ) : null}
+            </div>
+            {workspaceState?.isVerified === false ? <p>{t("Return to Visualizer to re-verify before opening referenced entities.")}</p> : null}
             {editing === "details" ? (
-              <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
+              <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
             ) : (
-              <Button id="ticket-details-read" className="ticket-content-trigger ticket-details-trigger" aria-label="Edit details"
-                disabled={Boolean(editing) || refreshing} onClick={(event) => beginEdit("details", event)}>
+              <dl className="mb-0">
                 {DETAIL_FIELDS[entityType].map((field) => (
-                  <span className="ticket-detail-row" key={field.key}>
-                    <span className="ticket-detail-label">{field.label}</span>
-                    <span>{detailDisplayValue(referenceIndex, field, ticket.detail, currentEntity)}</span>
-                  </span>
+                  <div className="ticket-detail-row" key={field.key}>
+                    <dt className="ticket-detail-label">{t(field.label)}</dt>
+                    <dd className="mb-0">{renderDetailValue(field)}</dd>
+                  </div>
                 ))}
-              </Button>
+              </dl>
             )}
           </section>
           {entityType !== "LINK" ? (
             <section className="ticket-section" aria-labelledby="ticket-relationships-heading">
-              <h2 id="ticket-relationships-heading">Related LINK entities</h2>
-              {!referenceIndex.available ? <p>Workspace relationship information is unavailable.</p> : null}
-              {workspaceState?.isVerified === false && relationshipIds.length ? <p>Return to Visualizer to re-verify before opening related entities.</p> : null}
+              <h2 id="ticket-relationships-heading">{t("Related LINK entities")}</h2>
+              {!referenceIndex.available ? <p>{t("Workspace relationship information is unavailable.")}</p> : null}
+              {workspaceState?.isVerified === false && relationshipIds.length ? <p>{t("Return to Visualizer to re-verify before opening related entities.")}</p> : null}
               {relationshipIds.length ? (
                 <ul className="ticket-relationships">
                   {relationshipIds.map((id) => {
                     const match = referenceIndex.entities.get(id);
                     const relationship = match?.type === "LINK" ? match.entity : null;
-                    const title = entityReferenceTitle(referenceIndex, id, "LINK", currentEntity);
+                    const title = entityReferenceTitle(referenceIndex, id, "LINK", currentEntity, t);
                     return (
                       <li key={id}>
                         {relationship ? (
                           <Button className="ticket-content-trigger" disabled={Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false}
-                            aria-label={`Open LINK: ${title}`}
+                            aria-label={t("Open {type}: {title}", { type: "LINK", title })}
                             onClick={() => navigate(`/entity-detail/LINK/${id}`, { state: workspaceState })}>
                             <span className="ticket-relationship-title">{title}</span>
-                            <span className="ticket-detail-label">{relationship.linkType || "Relationship type not set"}</span>
-                            <span>{(relationship.relatedIds ?? []).map((endpoint) =>
-                              entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity)).join(" -> ") || "No related entities"}</span>
                           </Button>
-                        ) : <p>Referenced LINK information is unavailable.</p>}
+                        ) : <p>{t("Referenced LINK information is unavailable.")}</p>}
+                        {relationship ? (
+                          <details className="ticket-relationship-disclosure">
+                            <summary>{t("Relationship details")}</summary>
+                            <ul className="ticket-relationship-details">
+                              <li><strong>{t("Relationship type")}:</strong> {relationship.linkType || t("Not set")}</li>
+                              <li>
+                                <strong>{t("Connected entities:")}</strong>
+                                {(relationship.relatedIds ?? []).length ? (
+                                  <ul className="ticket-relationship-endpoints">
+                                    {relationship.relatedIds.map((endpoint) => (
+                                      <li key={endpoint}>{entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity, t)}</li>
+                                    ))}
+                                  </ul>
+                                ) : <span> {t("No related entities.")}</span>}
+                              </li>
+                            </ul>
+                          </details>
+                        ) : null}
                       </li>
                     );
                   })}
                 </ul>
-              ) : referenceIndex.available ? <p>No related LINK entities.</p> : null}
+              ) : referenceIndex.available ? <p>{t("No related LINK entities.")}</p> : null}
             </section>
           ) : null}
           <section className="ticket-section" aria-labelledby="ticket-links-heading">
-            <h2 id="ticket-links-heading">External links</h2>
+            <h2 id="ticket-links-heading">{t("External links")}</h2>
             {editing === "links" ? (
-              <TicketForm field="links" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
+              <TicketForm field="links" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
             ) : (
-              <ExternalLinksView value={ticket.detail.link ?? []} disabled={Boolean(editing) || refreshing}
+              <ExternalLinksView value={ticket.detail.link ?? []} disabled={Boolean(editing) || refreshing} t={t}
                 onEdit={(event) => beginEdit("links", event)} />
             )}
           </section>

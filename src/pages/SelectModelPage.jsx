@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+  browseWorkspaceDirectory,
   createHasmWorkspace,
   createVisualizerDemoWorkspace,
   pickWorkspaceDirectory,
@@ -29,6 +30,8 @@ function SelectModelPage() {
   const [validation, setValidation] = useState({ status: "idle", message: location.state?.validationError || "" });
   const [workspaceCreateLoading, setWorkspaceCreateLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
+  const browsingRef = useRef(false);
   const submittingRef = useRef(false);
 
   useEffect(() => {
@@ -80,6 +83,27 @@ function SelectModelPage() {
     navigate("/loading-model", { state: { path: normalizeWorkspacePath(inputPath) } });
   }
 
+  async function browseWorkspace() {
+    if (browsingRef.current) return;
+    browsingRef.current = true;
+    setBrowsing(true);
+    try {
+      const selectedPath = await browseWorkspaceDirectory();
+      if (!selectedPath) return;
+      if (selectedPath !== inputPath) {
+        setValidation({ status: "idle", message: "" });
+        setInputPath(selectedPath);
+      }
+      logger.info("[SEQ-MD-02][SELECT] workspace folder selected with native dialog");
+    } catch (error) {
+      logger.error("[SEQ-MD-02][SELECT] workspace browsing failed", error);
+      setValidation({ status: "invalid", message: error?.message || "Could not browse workspace folders." });
+    } finally {
+      browsingRef.current = false;
+      setBrowsing(false);
+    }
+  }
+
   async function openVisualizerDemo() {
     if (demoLoading) return;
     setDemoLoading(true);
@@ -127,17 +151,24 @@ function SelectModelPage() {
       <section className="panel-card">
         <p className="sequence-label">HASM WORKSPACE</p>
         <h1>Open a workspace</h1>
-        <p className="selection-copy">Enter the folder containing the HASM workspace you want to load.</p>
+        <p className="selection-copy">Enter or browse for a HASM workspace folder, including folders ending in .hasm.</p>
         <Form onSubmit={submit} noValidate>
           <Form.Group controlId="workspace-path" className="mb-2">
             <Form.Label>Workspace folder</Form.Label>
             <InputGroup>
               <Form.Control
                 value={inputPath}
-                onChange={(event) => setInputPath(event.target.value)}
+                onChange={(event) => {
+                  setValidation({ status: "idle", message: "" });
+                  setInputPath(event.target.value);
+                }}
                 placeholder="C:\\HASM\\MyLife"
                 autoComplete="off"
               />
+              <Button type="button" className="btn-hasm-outline" variant="outline-secondary"
+                onClick={browseWorkspace} disabled={browsing}>
+                {browsing ? "Browsing..." : "Browse"}
+              </Button>
               <Button type="submit" className="btn-hasm-primary" disabled={validation.status !== "valid" || submittingRef.current}>Open</Button>
             </InputGroup>
           </Form.Group>

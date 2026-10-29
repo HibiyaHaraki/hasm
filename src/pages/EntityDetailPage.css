@@ -6,13 +6,52 @@
   ################################################### */
 
 .ticket-page {
+  --base-font-size: 16px;
   min-height: 100vh;
   max-width: 1440px;
   padding: 32px;
   color: var(--theme-text);
   font-family: "Yu Mincho", "游明朝", Georgia, serif;
+  font-size: var(--base-font-size);
   line-height: 1.75;
   letter-spacing: 0.03em;
+}
+
+.ticket-page.ticket-text-small {
+  --base-font-size: 14px;
+}
+
+.ticket-page.ticket-text-large {
+  --base-font-size: 18px;
+}
+
+.ticket-page .btn,
+.ticket-page .form-control,
+.ticket-page .form-select {
+  font: inherit;
+}
+
+.ticket-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ticket-preference {
+  flex: 0 1 12em;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ticket-preference .form-label {
+  margin-bottom: 4px;
+}
+
+.ticket-preference .form-select {
+  width: 100%;
+  border-radius: 0;
 }
 
 .ticket-header {
@@ -21,14 +60,21 @@
   margin-bottom: 24px;
 }
 
+.ticket-entity-identity {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9em;
+}
+
 .ticket-header h1 {
+  font-size: 2em;
   margin-bottom: 0;
   overflow-wrap: anywhere;
 }
 
 .ticket-reading-hint,
 .ticket-detail-label {
-  font-size: 0.9rem;
+  font-size: 0.9em;
 }
 
 .ticket-reading-hint {
@@ -78,14 +124,43 @@
   border-bottom: 1px solid var(--theme-border);
 }
 
-.ticket-section h2 {
-  font-size: 1.2rem;
+.ticket-page h2 {
+  font-size: 1.2em;
 }
 
 .ticket-detail-row {
   display: grid;
   gap: 4px;
   margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+
+.ticket-entity-reference,
+.ticket-entity-reference:visited,
+.ticket-entity-reference:hover {
+  color: var(--theme-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.ticket-entity-reference:focus-visible {
+  outline: 2px solid var(--theme-text);
+  outline-offset: 2px;
+}
+
+.ticket-detail-references {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.ticket-detail-references li {
+  margin-bottom: 4px;
+}
+
+.ticket-detail-references li:last-child {
+  margin-bottom: 0;
 }
 
 .ticket-detail-row:last-child {
@@ -102,8 +177,8 @@
 }
 
 .ticket-relationships {
-  list-style: none;
-  padding: 0;
+  list-style: disc;
+  padding-left: 1.25rem;
   margin: 0;
 }
 
@@ -111,13 +186,50 @@
   margin-bottom: 12px;
 }
 
-.ticket-relationships .ticket-content-trigger > span {
-  display: block;
-}
-
 .ticket-relationship-title {
+  display: block;
+  overflow-wrap: anywhere;
   text-decoration: underline;
   text-underline-offset: 0.2em;
+}
+
+.ticket-relationship-disclosure {
+  margin-top: 4px;
+}
+
+.ticket-relationship-disclosure > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--theme-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.ticket-relationship-disclosure > summary:focus-visible {
+  outline: 2px solid var(--theme-text);
+  outline-offset: 2px;
+}
+
+.ticket-relationship-details {
+  list-style: disc;
+  margin: 4px 0 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.ticket-relationship-details > li {
+  margin-bottom: 4px;
+}
+
+.ticket-relationship-endpoints {
+  list-style: circle;
+  margin: 2px 0 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.ticket-relationship-endpoints > li {
+  margin-bottom: 0;
 }
 
 @media (max-width: 700px) {

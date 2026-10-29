@@ -13,13 +13,17 @@ This document provides the complete detailed architectural specification for loa
 ### Reader-first ticket and inline metadata editors
 
 Every ticket initially renders readable content, with no form, input, select,
-textarea, Save, or Cancel controls mounted. The summary is the page heading;
+textarea, Save, or Cancel controls mounted for metadata editing. The header's
+language and text-size selects are always available. The summary is the page heading;
 Markdown is the main reading area and metadata/external links form a quiet
 sidebar on wide screens. Content wraps and stacks on narrow screens.
 
-Clicking the summary, Details values, or an external-link value replaces only
-that section with `TicketForm`. These text-like content triggers are native
-keyboard-accessible buttons with focus/hover affordances. Only one metadata
+Clicking the summary, the explicit **Edit details** button next to the Details
+heading, or an external-link value replaces only that section with `TicketForm`,
+including **Save** and **Cancel**. Details values remain readable, not editing
+triggers, so entity references can be separate navigation links without nested
+interactive controls. All editing triggers are keyboard-accessible buttons
+with focus/hover affordances. Only one metadata
 section is editable at a time; other metadata triggers are disabled until
 Save or Cancel. External references have a separate **Open** action so editing
 and browser navigation are distinct.
@@ -32,6 +36,41 @@ and browser navigation are distinct.
 | FACT details | `occurredAt`, `experienceIds`, `personIds`, `linkIds` |
 | LINK details | `linkType`, `relatedIds` |
 | External links | Ordered `link` URL array, independent of graph relationships |
+
+FACT `occurredAt` remains ISO 8601 in storage and when editing. In reading mode,
+date-only values render as a localized long date; timestamps render as a
+localized date and time in the user's local time zone, with the time-zone
+abbreviation shown. Invalid values remain visible as entered.
+
+### Ticket display preferences
+
+The ticket header provides **Language** (English / Japanese) and **Text size**
+(Small / Medium / Large). Defaults are English and Medium. Preferences are
+React state owned by the mounted `EntityDetailPage`, retained when navigating
+directly between tickets using that component, and reset when it unmounts
+(including returning to the graph) or the app restarts. No browser storage,
+native configuration, package metadata, or new IPC is used.
+
+`src/features/entityTicket/ticketLanguage.js` supplies page-scoped translations.
+The selected translator is passed to the metadata form, Markdown panel controls,
+external-link controls, and entity-reference placeholders; these shared
+components retain English defaults outside the ticket page. Labels, accessible
+names, help text, validation, and application-authored statuses change immediately,
+including an open editor and existing validation messages. Raw backend diagnostic
+details remain verbatim. Entity type identifiers, UUIDs, names, relationship
+values, URLs, and Markdown bodies are never translated.
+
+Reading-mode FACT occurrence and PERSON birth/death dates use explicit `en-US`
+or `ja-JP` `Intl.DateTimeFormat` locales. Date-only values use UTC to avoid
+changing the calendar day; timestamps use the user's local time zone. Editing
+and save payloads retain the original date/time representation. Changing a
+display preference neither reloads nor saves a ticket and preserves open drafts.
+
+Page-local `--base-font-size` values are 14px, 16px, and 18px. Relative typography
+scales the summary, metadata, Markdown preview, and controls together without
+changing the global navigation or other pages. Wrapping controls, labels, and
+content keep the sidebar and toolbar usable on narrow windows. Changes log
+`[SEQ-MD-04][DISPLAY]` without document or asset contents.
 
 Relationship UUID arrays are edited as comma-separated UUIDs and converted
 back to arrays only on Save; empty arrays remain `[]`. Invalid UUIDs, empty
@@ -53,7 +92,7 @@ sequenceDiagram
     participant Form as TicketForm
     participant IPC as save_*_detail
     User->>React: Read ticket (no editing form)
-    User->>React: Click summary, details, or link value
+    User->>React: Click summary, Edit details, or external-link value
     React->>Form: Mount only the selected section's draft
     alt Cancel or Escape
         Form->>React: Discard draft; no IPC call
@@ -72,14 +111,28 @@ sequenceDiagram
 
 ### Readable entity references and related LINK information
 
-The ticket header shows entity type and title, not its UUID. Read-only owner,
-parent experience, people, experience, graph-link and LINK-endpoint fields
+The ticket header shows the entity identity as `{TYPE}/{UUID}` above its
+human-readable title for PERSON, EXPERIENCE, FACT and LINK tickets. Read-only
+owner, parent experience, people, experience, graph-link and LINK-endpoint fields
 resolve identifiers to their entity titles using the existing route model.
 Missing references explicitly read `Unavailable PERSON`, `Unavailable
 EXPERIENCE`, `Unavailable LINK`, or `Unavailable entity`; unnamed records use
 `Untitled {TYPE}` (or a LINK's relationship type). Opaque UUIDs remain in
 serialized data and the explicit relationship editor, not in reading-mode
 reference labels. No additional workspace/Markdown load is performed.
+
+Every resolved entity reference in Details is a React Router link to its typed
+ticket route, retaining the workspace/model state. This includes owner, parent,
+people, experiences, graph LINKs, and all LINK endpoint types. Unavailable
+references remain plain readable labels. Draft editing, save/refresh, and an
+unverified workspace disable navigation while preserving reference text;
+unverified tickets display re-verification guidance. Selecting a reference
+never starts an editor.
+
+Graph LINK references are displayed as a bulleted list rather than a
+comma-separated line. Long LINK titles wrap within the Details panel.
+On LINK tickets, each related entity is likewise displayed as its own bullet
+with a readable title and the existing typed navigation behavior.
 
 `EntityReferences.js` builds entity-title and reverse LINK-endpoint indexes,
 memoized per route-model snapshot. Index construction is O(entities + LINK
@@ -91,7 +144,10 @@ from **External links**. The list is the deduplicated union of current
 `detail.linkIds` and every model LINK whose `relatedIds` contains the ticket
 ID, covering both incoming and outgoing endpoints even when `linkIds` is
 empty. Each row shows LINK title, relationship type and endpoint titles in
-stored order. The current ticket title overrides its model snapshot so a
+stored order. The LINK title is a separate navigation control. Each row has an
+accessible disclosure for relationship type and endpoint sub-bullets, collapsed
+initially to keep the list scannable. Long titles and endpoint names wrap within
+the sidebar. The current ticket title overrides its model snapshot so a
 just-saved summary is immediately reflected in endpoint text.
 
 Rows open the corresponding LINK ticket while retaining workspace/model

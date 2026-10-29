@@ -1,16 +1,18 @@
 import { StrictMode } from "react";
 import { Button } from "react-bootstrap";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import VisualizerPage from "../src/pages/VisualizerPage";
 import EntityDetailPage from "../src/pages/EntityDetailPage";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
 import ProtectedRoute from "../src/features/navigation/ProtectedRoute";
+import SelectModelPage from "../src/pages/SelectModelPage";
 
-const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn() }));
+const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn(), open: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: bridge.listen }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: bridge.open }));
 vi.mock("../src/hasm_visualizer/threeCommitGraph.js", async () => ({
   ...await vi.importActual("../src/hasm_visualizer/threeCommitGraph.js"),
   createCommitGraph: vi.fn(() => () => {}),
@@ -49,6 +51,7 @@ function renderFlow(start = "/visualizer", strict = false, workspaceModel = mode
         <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} />
       </Route>
       <Route path="/loading-model" element={<LoadingModelPage />} />
+      <Route path="/select" element={<SelectModelPage />} />
       <Route path="/error-model" element={<h1>Model loading error</h1>} />
       <Route path="/error-markdown" element={<h1>Markdown error</h1>} />
     </Routes>
@@ -85,6 +88,7 @@ beforeEach(() => {
       case "check_workspace_lock": return { isReadOnly: false, isStaleRecovered: false };
       case "load_hasm_model_db": return model;
       case "verify_hasm_storage": return { missingEntities: [], unreferencedEntities: [] };
+      case "validate_hasm_folder_path": return undefined;
       default: throw new Error(`Unexpected invoke: ${command}`);
     }
   });
@@ -98,6 +102,47 @@ afterEach(() => {
 });
 
 describe("bounded graph-ticket navigation robustness", () => {
+  it.each(["C:\\workspace", path])("TC-NAV-BROWSE-001 browses %s through the native dialog wrapper and real load invokes", async (selectedPath) => {
+    bridge.open.mockResolvedValue(selectedPath);
+    renderFlow("/select");
+    fireEvent.click(screen.getByRole("button", { name: "Browse" }));
+    await flush();
+    expect(bridge.open).toHaveBeenCalledWith({ directory: true, multiple: false, title: "Open a HASM workspace folder (.hasm)" });
+    expect(screen.getByLabelText("Workspace folder")).toHaveValue(selectedPath);
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    expect(bridge.invoke).toHaveBeenCalledWith("validate_hasm_folder_path", { path: selectedPath });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("check_workspace_lock", { path: selectedPath });
+    expect(bridge.invoke).toHaveBeenCalledWith("load_hasm_model_db", { path: selectedPath });
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path: selectedPath, model });
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+  });
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-NAV-REF-002 opens a Details %s reference through the real load invoke", async (target) => {
+    const person = { personId: "person-ada", personName: "Ada Lovelace" };
+    const experience = { experienceId: "exp-life", experienceName: "Life in London" };
+    const otherLink = { linkId: "link-other", linkName: "Further reading", relatedIds: [], linkType: "references" };
+    const relationship = { linkId: "link-source", linkName: "References", relatedIds: [person.personId, experience.experienceId, id, otherLink.linkId], linkType: "references" };
+    const targets = { PERSON: person, EXPERIENCE: experience, FACT: fact, LINK: otherLink };
+    const targetId = targets[target][`${target.toLowerCase()}Id`];
+    const title = targets[target][`${target.toLowerCase()}Name`];
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((command, args) => command === "load_entity_detail"
+      ? Promise.resolve({ ...ticket, name: args.entityId === relationship.linkId ? relationship.linkName : title, detail: args.entityId === relationship.linkId ? relationship : targets[target] })
+      : originalInvoke(command, args));
+    renderFlow(`/entity-detail/LINK/${relationship.linkId}`, false, { ...model, people: [person], experiences: [experience], links: [relationship, otherLink] });
+    await flush();
+    fireEvent.click(screen.getByRole("link", { name: `Open ${target}: ${title}` }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenLastCalledWith("load_entity_detail", { modelRoot: path, entityType: target, entityId: targetId });
+    expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent(title);
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
+  });
   it("TC-NAV-REF-001 opens a related LINK via the real load invoke with reader-friendly endpoint titles", async () => {
     const person = { personId: "11111111-1111-1111-1111-111111111111", personName: "Ada Lovelace" };
     const relationship = { linkId: "44444444-4444-4444-4444-444444444444", linkName: "Ada published notes", linkType: "published", relatedIds: [person.personId, id], link: [] };
@@ -108,11 +153,17 @@ describe("bounded graph-ticket navigation robustness", () => {
     renderFlow(`/entity-detail/FACT/${id}`, false, { ...model, people: [person], links: [relationship] });
     await flush();
     const open = screen.getByRole("button", { name: "Open LINK: Ada published notes" });
-    expect(open).toHaveTextContent("Ada Lovelace -> Publication");
+    expect(open).toHaveTextContent(relationship.linkName);
+    const disclosure = screen.getByText("Relationship details").closest("details");
+    fireEvent.click(screen.getByText("Relationship details"));
+    expect(within(disclosure).getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(disclosure).getByText("Publication")).toBeInTheDocument();
     fireEvent.click(open);
     await flush();
     expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: "LINK", entityId: relationship.linkId });
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Ada Lovelace, Publication");
+    const details = within(screen.getByRole("region", { name: "Details" }));
+    expect(details.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(details.getByText("Publication")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
   });
@@ -216,6 +267,9 @@ describe("bounded graph-ticket navigation robustness", () => {
     await flush();
     fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
     await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
     expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
     expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", { modelRoot: path, detail: { ...fact, factName: "Updated" } });
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(1);
@@ -239,7 +293,37 @@ describe("bounded graph-ticket navigation robustness", () => {
       modelRoot: path, detail: { ...fact, occurredAt: "2026-10-29" },
     });
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("2026-10-29");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(
+      new Intl.DateTimeFormat("en-US", {
+        year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+      }).format(new Date("2026-10-29T00:00:00.000Z")),
+    );
+  });
+
+  it("TC-NAV-DISPLAY-001 Japanese controls preserve typed IPC data and Markdown through save-return", async () => {
+    renderFlow(`/entity-detail/FACT/${id}`);
+    await flush();
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.change(screen.getByLabelText("文字サイズ"), { target: { value: "small" } });
+    expect(screen.getByRole("main")).toHaveClass("ticket-text-small");
+    expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("2026年1月15日");
+    expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
+    expect(bridge.invoke).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
+    fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01T10:30:00Z" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", {
+      modelRoot: path, detail: { ...fact, occurredAt: "2026-11-01T10:30:00Z" },
+    });
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent("メタデータを保存しました。");
+    expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
+    fireEvent.click(screen.getByRole("button", { name: "ビジュアライザーに戻る" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(1);
   });
 
   it("TC-NAV-009 an active stalled layout still fails after progress stops", async () => {
@@ -266,6 +350,72 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.getByText("Model loading error")).toBeInTheDocument();
     expect(bridge.invoke.mock.calls.some(([command]) => command === "verify_hasm_storage")).toBe(false);
     expect(listeners.filter((entry) => !entry.disposed)).toEqual([]);
+  });
+
+  it("TC-NAV-PROGRESS-001 real load and verify invokes update separate bars and retain completed steps", async () => {
+    const locking = deferred();
+    const loading = deferred();
+    const verifying = deferred();
+    const invoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((command, args) => command === "check_workspace_lock" ? locking.promise
+      : command === "load_hasm_model_db" ? loading.promise
+      : command === "verify_hasm_storage" ? verifying.promise : invoke(command, args));
+    renderFlow("/loading-model");
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getByRole("progressbar", { name: "Check workspace lock" })).toHaveAttribute("aria-valuenow", "0");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    await act(async () => locking.resolve({ isReadOnly: false, isStaleRecovered: false }));
+    await flush();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getAllByRole("progressbar")).toHaveLength(9);
+    expect(screen.getByRole("progressbar", { name: "Check workspace lock" })).toHaveAttribute("aria-valuenow", "100");
+    await act(async () => {
+      listeners.find((entry) => entry.name === "model-load-progress").handler({
+        payload: { step: "DB_LOAD", current: 1, total: 2, percentage: 50, message: "Loading FACT records" },
+      });
+    });
+    expect(screen.getByRole("progressbar", { name: "Load database metadata" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "0");
+    await act(async () => {
+      const progress = listeners.find((entry) => entry.name === "model-load-progress").handler;
+      progress({ payload: { step: "DB_LOAD_PERSON", current: 0, total: 0, percentage: 100, message: "No PERSON records" } });
+      progress({ payload: { step: "DB_LOAD_EXPERIENCE", current: 0, total: 0, percentage: 100, message: "No EXPERIENCE records" } });
+      progress({ payload: { step: "DB_LOAD_FACT", current: 1, total: 2, percentage: 50, message: "Loading FACT records" } });
+    });
+    expect(screen.getByRole("progressbar", { name: "Load PERSON entities" })).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(screen.getByRole("progressbar", { name: "Load FACT entities" })).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("progressbar", { name: "Load LINK entities" })).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getByRole("progressbar", { name: "Load FACT entities" })).toHaveAttribute("aria-valuenow", "50");
+    await act(async () => loading.resolve(model));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model });
+    await act(async () => {
+      listeners.find((entry) => entry.name === "model-verify-progress").handler({
+        payload: { step: "STORAGE_VERIFY", current: 1, total: 2, percentage: 50, message: "Checking files" },
+      });
+    });
+    expect(screen.getByRole("progressbar", { name: "Load database metadata" })).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "50");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "50");
+    await act(async () => verifying.resolve({ missingEntities: [], unreferencedEntities: [] }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    expect(listeners.filter((entry) => !entry.disposed && entry.name.startsWith("model-"))).toEqual([]);
+    await emit("model-load-progress");
+    await act(async () => vi.advanceTimersByTimeAsync(20000));
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+    expect(listeners.filter((entry) => !entry.disposed && entry.name.startsWith("model-"))).toEqual([]);
   });
 
   it("TC-NAV-011 superseded layout failures do not invalidate the newer successful graph", async () => {

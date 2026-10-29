@@ -307,11 +307,12 @@ hasm-desktop/
   * Displays Toast popup if navigated via `location.state.redirectReason` and clears state ([SEQ-07](./16-SEQ-07_Others.md)).
   * Submits path to navigate to `/loading-model` ([SEQ-01](./10-SEQ-01_AppLaunch_AppValidation.md)).
 * **`LoadingModelPage.jsx` (`/loading-model`)**
+  * Defaults to a four-stage stepper. Show detail expands all bars, including folder synchronization and separate PERSON/EXPERIENCE/FACT/LINK loads. Completed progress is retained; verified populated models wait for Go to visualization.
   * Displays Info Toast popup if navigated via `location.state.redirectReason` and clears state ([SEQ-07](./16-SEQ-07_Others.md)).
   * Executes `checkWorkspaceLock(path)`. Renders toast on stale lock auto-recovery.
   * Executes `loadHasmModelDb(path)` monitored by 10,000ms Watchdog Timer.
   * Executes `verifyHasmStorage(model)` monitored by 10,000ms Watchdog Timer.
-  * Navigates to `/visualizer` on completion, or `/error-model` on failure ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
+  * Offers Go to visualization after successful verification, preserving the model/read-only/warning context; empty models continue to initialization and failures to `/error-model` ([SEQ-02](./11-SEQ-02_HASM_Model_Load.md)).
 * **`VisualizerPage.jsx` (`/visualizer`)**
   * Wrapped in `<ProtectedRoute requireVerified={true}>`.
   * Hosts the reusable `src/hasm_visualizer` package (`HasmVisualizerComponent`) rather than owning a Three.js scene of its own ([REQ-03-RULE-014](../req/12-REQ-03_Visualizer.md)).
@@ -320,6 +321,7 @@ hasm-desktop/
   * Provides filter controls (`Linear`, `Logarithmic`, `SequentialIndex`), PERSON/EXPERIENCE scope selection, and handles node click navigation ([SEQ-03](./12-SEQ-03_Visualizer.md)).
 * **`EntityDetailPage.jsx` (`/entity-detail/:entity_type/:entity_id`)**
   * Wrapped in `<ProtectedRoute requireVerified={true}>`.
+  * Owns in-memory English/Japanese and Small/Medium/Large display preferences; uses `features/entityTicket/ticketLanguage.js` for ticket-local interface translations without changing Markdown, metadata, or IPC.
   * Loads ticket metadata and markdown via `loadEntityDetail`.
   * Handles metadata field changes, "Save" (`saveEntityMetadata`), and "Cancel" modals ([SEQ-04](./13-SEQ-04_Entity_Editing.md)).
   * Invokes `launchExternalMarkdownApp` on "Edit Markdown in HASM App" click ([SEQ-05](./14-SEQ-05_Edit_on_HASM_Markdown.md)).

@@ -1,5 +1,87 @@
 use hasm_lib::hasm::{commands, entity_creation_commands, entity_editor_commands, model_commands, visualizer_commands};
 use serde_json::{json, Value};
+use tauri::Listener;
+
+#[test]
+fn model_commands_entity_stage_progress_through_registered_invoke() {
+    let app = tauri::test::mock_builder()
+        .invoke_handler(tauri::generate_handler![
+            model_commands::load_hasm_model_db,
+            model_commands::verify_hasm_storage,
+        ])
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+    let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+    let progress_threads = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let load_threads = progress_threads.clone();
+    let captured = events.clone();
+    app.listen("model-load-progress", move |event| {
+        load_threads.lock().unwrap().push(std::thread::current().id());
+        captured.lock().unwrap().push(serde_json::from_str(event.payload()).unwrap());
+    });
+    let verify_threads = progress_threads.clone();
+    app.listen("model-verify-progress", move |_| {
+        verify_threads.lock().unwrap().push(std::thread::current().id());
+    });
+    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    let empty = std::env::temp_dir().join(format!("hasm-empty-progress-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir(&empty).unwrap();
+    for entity_type in ["PERSON", "EXPERIENCE", "FACT", "LINK"] {
+        std::fs::create_dir(empty.join(entity_type)).unwrap();
+    }
+    for path in [demo.path, empty.to_string_lossy().to_string()] {
+        events.lock().unwrap().clear();
+        let response = tauri::test::get_ipc_response(&window, tauri::webview::InvokeRequest {
+            cmd: "load_hasm_model_db".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "http://tauri.localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(json!({ "path": path })),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.into(),
+        }).unwrap().deserialize::<Value>().unwrap();
+        let events = events.lock().unwrap();
+        let mut previous_end = 0;
+        for (stage, collection) in [
+            ("DB_LOAD_PERSON", "people"), ("DB_LOAD_EXPERIENCE", "experiences"),
+            ("DB_LOAD_FACT", "facts"), ("DB_LOAD_LINK", "links"),
+        ] {
+            let first = events.iter().position(|event| event["step"] == stage).unwrap();
+            let last = events.iter().rposition(|event| event["step"] == stage).unwrap();
+            assert!(first >= previous_end);
+            let total = response[collection].as_array().unwrap().len();
+            assert_eq!(events[first]["current"], 0);
+            assert_eq!(events[last]["current"], total);
+            assert_eq!(events[last]["total"], total);
+            assert_eq!(events[last]["percentage"], 100.0);
+            assert!(events[first..=last].iter().all(|event| {
+                event["step"] == stage && event["percentage"].as_f64().unwrap().is_finite()
+            }));
+            previous_end = last;
+        }
+        assert!(events.iter().any(|event| event["step"] == "DB_SYNC"));
+        drop(events);
+        let before_verify = progress_threads.lock().unwrap().len();
+        tauri::test::get_ipc_response(&window, tauri::webview::InvokeRequest {
+            cmd: "verify_hasm_storage".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "http://tauri.localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(json!({ "path": path, "model": response })),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.into(),
+        }).unwrap();
+        let threads = progress_threads.lock().unwrap();
+        if response["facts"].as_array().unwrap().len() > 0 {
+            assert!(threads.len() > before_verify);
+        }
+        // TC-02-IPC-RESPONSIVE-001: actual generated handlers must leave the invoking thread.
+        assert!(threads.iter().all(|id| *id != std::thread::current().id()));
+        drop(threads);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+}
 
 // TC-04-IPC-LINK-001: exercise generated command dispatch, serde, and SQLite together.
 #[test]
@@ -194,7 +276,9 @@ fn entity_editor_commands_navigation_robustness() {
         .join("33333333-3333-3333-3333-333333333331").join("main.md");
     std::fs::remove_file(fact_path).unwrap();
     let model = hasm_lib::hasm::service::read_model_database(&demo.path).unwrap();
-    let error = model_commands::verify_hasm_storage(app.handle().clone(), demo.path.clone(), model).unwrap_err();
+    let error = tauri::async_runtime::block_on(
+        model_commands::verify_hasm_storage(app.handle().clone(), demo.path.clone(), model),
+    ).unwrap_err();
     assert!(error.contains("ERR_MISSING_STORAGE_FOLDER"));
     std::fs::remove_dir_all(demo.path).unwrap();
     assert!(started.elapsed() < std::time::Duration::from_secs(120));

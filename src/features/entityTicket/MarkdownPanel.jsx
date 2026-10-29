@@ -5,11 +5,12 @@ import { Button, Card } from "react-bootstrap";
 import { isExternalUrl } from "./ExternalLinksEditor";
 import { createLogger } from "../../hasm_logger/src/react/logger.js";
 import "./MarkdownPanel.css";
+import { translateTicket } from "./ticketLanguage";
 
 const renderer = new MarkdownIt({ html: false, linkify: true });
 const logger = createLogger("markdown-preview");
 
-export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loading }) {
+export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loading, t = translateTicket }) {
   const html = useMemo(() => renderer.render(markdown), [markdown]);
   const [linkError, setLinkError] = useState("");
 
@@ -38,10 +39,10 @@ export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loadi
   return (
     <Card className="markdown-panel">
       <Card.Header className="d-flex flex-wrap gap-2 justify-content-between align-items-center">
-        <h2 className="mb-0">Markdown</h2>
+        <h2 className="mb-0">{t("Markdown")}</h2>
         <div className="d-flex flex-wrap gap-2">
           <Button size="sm" className="btn-hasm-primary" onClick={edit} disabled={loading}>
-            Edit Markdown in HASM App
+            {t("Edit Markdown in HASM App")}
           </Button>
           <Button
             size="sm"
@@ -49,13 +50,13 @@ export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loadi
             onClick={refresh}
             disabled={loading}
           >
-            Refresh Markdown
+            {t("Refresh Markdown")}
           </Button>
         </div>
       </Card.Header>
       <Card.Body>
-        <p id="markdown-edit-hint" className="markdown-edit-hint">Click the document to edit in HASM Markdown.</p>
-        <article className="markdown-preview" aria-label="Markdown preview"
+        <p id="markdown-edit-hint" className="markdown-edit-hint">{t("Click the document to edit in HASM Markdown.")}</p>
+        <article className="markdown-preview" aria-label={t("Markdown preview")}
           tabIndex={loading ? -1 : 0} aria-describedby="markdown-edit-hint" aria-disabled={loading}
           onKeyDown={(event) => {
             if (event.target === event.currentTarget && !loading && (event.key === "Enter" || event.key === " ")) {
@@ -64,7 +65,7 @@ export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loadi
             }
           }}
           onClick={openLink} dangerouslySetInnerHTML={{ __html: html }} />
-        {linkError ? <p role="alert">Could not open Markdown link: {linkError}</p> : null}
+        {linkError ? <p role="alert">{t("Could not open Markdown link:")} {t(linkError)}</p> : null}
       </Card.Body>
     </Card>
   );

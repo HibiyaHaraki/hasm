@@ -27,6 +27,11 @@ export async function pickWorkspaceDirectory(defaultPath = "NewLife.hasm") {
   return save({ defaultPath });
 }
 
+export async function browseWorkspaceDirectory() {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  return open({ directory: true, multiple: false, title: "Open a HASM workspace folder (.hasm)" });
+}
+
 export function createHasmWorkspace(targetDirectoryPath) {
   return invoke("create_hasm_workspace", { targetDirectoryPath });
 }

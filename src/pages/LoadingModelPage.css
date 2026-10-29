@@ -10,3 +10,119 @@
   border-left: 3px solid var(--theme-secondary);
   color: var(--theme-muted);
 }
+
+.model-loading-card {
+  margin-block: 24px;
+}
+
+.model-loading-stepper {
+  display: grid;
+  gap: 16px;
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+}
+
+.model-loading-stepper li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.model-loading-step-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2em;
+  height: 2em;
+  border: 1px solid var(--theme-border);
+  border-radius: 50%;
+}
+
+.model-loading-stepper [data-status="Complete"] .model-loading-step-number {
+  color: var(--theme-surface);
+  background: var(--theme-text);
+}
+
+.model-loading-stepper [aria-current="step"] .model-loading-step-number {
+  outline: 2px solid var(--theme-text);
+  outline-offset: 3px;
+}
+
+.model-loading-step-status {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.model-loading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 20px;
+}
+
+.model-loading-actions .btn {
+  white-space: normal;
+}
+
+.model-loading-substep {
+  margin-left: 16px;
+  padding-left: 12px;
+  border-left: 1px solid var(--theme-border);
+}
+
+.model-loading-steps {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-loading-step {
+  min-width: 0;
+}
+
+.model-loading-step-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.model-loading-step-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.model-loading-step-heading span,
+.model-loading-step-message {
+  color: var(--theme-text);
+  font-size: 0.85rem;
+}
+
+.model-loading-step-message {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.model-loading-step .progress {
+  height: 20px;
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  background: var(--theme-surface);
+}
+
+.model-loading-step .progress-bar {
+  color: var(--theme-surface);
+  background: var(--theme-text);
+  transition: none;
+}
+
+.model-loading-step[data-status="In progress"] h2 {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}

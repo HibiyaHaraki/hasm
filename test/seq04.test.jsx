@@ -28,6 +28,168 @@ describe("SEQ-04 entity ticket", () => {
       { linkId: "link-unrelated", linkName: "Unrelated relationship", linkType: "references", relatedIds: ["person-ada", "fact-notes"] },
     ],
   };
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-REF-009 displays the %s identity and UUID in the header", async (type) => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket(type);
+    expect(await screen.findByText(`${type}/id-1`)).toBeInTheDocument();
+  });
+  it.each([
+    ["2026-10-29", new Intl.DateTimeFormat("en-US", {
+      year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+    }).format(new Date("2026-10-29T00:00:00.000Z"))],
+    ["2026-10-29T13:45:00Z", new Intl.DateTimeFormat("en-US", {
+      year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    }).format(new Date("2026-10-29T13:45:00Z"))],
+    ["not-a-date", "not-a-date"],
+  ])("TC-04-REACT-TIME-001 shows FACT occurrence %s in readable date/time format", async (occurredAt, expected) => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { occurredAt } });
+    renderTicket("FACT");
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    expect(region.getByText(expected, { exact: true })).toBeInTheDocument();
+  });
+  it.each([
+    ["PERSON", { birthday: "1815-12-10", die: "1852-11-27" }, "生年月日"],
+    ["EXPERIENCE", { personId: "person-ada" }, "所有者"],
+    ["FACT", { occurredAt: "2026-10-29" }, "発生日時"],
+    ["LINK", { linkType: "references", relatedIds: ["person-ada"] }, "関係の種類"],
+  ])("TC-04-REACT-DISPLAY-001 translates %s chrome without changing content or loading again", async (type, fields, label) => {
+    api.loadEntityDetail.mockResolvedValue({
+      ...detail, markdownBody: "# Details\n\nOriginal English document.", detail: { ...fields, link: ["https://example.org"] },
+    });
+    renderTicket(type, { path: "C:/demo", model: referenceModel, isVerified: true });
+    const preview = await screen.findByRole("article", { name: "Markdown preview" });
+    const originalHtml = preview.innerHTML;
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    expect(screen.getByRole("main")).toHaveAttribute("lang", "ja");
+    expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent(label);
+    expect(screen.getByRole("button", { name: "概要を編集" })).toHaveTextContent("Original");
+    expect(screen.getByRole("button", { name: "HASM AppでMarkdownを編集" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "外部リンク1を編集" })).toHaveTextContent("https://example.org");
+    expect(preview.innerHTML).toBe(originalHtml);
+    if (type === "PERSON") expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("1815年12月10日");
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    expect(screen.getByRole("region", { name: "Details" })).toBeInTheDocument();
+    expect(api.loadEntityDetail).toHaveBeenCalledTimes(1);
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["2026-10-29", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }],
+    ["2026-10-29T13:45:00Z", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }],
+    ["not-a-date", null],
+    ["2026-02-30", null],
+  ])("TC-04-REACT-DISPLAY-002 localizes occurrence %s and keeps the raw editor value", async (occurredAt, options) => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { occurredAt } });
+    renderTicket("FACT");
+    fireEvent.change(await screen.findByLabelText("Language"), { target: { value: "ja" } });
+    const expected = options ? new Intl.DateTimeFormat("ja-JP", options).format(new Date(occurredAt)) : occurredAt;
+    expect(within(screen.getByRole("region", { name: "詳細" })).getByText(expected)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
+    expect(screen.getByLabelText("発生日時")).toHaveValue(occurredAt);
+    fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    expect(screen.getByLabelText("Occurred at")).toHaveValue("2026-11-01");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-DISPLAY-003 applies all text sizes without discarding a draft and resets on remount", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    const view = renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Unsaved title" } });
+    for (const size of ["small", "large", "medium"]) {
+      fireEvent.change(screen.getByLabelText("Text size"), { target: { value: size } });
+      expect(screen.getByRole("main")).toHaveClass(`ticket-text-${size}`);
+      expect(screen.getByLabelText("Summary")).toHaveValue("Unsaved title");
+    }
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.change(screen.getByLabelText("文字サイズ"), { target: { value: "small" } });
+    expect(screen.getByLabelText("概要")).toHaveValue("Unsaved title");
+    view.unmount();
+    renderTicket();
+    expect(await screen.findByLabelText("Language")).toHaveValue("en");
+    expect(screen.getByLabelText("Text size")).toHaveValue("medium");
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-DISPLAY-004 translates validation, relationship fallbacks and external-link editors", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["missing"], link: [] } });
+    renderTicket("FACT", { path: "C:/demo", model: referenceModel, isVerified: true });
+    fireEvent.change(await screen.findByLabelText("Language"), { target: { value: "ja" } });
+    expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("PERSONは利用できません");
+    fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(screen.getByRole("status")).toHaveTextContent("人物には有効なエンティティのUUIDを入力してください。");
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    expect(screen.getByRole("status")).toHaveTextContent("People must contain valid entity UUIDs.");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.click(screen.getByRole("button", { name: "外部リンクを編集" }));
+    fireEvent.click(screen.getByRole("button", { name: "リンクを追加" }));
+    expect(screen.getByLabelText("リンク1")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "リンク1を削除" })).toBeInTheDocument();
+    expect(screen.getByText("認証情報や空白を含まないHTTP(S)の絶対URLを入力してください。")).toBeInTheDocument();
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["PERSON", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+    ["EXPERIENCE", { personId: "person-ada" }, "PERSON", "person-ada", "Ada Lovelace"],
+    ["EXPERIENCE", { parentExperienceIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
+    ["EXPERIENCE", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+    ["FACT", { personIds: ["person-ada"] }, "PERSON", "person-ada", "Ada Lovelace"],
+    ["FACT", { experienceIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
+    ["FACT", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+    ["LINK", { relatedIds: ["person-ada"] }, "PERSON", "person-ada", "Ada Lovelace"],
+    ["LINK", { relatedIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
+    ["LINK", { relatedIds: ["fact-notes"] }, "FACT", "fact-notes", "Published notes"],
+    ["LINK", { relatedIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
+  ])("TC-04-REACT-REF-007 opens a %s Details reference without editing (case %#)", async (source, fields, target, id, title) => {
+    api.loadEntityDetail.mockImplementation(async (_root, type, requestedId) => requestedId === "id-1"
+      ? { ...detail, detail: fields }
+      : { ...detail, name: title, detail: { [`${type.toLowerCase()}Name`]: title } });
+    renderTicket(source, { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    const reference = region.getByRole("link", { name: `Open ${target}: ${title}` });
+    expect(reference).toHaveAttribute("href", `/entity-detail/${target}/${id}`);
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    fireEvent.click(reference);
+    expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    expect(api.loadEntityDetail).toHaveBeenLastCalledWith("C:/demo", target, id);
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-REF-008 disables Details navigation during drafts and after save", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["person-ada"] } });
+    api.saveEntityDetail.mockResolvedValue({});
+    renderTicket("FACT", { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    expect(region.getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    expect(region.queryByRole("link")).not.toBeInTheDocument();
+    expect(region.getByText("Ada Lovelace")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(region.getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Metadata saved. Workspace requires re-verification.");
+    expect(region.queryByRole("link")).not.toBeInTheDocument();
+    expect(region.getByText("Ada Lovelace")).toHaveAttribute("aria-disabled", "true");
+    expect(region.getByText("Return to Visualizer to re-verify before opening referenced entities.")).toBeInTheDocument();
+  });
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-INLINE-005 explicitly edits and cancels %s Details", async (type) => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket(type);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
+    expect(screen.getByRole("form", { name: "Edit details" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    const input = screen.getAllByRole("textbox")[0];
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: "Discard this" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveFocus();
+    expect(screen.getByRole("region", { name: "Details" })).not.toHaveTextContent("Discard this");
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
   it.each([
     ["EXPERIENCE", { personId: "person-ada", parentExperienceIds: ["exp-life"] }, ["Ada Lovelace", "Life in London"]],
     ["FACT", { personIds: ["person-ada"], experienceIds: ["exp-life", "exp-research"] }, ["Ada Lovelace", "Life in London", "Analytical Engine research"]],
@@ -35,21 +197,68 @@ describe("SEQ-04 entity ticket", () => {
   ])("TC-04-REACT-REF-001 displays titles instead of IDs in %s reference information", async (type, fields, titles) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: fields });
     const view = renderTicket(type, { path: "C:/demo", model: referenceModel });
-    const values = await screen.findByRole("button", { name: "Edit details" });
+    const values = await screen.findByRole("region", { name: "Details" });
     for (const title of titles) expect(values).toHaveTextContent(title);
-    for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(view.container).not.toHaveTextContent(id);
-    expect(view.container.querySelector("form, input, select, textarea")).toBeNull();
+    for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(values).not.toHaveTextContent(id);
+    for (const id of ["person-ada", "exp-life", "exp-research"]) expect(view.container).not.toHaveTextContent(id);
+    expect(view.container.querySelector("form, input, textarea")).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-REF-001 displays graph links as readable, wrapping bullets", async () => {
+    api.loadEntityDetail.mockResolvedValue({
+      ...detail,
+      detail: { linkIds: ["link-out", "link-explicit"] },
+    });
+    const view = renderTicket("PERSON", { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    const bullets = region.getByRole("list");
+    expect(bullets).toHaveClass("ticket-detail-references");
+    expect(within(bullets).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(bullets).getByRole("link", { name: "Open LINK: Inspired research" })).toHaveTextContent("Inspired research");
+    expect(within(bullets).getByRole("link", { name: "Open LINK: Further reading" })).toHaveTextContent("Further reading");
+    expect(view.container).not.toHaveTextContent("link-out");
+    expect(view.container).not.toHaveTextContent("link-explicit");
+  });
+  it("TC-04-REACT-REF-001 displays LINK related entities as title bullets", async () => {
+    api.loadEntityDetail.mockResolvedValue({
+      ...detail,
+      detail: { relatedIds: ["person-ada", "exp-research"] },
+    });
+    const view = renderTicket("LINK", { path: "C:/demo", model: referenceModel, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    const bullets = region.getByRole("list");
+    expect(bullets).toHaveClass("ticket-detail-references");
+    expect(within(bullets).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(bullets).getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    expect(within(bullets).getByRole("link", { name: "Open EXPERIENCE: Analytical Engine research" })).toBeInTheDocument();
+    expect(view.container).not.toHaveTextContent("person-ada");
+    expect(view.container).not.toHaveTextContent("exp-research");
   });
   it.each(["PERSON", "EXPERIENCE", "FACT"])("TC-04-REACT-REF-002 lists incoming, outgoing and explicit LINK entities once for %s", async (type) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { linkIds: ["link-out", "link-out", "link-explicit"], link: ["https://example.org"] } });
     renderTicket(type, { path: "C:/demo", model: referenceModel });
-    const links = within(await screen.findByRole("region", { name: "Related LINK entities" }));
-    expect(links.getAllByRole("listitem")).toHaveLength(3);
-    expect(links.getByRole("button", { name: "Open LINK: Inspired research" })).toHaveTextContent("inspires");
-    expect(links.getByRole("button", { name: "Open LINK: Inspired research" })).toHaveTextContent("Original -> Analytical Engine research");
-    expect(links.getByRole("button", { name: "Open LINK: Documented by Ada" })).toHaveTextContent("Ada Lovelace -> Original");
-    expect(links.getByRole("button", { name: "Open LINK: Further reading" })).toHaveTextContent("Ada Lovelace -> Life in London");
+    const region = await screen.findByRole("region", { name: "Related LINK entities" });
+    const links = within(region);
+    const relationships = region.querySelector(".ticket-relationships");
+    expect(relationships.children).toHaveLength(3);
+    const inspired = links.getByRole("button", { name: "Open LINK: Inspired research" }).parentElement;
+    const inspiredDetails = within(inspired).getByText("Relationship details");
+    expect(inspiredDetails.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(inspiredDetails);
+    expect(inspired).toHaveTextContent("Relationship type: inspires");
+    expect(inspired).toHaveTextContent("Connected entities:");
+    expect(within(inspired).getByText("Original")).toBeInTheDocument();
+    expect(within(inspired).getByText("Analytical Engine research")).toBeInTheDocument();
+    expect(within(inspired).getAllByRole("list")).toHaveLength(2);
+    const documentedByAda = links.getByRole("button", { name: "Open LINK: Documented by Ada" }).parentElement;
+    fireEvent.click(within(documentedByAda).getByText("Relationship details"));
+    expect(within(documentedByAda).getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(documentedByAda).getByText("Original")).toBeInTheDocument();
+    const furtherReading = links.getByRole("button", { name: "Open LINK: Further reading" }).parentElement;
+    fireEvent.click(within(furtherReading).getByText("Relationship details"));
+    expect(within(furtherReading).getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(furtherReading).getByText("Life in London")).toBeInTheDocument();
     expect(links.queryByText("Unrelated relationship")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "External links" })).toHaveTextContent("https://example.org");
     fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
@@ -58,7 +267,7 @@ describe("SEQ-04 entity ticket", () => {
   it("TC-04-REACT-REF-003 handles unavailable references without displaying opaque IDs", async () => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["missing-person"], experienceIds: ["missing-experience"], linkIds: ["missing-link"] } });
     const view = renderTicket("FACT", { path: "C:/demo", model: referenceModel });
-    const values = await screen.findByRole("button", { name: "Edit details" });
+    const values = await screen.findByRole("region", { name: "Details" });
     expect(values).toHaveTextContent("Unavailable PERSON");
     expect(values).toHaveTextContent("Unavailable EXPERIENCE");
     expect(values).toHaveTextContent("Unavailable LINK");
@@ -66,6 +275,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(view.container).not.toHaveTextContent("missing-person");
     expect(view.container).not.toHaveTextContent("missing-experience");
     expect(view.container).not.toHaveTextContent("missing-link");
+    expect(within(values).queryByRole("link")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-REF-004 shows empty and missing-workspace relationship states explicitly", async () => {
     api.loadEntityDetail.mockResolvedValue(detail);
@@ -83,7 +293,7 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open LINK: Inspired research" }));
     expect(await screen.findByRole("heading", { name: "Inspired research" })).toBeInTheDocument();
     expect(api.loadEntityDetail).toHaveBeenLastCalledWith("C:/demo", "LINK", "link-out");
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Analytical Engine research");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("Analytical Engine research");
     expect(screen.queryByRole("region", { name: "Related LINK entities" })).not.toBeInTheDocument();
   });
   it("TC-04-REACT-REF-006 updates endpoint titles after save and preserves re-verification before related navigation", async () => {
@@ -95,7 +305,9 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByRole("heading", { name: "Updated title" });
     const link = screen.getByRole("button", { name: "Open LINK: Inspired research" });
-    expect(link).toHaveTextContent("Updated title -> Analytical Engine research");
+    const relationship = link.parentElement;
+    expect(relationship).toHaveTextContent("Updated title");
+    expect(within(relationship).getByText("Analytical Engine research")).toBeInTheDocument();
     expect(link).toBeDisabled();
     expect(screen.getByText("Return to Visualizer to re-verify before opening related entities.")).toBeInTheDocument();
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
@@ -106,7 +318,8 @@ describe("SEQ-04 entity ticket", () => {
     expect(await screen.findByRole("heading", { name: "Original" })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: "Markdown preview" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit external link 1" })).toHaveTextContent("https://example.org");
-    expect(view.container.querySelector("form, input, textarea, select")).toBeNull();
+    expect(view.container.querySelector("form, input, textarea")).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(api.saveEntityDetail).not.toHaveBeenCalled();
@@ -153,7 +366,12 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Metadata saved. Workspace requires re-verification.");
     expect(api.saveEntityDetail).toHaveBeenCalledWith(type, "C:/demo", { ...stored, ...patch });
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent(type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value);
+    const displayedValue = type === "FACT" || type === "PERSON"
+      ? new Intl.DateTimeFormat("en-US", {
+        year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+      }).format(new Date(`${value}T00:00:00.000Z`))
+      : type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value;
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(displayedValue);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-INLINE-004 keeps the editor on validation/save failure and prevents duplicate saves", async () => {
@@ -182,7 +400,8 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("None");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("None");
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveFocus();
   });
   it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-PREVIEW-001 renders formatted Markdown for %s", async (type) => {
     api.loadEntityDetail.mockResolvedValue({
