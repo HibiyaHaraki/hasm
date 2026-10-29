@@ -116,8 +116,8 @@
 }
 
 .ticket-relationships {
-  list-style: none;
-  padding: 0;
+  list-style: disc;
+  padding-left: 1.25rem;
   margin: 0;
 }
 
@@ -125,13 +125,33 @@
   margin-bottom: 12px;
 }
 
-.ticket-relationships .ticket-content-trigger > span {
-  display: block;
-}
-
 .ticket-relationship-title {
+  display: block;
+  overflow-wrap: anywhere;
   text-decoration: underline;
   text-underline-offset: 0.2em;
+}
+
+.ticket-relationship-details {
+  list-style: disc;
+  margin: 4px 0 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.ticket-relationship-details > li {
+  margin-bottom: 4px;
+}
+
+.ticket-relationship-endpoints {
+  list-style: circle;
+  margin: 2px 0 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.ticket-relationship-endpoints > li {
+  margin-bottom: 0;
 }
 
 @media (max-width: 700px) {

@@ -295,11 +295,23 @@ function EntityDetailPage() {
                             aria-label={`Open LINK: ${title}`}
                             onClick={() => navigate(`/entity-detail/LINK/${id}`, { state: workspaceState })}>
                             <span className="ticket-relationship-title">{title}</span>
-                            <span className="ticket-detail-label">{relationship.linkType || "Relationship type not set"}</span>
-                            <span>{(relationship.relatedIds ?? []).map((endpoint) =>
-                              entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity)).join(" -> ") || "No related entities"}</span>
                           </Button>
                         ) : <p>Referenced LINK information is unavailable.</p>}
+                        {relationship ? (
+                          <ul className="ticket-relationship-details">
+                            <li><strong>Relationship type:</strong> {relationship.linkType || "Not set"}</li>
+                            <li>
+                              <strong>Connected entities:</strong>
+                              {(relationship.relatedIds ?? []).length ? (
+                                <ul className="ticket-relationship-endpoints">
+                                  {relationship.relatedIds.map((endpoint) => (
+                                    <li key={endpoint}>{entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity)}</li>
+                                  ))}
+                                </ul>
+                              ) : <span> No related entities.</span>}
+                            </li>
+                          </ul>
+                        ) : null}
                       </li>
                     );
                   })}
