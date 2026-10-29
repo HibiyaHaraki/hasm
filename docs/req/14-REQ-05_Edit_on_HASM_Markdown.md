@@ -51,7 +51,7 @@ pub enum ExternalEditorError {
 
 ### Chapter 1: Launch HASM Markdown Application (`launch_external_markdown_app`)
 
-* **[REQ-05-FUNC-101] Launch Action Trigger:** Clicking "Edit Markdown in HASM App" on any Entity Detail Page MUST invoke the `launch_external_markdown_app` IPC command.
+* **[REQ-05-FUNC-101] Launch Action Trigger:** Clicking non-link rendered Markdown content, activating the focused preview with Enter/Space, or clicking "Edit Markdown in HASM App" in its header MUST invoke `launch_external_markdown_app` with the current workspace, entity type, and entity ID, without showing an inline Markdown form. Selecting text or activating preview hyperlinks MUST NOT launch the editor. The existing editor opens `main.md` through its folder contract (requiring `assets.json`); standalone `.md` arguments are not supported.
 * **[REQ-05-FUNC-102] Target Directory Resolution:** Rust MUST resolve the absolute target entity directory path as `{workspace}/{entityType}/{entityId}/`.
 * **[REQ-05-FUNC-103] Missing Directory Check:** If the target entity directory does not exist on disk, Rust MUST reject the IPC call with `EntityDirectoryNotFound`.
 * **[REQ-05-FUNC-104] Missing Directory Error Toast:** Upon receiving `EntityDirectoryNotFound`, React MUST display an error toast ("Entity folder does not exist on disk.").

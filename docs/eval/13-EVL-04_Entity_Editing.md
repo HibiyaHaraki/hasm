@@ -8,6 +8,55 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Entity Titles and Related LINK Coverage
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-REF-001` | `REQ-04-RULE-018` | EXPERIENCE owner/parents, FACT people/experiences and LINK endpoints display titles without UUIDs or forms. |
+| `TC-04-REACT-REF-002` (PERSON, EXPERIENCE, FACT) | `REQ-04-RULE-019` | Incoming/outgoing endpoint references and explicit graph links are deduplicated, unrelated links excluded, title/type/endpoints visible alongside external URLs; editing disables navigation. |
+| `TC-04-REACT-REF-003` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Missing references show unavailable labels without UUID fallbacks or broken navigation. |
+| `TC-04-REACT-REF-004` | `REQ-04-RULE-019` | Empty list and unavailable model are distinguished explicitly. |
+| `TC-04-REACT-REF-005` | `REQ-04-RULE-019` | Related LINK opens its detail and resolves endpoint titles with retained workspace/model context. |
+| `TC-04-REACT-REF-006` | `REQ-04-RULE-019` | Saved summary immediately updates endpoint text; unverified workspace shows guidance and disables related navigation without reloading the model. |
+| `TC-NAV-REF-001` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Actual ticket -> real JS wrapper -> mocked Tauri transport invokes `load_entity_detail` with exact LINK identity; destination retains titles with no whole-model reload. |
+
+Run reference component cases with `npm run test:eval-04`, and the
+component-to-invoke navigation case with `npm run test:robustness`.
+No native command or serialized schema change is required.
+
+### Reader-First Inline Editing
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-INLINE-001` (all entity types) | `REQ-04-RULE-015` | Readable summary/links/Markdown appear with no mounted form/input/select/textarea or Save/Cancel controls. |
+| `TC-04-REACT-INLINE-002` | `REQ-04-RULE-016` | Summary click focuses its only input; blur does not save, Escape discards, focus returns to content, and explicit Save preserves other fields. |
+| `TC-04-REACT-INLINE-003` (all entity types) | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Detail edits produce exact typed payloads, keep summary/Markdown/URLs unchanged, and restore reading mode. |
+| `TC-04-REACT-INLINE-004` | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Bad UUID input never invokes save; a pending save disables Cancel/Refresh and suppresses duplicate submits; failure retains input and Cancel discards it. |
+| `TC-04-REACT-LINK-001` to `006` | `REQ-04-RULE-012`, `REQ-04-RULE-016` | Explicitly enter the link editor before mutating; successful saves/cancels close it, refresh retains drafts, and separate Open actions surface browser failures. |
+| `TC-04-IPC-INLINE-001` in `src-tauri/tests/entity_editor_commands_ipc.rs` | `REQ-04-RULE-017` | All four native generated save handlers deserialize typed detail updates, persist them to SQLite and reload unchanged summary/Markdown. Included in `entity_editor_commands_external_links_round_trip_through_registered_tauri_invokes`. |
+
+Run the React rows via `npm run test:eval-04`. Run native rows with
+`cargo test --manifest-path src-tauri/Cargo.toml --test entity_editor_commands_ipc`.
+`TC-NAV-002` asserts reading mode during repeated visits; `TC-NAV-008` clicks
+the summary before saving through the actual JS IPC wrapper and route flow.
+`TC-NAV-INLINE-001` clicks Details and verifies the exact `save_fact_detail`
+invoke through that same real JS wrapper.
+
+### Rendered Markdown Coverage
+
+`npm run test:eval-04` includes the following component tests:
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-PREVIEW-001` (all four entity types) | `REQ-04-RULE-014` | Semantic headings, strong/emphasis, lists, quotes, fenced code, and tables render; Edit is inside the preview panel. |
+| `TC-04-REACT-PREVIEW-002` | `REQ-04-RULE-014` | Raw script/image HTML stays text and JavaScript destinations never become links. |
+| `TC-04-REACT-PREVIEW-003` | `REQ-04-RULE-014` | HTTP(S) links reach the OS opener; browser failures and relative-link rejection are visible. |
+| `TC-04-REACT-LINK-005` | `REQ-04-RULE-012`, `REQ-04-RULE-014` | Refresh replaces the rendered heading while preserving unsaved URL edits. |
+
+Theme/mobile appearance remains a visual acceptance check. The preview does
+not add native filesystem/asset loading or change the editor's supported
+input formats; see [SEQ-05](../arch/14-SEQ-05_Edit_on_HASM_Markdown.md).
+
 ### Navigation Lifetime Regression
 
 `npm run test:robustness` runs actual graph, ticket, loader, and protected-route

@@ -40,8 +40,8 @@ function NavigationProbe() {
   </>;
 }
 
-function renderFlow(start = "/visualizer", strict = false) {
-  const tree = <MemoryRouter initialEntries={[{ pathname: start, state: { path, model, isVerified: true } }]}>
+function renderFlow(start = "/visualizer", strict = false, workspaceModel = model) {
+  const tree = <MemoryRouter initialEntries={[{ pathname: start, state: { path, model: workspaceModel, isVerified: true } }]}>
     <NavigationProbe />
     <Routes>
       <Route element={<ProtectedRoute requireVerified />}>
@@ -98,6 +98,24 @@ afterEach(() => {
 });
 
 describe("bounded graph-ticket navigation robustness", () => {
+  it("TC-NAV-REF-001 opens a related LINK via the real load invoke with reader-friendly endpoint titles", async () => {
+    const person = { personId: "11111111-1111-1111-1111-111111111111", personName: "Ada Lovelace" };
+    const relationship = { linkId: "44444444-4444-4444-4444-444444444444", linkName: "Ada published notes", linkType: "published", relatedIds: [person.personId, id], link: [] };
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((command, args) => command === "load_entity_detail" && args.entityType === "LINK"
+      ? Promise.resolve({ ...ticket, entityType: "LINK", entityId: relationship.linkId, name: relationship.linkName, detail: relationship })
+      : originalInvoke(command, args));
+    renderFlow(`/entity-detail/FACT/${id}`, false, { ...model, people: [person], links: [relationship] });
+    await flush();
+    const open = screen.getByRole("button", { name: "Open LINK: Ada published notes" });
+    expect(open).toHaveTextContent("Ada Lovelace -> Publication");
+    fireEvent.click(open);
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: "LINK", entityId: relationship.linkId });
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Ada Lovelace, Publication");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
+  });
   it("TC-NAV-001 ignores progress after layout completion instead of rearming its watchdog", async () => {
     renderFlow();
     await flush();
@@ -114,7 +132,8 @@ describe("bounded graph-ticket navigation robustness", () => {
       // Click the real FACT table row, rather than replacing either page with a route stub.
       fireEvent.click(screen.getByText("Publication", { selector: "td" }));
       await flush();
-      expect(screen.getByRole("textbox", { name: "Summary" })).toHaveValue("Publication");
+      expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent("Publication");
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
       await flush();
       await emit("visualizer-layout-progress");
@@ -191,6 +210,7 @@ describe("bounded graph-ticket navigation robustness", () => {
   it("TC-NAV-008 save-return revalidates through real routes and API wrappers without listener leaks", async () => {
     const view = renderFlow(`/entity-detail/FACT/${id}`, true);
     await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Summary" }), { target: { value: "Updated" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await flush();
@@ -205,6 +225,21 @@ describe("bounded graph-ticket navigation robustness", () => {
     view.unmount();
     await flush();
     expect(listeners.filter((entry) => !entry.disposed)).toEqual([]);
+  });
+
+  it("TC-NAV-INLINE-001 clicked detail content saves through the real typed invoke wrapper", async () => {
+    renderFlow(`/entity-detail/FACT/${id}`);
+    await flush();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
+    fireEvent.change(screen.getByLabelText("Occurred at"), { target: { value: "2026-10-29" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", {
+      modelRoot: path, detail: { ...fact, occurredAt: "2026-10-29" },
+    });
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("2026-10-29");
   });
 
   it("TC-NAV-009 an active stalled layout still fails after progress stops", async () => {

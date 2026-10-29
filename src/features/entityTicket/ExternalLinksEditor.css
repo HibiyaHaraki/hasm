@@ -55,3 +55,28 @@
   width: 1.5rem;
   height: 1.5rem;
 }
+
+.external-links-read {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.external-links-read li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.external-links-read .external-link-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.external-links-read .external-link-preview {
+  flex-basis: auto;
+  margin-left: 8px;
+  font-size: 0.9rem;
+}
