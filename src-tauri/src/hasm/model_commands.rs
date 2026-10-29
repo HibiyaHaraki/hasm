@@ -19,7 +19,17 @@ const LOCK_FILENAME: &str = "lock";
 const ENTITY_TYPES: [&str; 4] = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 
 #[tauri::command]
-pub fn check_workspace_lock(path: String) -> Result<LockStatus, String> {
+pub async fn check_workspace_lock(path: String) -> Result<LockStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || check_workspace_lock_blocking(path))
+        .await
+        .map_err(|error| {
+            let message = format!("Workspace lock worker failed: {error}");
+            log::error!("[SEQ-MD-02][LOCK] {message}");
+            message
+        })?
+}
+
+fn check_workspace_lock_blocking(path: String) -> Result<LockStatus, String> {
     let root = workspace_root(&path)?;
     let lock_directory = root.join(LOCK_DIRECTORY);
     fs::create_dir_all(&lock_directory).map_err(|error| error.to_string())?;
@@ -74,7 +84,18 @@ pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) 
 }
 
 #[tauri::command]
-pub fn load_hasm_model_db<R: Runtime>(app: AppHandle<R>, path: String) -> Result<ModelDatabase, String> {
+pub async fn load_hasm_model_db<R: Runtime>(app: AppHandle<R>, path: String) -> Result<ModelDatabase, String> {
+    // SEQ-MD-02: filesystem/SQLite work must not block WebView input or scrolling.
+    tauri::async_runtime::spawn_blocking(move || load_hasm_model_db_blocking(app, path))
+        .await
+        .map_err(|error| {
+            let message = format!("Database loading worker failed: {error}");
+            log::error!("[SEQ-MD-02][LOAD] {message}");
+            message
+        })?
+}
+
+fn load_hasm_model_db_blocking<R: Runtime>(app: AppHandle<R>, path: String) -> Result<ModelDatabase, String> {
     emit_progress(&app, "DB_LOAD", 0, 1, "Opening workspace database")?;
 
     let mut last_emit = Instant::now();
@@ -110,7 +131,21 @@ pub fn load_hasm_model_db<R: Runtime>(app: AppHandle<R>, path: String) -> Result
 }
 
 #[tauri::command]
-pub fn verify_hasm_storage<R: Runtime>(
+pub async fn verify_hasm_storage<R: Runtime>(
+    app: AppHandle<R>,
+    path: String,
+    model: ModelDatabase,
+) -> Result<VerificationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || verify_hasm_storage_blocking(app, path, model))
+        .await
+        .map_err(|error| {
+            let message = format!("Storage verification worker failed: {error}");
+            log::error!("[SEQ-MD-02][VERIFY] {message}");
+            message
+        })?
+}
+
+fn verify_hasm_storage_blocking<R: Runtime>(
     app: AppHandle<R>,
     path: String,
     model: ModelDatabase,
@@ -274,9 +309,9 @@ mod tests {
     fn creates_recovers_and_releases_workspace_locks() {
         let root = fixture_workspace();
         let root_string = root.to_string_lossy().to_string();
-        assert!(!check_workspace_lock(root_string.clone()).unwrap().is_read_only);
+        assert!(!check_workspace_lock_blocking(root_string.clone()).unwrap().is_read_only);
         for _ in 0..12 {
-            let status = check_workspace_lock(root_string.clone()).unwrap();
+            let status = check_workspace_lock_blocking(root_string.clone()).unwrap();
             assert!(!status.is_read_only);
             assert!(!status.is_stale_recovered);
             assert_eq!(status.holder_pid, Some(std::process::id()));
@@ -284,7 +319,7 @@ mod tests {
         release_workspace_lock(root_string.clone()).unwrap();
         fs::create_dir_all(root.join(LOCK_DIRECTORY)).unwrap();
         fs::write(root.join(LOCK_DIRECTORY).join(LOCK_FILENAME), "999999").unwrap();
-        assert!(check_workspace_lock(root_string.clone()).unwrap().is_stale_recovered);
+        assert!(check_workspace_lock_blocking(root_string.clone()).unwrap().is_stale_recovered);
         release_workspace_lock(root_string).unwrap();
         fs::remove_dir_all(root).unwrap();
     }
@@ -293,7 +328,7 @@ mod tests {
     fn keeps_other_live_process_workspaces_read_only() {
         let root = fixture_workspace();
         let root_string = root.to_string_lossy().to_string();
-        check_workspace_lock(root_string.clone()).unwrap();
+        check_workspace_lock_blocking(root_string.clone()).unwrap();
         let mut system = System::new();
         let current = Pid::from_u32(std::process::id());
         system.refresh_processes_specifics(
@@ -303,7 +338,7 @@ mod tests {
         assert_ne!(other_pid, std::process::id());
         let lock = root.join(LOCK_DIRECTORY).join(LOCK_FILENAME);
         fs::write(&lock, other_pid.to_string()).unwrap();
-        let status = check_workspace_lock(root_string).unwrap();
+        let status = check_workspace_lock_blocking(root_string).unwrap();
         assert!(status.is_read_only);
         assert_eq!(status.holder_pid, Some(other_pid));
         assert_eq!(fs::read_to_string(lock).unwrap(), other_pid.to_string());
@@ -315,14 +350,14 @@ mod tests {
         let root = fixture_workspace();
         let root_string = root.to_string_lossy().to_string();
 
-        check_workspace_lock(root_string.clone()).unwrap();
+        check_workspace_lock_blocking(root_string.clone()).unwrap();
         let lock_path = root.join(LOCK_DIRECTORY).join(LOCK_FILENAME);
         assert!(lock_path.is_file());
 
         switch_workspace_cleanly(root_string.clone(), false).unwrap();
         assert!(!lock_path.exists());
 
-        check_workspace_lock(root_string.clone()).unwrap();
+        check_workspace_lock_blocking(root_string.clone()).unwrap();
         assert!(lock_path.exists());
         switch_workspace_cleanly(root_string.clone(), true).unwrap();
         assert!(lock_path.exists());

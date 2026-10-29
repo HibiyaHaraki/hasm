@@ -23,6 +23,14 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | `TC-02-REACT-CONTINUE-001`: completion waits for a click and preserves model/path/read-only/warning context with no reload | `test/seq02.test.jsx` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
 | `TC-NAV-PROGRESS-001`: actual loader -> real load/verify wrappers -> controlled native transport updates entity bars; completion disposes listeners, survives 20 seconds of fake time, and routes only on user click | `test/navigation-robustness.test.jsx` via `npm run test:robustness` | Frontend: navigation robustness tests |
 | `TC-02-IPC-PROGRESS-001`: actual generated load invoke emits ordered per-type starts/completions with exact table counts for populated and empty workspaces | `src-tauri/tests/entity_editor_commands_ipc.rs`, test `model_commands_entity_stage_progress_through_registered_invoke` | Rust: native dispatch coverage |
+| `TC-02-IPC-RESPONSIVE-001`: registered asynchronous load/verify handlers emit progress off the invoking thread, with unchanged response contracts | `src-tauri/tests/entity_editor_commands_ipc.rs`, test `model_commands_entity_stage_progress_through_registered_invoke` | Rust: native dispatch coverage |
+
+Responsiveness traces `REQ-02-RULE-015`. `TC-NAV-PROGRESS-001` also toggles
+Show/Hide detail during pending native lock, load, and verification promises, confirming
+that reopening retains progress. Native thread assertions complement these
+transport mocks; they do not replace packaged desktop acceptance: load a large
+workspace, expand details, scroll through all entity bars, collapse/reopen while
+progress is arriving, then confirm explicit continuation still works.
 
 Per-stage display cases trace `REQ-02-RULE-013`/`014`. Browser acceptance checks
 the compact default, expanded entity bars, completion and explicit continuation at

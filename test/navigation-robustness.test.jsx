@@ -353,12 +353,19 @@ describe("bounded graph-ticket navigation robustness", () => {
   });
 
   it("TC-NAV-PROGRESS-001 real load and verify invokes update separate bars and retain completed steps", async () => {
+    const locking = deferred();
     const loading = deferred();
     const verifying = deferred();
     const invoke = bridge.invoke.getMockImplementation();
-    bridge.invoke.mockImplementation((command, args) => command === "load_hasm_model_db" ? loading.promise
+    bridge.invoke.mockImplementation((command, args) => command === "check_workspace_lock" ? locking.promise
+      : command === "load_hasm_model_db" ? loading.promise
       : command === "verify_hasm_storage" ? verifying.promise : invoke(command, args));
     renderFlow("/loading-model");
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getByRole("progressbar", { name: "Check workspace lock" })).toHaveAttribute("aria-valuenow", "0");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    await act(async () => locking.resolve({ isReadOnly: false, isStaleRecovered: false }));
     await flush();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
@@ -380,6 +387,10 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.getByRole("progressbar", { name: "Load PERSON entities" })).toHaveAttribute("aria-valuetext", "Complete, 100%");
     expect(screen.getByRole("progressbar", { name: "Load FACT entities" })).toHaveAttribute("aria-valuenow", "50");
     expect(screen.getByRole("progressbar", { name: "Load LINK entities" })).toHaveAttribute("aria-valuetext", "Waiting, 0%");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
+    expect(screen.getByRole("progressbar", { name: "Load FACT entities" })).toHaveAttribute("aria-valuenow", "50");
     await act(async () => loading.resolve(model));
     await flush();
     expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model });
@@ -389,6 +400,10 @@ describe("bounded graph-ticket navigation robustness", () => {
       });
     });
     expect(screen.getByRole("progressbar", { name: "Load database metadata" })).toHaveAttribute("aria-valuetext", "Complete, 100%");
+    expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "50");
+    fireEvent.click(screen.getByRole("button", { name: "Hide detail" }));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show detail" }));
     expect(screen.getByRole("progressbar", { name: "Verify workspace storage" })).toHaveAttribute("aria-valuenow", "50");
     await act(async () => verifying.resolve({ missingEntities: [], unreferencedEntities: [] }));
     await flush();

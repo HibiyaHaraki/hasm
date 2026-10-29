@@ -120,6 +120,14 @@ active item has `aria-current="step"`. No progress bars are exposed by default.
 synchronization and separate PERSON, EXPERIENCE, FACT, and LINK database loads.
 **Hide detail** collapses them without restarting work or discarding progress.
 
+The lock check, database load, and storage verification commands are asynchronous
+IPC entry points. Each awaits a `tauri::async_runtime::spawn_blocking` worker for
+its synchronous process-table, SQLite, and filesystem work; none runs that work
+on the Tauri main thread. Worker join failures are logged with SEQ-MD-02 tags and
+returned as IPC errors. Command names, payloads, ordering and progress events are
+unchanged. Scrolling and Show/Hide detail remain available while commands are
+pending; collapsing details only changes visibility, not worker execution.
+
 The existing event payload shape is unchanged. `model-load-progress` now uses
 `DB_SYNC`, `DB_LOAD_PERSON`, `DB_LOAD_EXPERIENCE`, `DB_LOAD_FACT`, and `DB_LOAD_LINK`
 as explicit substage identifiers, alongside initial/final `DB_LOAD` events.

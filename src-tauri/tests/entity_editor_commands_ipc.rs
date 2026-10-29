@@ -5,14 +5,24 @@ use tauri::Listener;
 #[test]
 fn model_commands_entity_stage_progress_through_registered_invoke() {
     let app = tauri::test::mock_builder()
-        .invoke_handler(tauri::generate_handler![model_commands::load_hasm_model_db])
+        .invoke_handler(tauri::generate_handler![
+            model_commands::load_hasm_model_db,
+            model_commands::verify_hasm_storage,
+        ])
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
     let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
     let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Value>::new()));
+    let progress_threads = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let load_threads = progress_threads.clone();
     let captured = events.clone();
     app.listen("model-load-progress", move |event| {
+        load_threads.lock().unwrap().push(std::thread::current().id());
         captured.lock().unwrap().push(serde_json::from_str(event.payload()).unwrap());
+    });
+    let verify_threads = progress_threads.clone();
+    app.listen("model-verify-progress", move |_| {
+        verify_threads.lock().unwrap().push(std::thread::current().id());
     });
     let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
     let empty = std::env::temp_dir().join(format!("hasm-empty-progress-{}", uuid::Uuid::new_v4()));
@@ -52,6 +62,23 @@ fn model_commands_entity_stage_progress_through_registered_invoke() {
         }
         assert!(events.iter().any(|event| event["step"] == "DB_SYNC"));
         drop(events);
+        let before_verify = progress_threads.lock().unwrap().len();
+        tauri::test::get_ipc_response(&window, tauri::webview::InvokeRequest {
+            cmd: "verify_hasm_storage".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "http://tauri.localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(json!({ "path": path, "model": response })),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.into(),
+        }).unwrap();
+        let threads = progress_threads.lock().unwrap();
+        if response["facts"].as_array().unwrap().len() > 0 {
+            assert!(threads.len() > before_verify);
+        }
+        // TC-02-IPC-RESPONSIVE-001: actual generated handlers must leave the invoking thread.
+        assert!(threads.iter().all(|id| *id != std::thread::current().id()));
+        drop(threads);
         std::fs::remove_dir_all(path).unwrap();
     }
 }
@@ -249,7 +276,9 @@ fn entity_editor_commands_navigation_robustness() {
         .join("33333333-3333-3333-3333-333333333331").join("main.md");
     std::fs::remove_file(fact_path).unwrap();
     let model = hasm_lib::hasm::service::read_model_database(&demo.path).unwrap();
-    let error = model_commands::verify_hasm_storage(app.handle().clone(), demo.path.clone(), model).unwrap_err();
+    let error = tauri::async_runtime::block_on(
+        model_commands::verify_hasm_storage(app.handle().clone(), demo.path.clone(), model),
+    ).unwrap_err();
     assert!(error.contains("ERR_MISSING_STORAGE_FOLDER"));
     std::fs::remove_dir_all(demo.path).unwrap();
     assert!(started.elapsed() < std::time::Duration::from_secs(120));
