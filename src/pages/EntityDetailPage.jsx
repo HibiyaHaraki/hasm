@@ -222,6 +222,20 @@ function EntityDetailPage() {
     const references = detailEntityReferences(referenceIndex, field, ticket.detail, currentEntity);
     if (!references) return ticket.detail[field.key] || "Not set";
     if (!references.length) return field.list ? "None" : "Not set";
+    if (field.key === "linkIds") {
+      return (
+        <ul className="ticket-detail-references">
+          {references.map(({ id, type, title }) => (
+            <li key={id}>
+              {type && !navigationDisabled ? (
+                <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+                  aria-label={`Open ${type}: ${title}`}>{title}</Link>
+              ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>}
+            </li>
+          ))}
+        </ul>
+      );
+    }
     return references.map(({ id, type, title }, index) => (
       <span key={`${id}-${index}`}>
         {index > 0 ? ", " : ""}

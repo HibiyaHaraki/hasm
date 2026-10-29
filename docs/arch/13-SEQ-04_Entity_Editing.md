@@ -92,6 +92,9 @@ unverified workspace disable navigation while preserving reference text;
 unverified tickets display re-verification guidance. Selecting a reference
 never starts an editor.
 
+Graph LINK references are displayed as a bulleted list rather than a
+comma-separated line. Long LINK titles wrap within the Details panel.
+
 `EntityReferences.js` builds entity-title and reverse LINK-endpoint indexes,
 memoized per route-model snapshot. Index construction is O(entities + LINK
 endpoints) in memory, with no filesystem/database scan. Detail loads and saves

@@ -102,6 +102,21 @@
   outline-offset: 2px;
 }
 
+.ticket-detail-references {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.ticket-detail-references li {
+  margin-bottom: 4px;
+}
+
+.ticket-detail-references li:last-child {
+  margin-bottom: 0;
+}
+
 .ticket-detail-row:last-child {
   margin-bottom: 0;
 }
