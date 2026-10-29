@@ -288,10 +288,34 @@ describe("bounded graph-ticket navigation robustness", () => {
     });
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(
-      new Intl.DateTimeFormat(undefined, {
+      new Intl.DateTimeFormat("en-US", {
         year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
       }).format(new Date("2026-10-29T00:00:00.000Z")),
     );
+  });
+
+  it("TC-NAV-DISPLAY-001 Japanese controls preserve typed IPC data and Markdown through save-return", async () => {
+    renderFlow(`/entity-detail/FACT/${id}`);
+    await flush();
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.change(screen.getByLabelText("文字サイズ"), { target: { value: "small" } });
+    expect(screen.getByRole("main")).toHaveClass("ticket-text-small");
+    expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("2026年1月15日");
+    expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
+    expect(bridge.invoke).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
+    fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01T10:30:00Z" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", {
+      modelRoot: path, detail: { ...fact, occurredAt: "2026-11-01T10:30:00Z" },
+    });
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent("メタデータを保存しました。");
+    expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
+    fireEvent.click(screen.getByRole("button", { name: "ビジュアライザーに戻る" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(1);
   });
 
   it("TC-NAV-009 an active stalled layout still fails after progress stops", async () => {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Form } from "react-bootstrap";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "./ExternalLinksEditor.css";
+import { translateTicket } from "./ticketLanguage";
 
 export function isExternalUrl(value) {
   try {
@@ -27,9 +28,9 @@ export function externalLinkSite(value) {
   return { name: "Web page", icon: "web" };
 }
 
-function SiteIcon({ site }) {
+function SiteIcon({ site, t }) {
   return (
-    <span className="external-link-icon" role="img" aria-label={`${site.name} icon`}>
+    <span className="external-link-icon" role="img" aria-label={t("{site} icon", { site: t(site.name) })}>
       {site.icon === "x" ? "X" : site.icon === "google" ? "G" : (
         <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
           {site.icon === "maps" ? (
@@ -43,7 +44,7 @@ function SiteIcon({ site }) {
   );
 }
 
-export function ExternalLinkPreview({ url, children }) {
+export function ExternalLinkPreview({ url, children, t = translateTicket }) {
   const [error, setError] = useState("");
   const site = externalLinkSite(url);
   async function open(event) {
@@ -59,58 +60,58 @@ export function ExternalLinkPreview({ url, children }) {
     <>
       <a className="external-link-preview" href={url} target="_blank" rel="noopener noreferrer"
         onClick={open}>
-        {children ?? <><SiteIcon site={site} /><span>{site.name}: {url}</span></>}
+        {children ?? <><SiteIcon site={site} t={t} /><span>{t(site.name)}: {url}</span></>}
       </a>
-      {error ? <p role="alert">Could not open external link: {error}</p> : null}
+      {error ? <p role="alert">{t("Could not open external link:")} {error}</p> : null}
     </>
   );
 }
 
-export function ExternalLinksView({ value, onEdit, disabled }) {
+export function ExternalLinksView({ value, onEdit, disabled, t = translateTicket }) {
   return value.length ? (
     <ul className="external-links-read">
       {value.map((url, index) => (
         <li key={`${index}-${url}`}>
           <Button id={`ticket-link-read-${index}`} className="ticket-content-trigger external-link-value" disabled={disabled}
-            aria-label={`Edit external link ${index + 1}`} onClick={onEdit}>
-            <SiteIcon site={externalLinkSite(url)} /><span>{url}</span>
+            aria-label={t("Edit external link {number}", { number: index + 1 })} onClick={onEdit}>
+            <SiteIcon site={externalLinkSite(url)} t={t} /><span>{url}</span>
           </Button>
-          {isExternalUrl(url) ? <ExternalLinkPreview url={url}>
-            <span className="visually-hidden">Open link {index + 1}: </span>Open
-          </ExternalLinkPreview> : <p role="alert">Invalid external URL: {url}</p>}
+          {isExternalUrl(url) ? <ExternalLinkPreview url={url} t={t}>
+            <span className="visually-hidden">{t("Open link {number}:", { number: index + 1 })} </span>{t("Open")}
+          </ExternalLinkPreview> : <p role="alert">{t("Invalid external URL:")} {url}</p>}
         </li>
       ))}
     </ul>
   ) : (
     <Button id="ticket-links-read" className="ticket-content-trigger" disabled={disabled} onClick={onEdit}
-      aria-label="Edit external links">No external links</Button>
+      aria-label={t("Edit external links")}>{t("No external links")}</Button>
   );
 }
 
-export function ExternalLinksEditor({ value, onChange, disabled = false, autoFocus = false }) {
+export function ExternalLinksEditor({ value, onChange, disabled = false, autoFocus = false, t = translateTicket }) {
   return (
     <fieldset className="external-links" disabled={disabled}>
-      <legend>External links</legend>
-      <p className="external-links-help">Related pages, SNS messages, or maps. Use a full HTTP(S) URL.</p>
+      <legend>{t("External links")}</legend>
+      <p className="external-links-help">{t("Related pages, SNS messages, or maps. Use a full HTTP(S) URL.")}</p>
       {value.map((url, index) => {
         const valid = isExternalUrl(url);
         return (
           <div className="external-link-row" key={index}>
             <Form.Group controlId={`external-link-${index}`} className="external-link-field">
-              <Form.Label>Link {index + 1}</Form.Label>
+              <Form.Label>{t("Link {number}", { number: index + 1 })}</Form.Label>
               <Form.Control type="url" required value={url} isInvalid={!valid} autoFocus={autoFocus && index === 0}
                 aria-describedby={!valid ? `external-link-error-${index}` : undefined}
                 onChange={(event) => onChange(value.map((item, position) => position === index ? event.target.value : item))} />
-              {!valid ? <Form.Control.Feedback type="invalid" id={`external-link-error-${index}`}>Enter an absolute HTTP(S) URL without credentials or whitespace.</Form.Control.Feedback> : null}
+              {!valid ? <Form.Control.Feedback type="invalid" id={`external-link-error-${index}`}>{t("Enter an absolute HTTP(S) URL without credentials or whitespace.")}</Form.Control.Feedback> : null}
             </Form.Group>
             <Button type="button" className="btn-hasm-outline" variant="outline-secondary"
-              aria-label={`Remove link ${index + 1}`} onClick={() => onChange(value.filter((_, position) => position !== index))}>Remove</Button>
-            {valid ? <ExternalLinkPreview url={url} /> : null}
+              aria-label={t("Remove link {number}", { number: index + 1 })} onClick={() => onChange(value.filter((_, position) => position !== index))}>{t("Remove")}</Button>
+            {valid ? <ExternalLinkPreview url={url} t={t} /> : null}
           </div>
         );
       })}
       <Button type="button" className="btn-hasm-outline" variant="outline-secondary" autoFocus={autoFocus && value.length === 0}
-        onClick={() => onChange([...value, ""])}>Add link</Button>
+        onClick={() => onChange([...value, ""])}>{t("Add link")}</Button>
     </fieldset>
   );
 }

@@ -13,7 +13,8 @@ This document provides the complete detailed architectural specification for loa
 ### Reader-first ticket and inline metadata editors
 
 Every ticket initially renders readable content, with no form, input, select,
-textarea, Save, or Cancel controls mounted. The summary is the page heading;
+textarea, Save, or Cancel controls mounted for metadata editing. The header's
+language and text-size selects are always available. The summary is the page heading;
 Markdown is the main reading area and metadata/external links form a quiet
 sidebar on wide screens. Content wraps and stacks on narrow screens.
 
@@ -40,6 +41,36 @@ FACT `occurredAt` remains ISO 8601 in storage and when editing. In reading mode,
 date-only values render as a localized long date; timestamps render as a
 localized date and time in the user's local time zone, with the time-zone
 abbreviation shown. Invalid values remain visible as entered.
+
+### Ticket display preferences
+
+The ticket header provides **Language** (English / Japanese) and **Text size**
+(Small / Medium / Large). Defaults are English and Medium. Preferences are
+React state owned by the mounted `EntityDetailPage`, retained when navigating
+directly between tickets using that component, and reset when it unmounts
+(including returning to the graph) or the app restarts. No browser storage,
+native configuration, package metadata, or new IPC is used.
+
+`src/features/entityTicket/ticketLanguage.js` supplies page-scoped translations.
+The selected translator is passed to the metadata form, Markdown panel controls,
+external-link controls, and entity-reference placeholders; these shared
+components retain English defaults outside the ticket page. Labels, accessible
+names, help text, validation, and application-authored statuses change immediately,
+including an open editor and existing validation messages. Raw backend diagnostic
+details remain verbatim. Entity type identifiers, UUIDs, names, relationship
+values, URLs, and Markdown bodies are never translated.
+
+Reading-mode FACT occurrence and PERSON birth/death dates use explicit `en-US`
+or `ja-JP` `Intl.DateTimeFormat` locales. Date-only values use UTC to avoid
+changing the calendar day; timestamps use the user's local time zone. Editing
+and save payloads retain the original date/time representation. Changing a
+display preference neither reloads nor saves a ticket and preserves open drafts.
+
+Page-local `--base-font-size` values are 14px, 16px, and 18px. Relative typography
+scales the summary, metadata, Markdown preview, and controls together without
+changing the global navigation or other pages. Wrapping controls, labels, and
+content keep the sidebar and toolbar usable on narrow windows. Changes log
+`[SEQ-MD-04][DISPLAY]` without document or asset contents.
 
 Relationship UUID arrays are edited as comma-separated UUIDs and converted
 back to arrays only on Save; empty arrays remain `[]`. Invalid UUIDs, empty

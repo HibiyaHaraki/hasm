@@ -34,10 +34,10 @@ describe("SEQ-04 entity ticket", () => {
     expect(await screen.findByText(`${type}/id-1`)).toBeInTheDocument();
   });
   it.each([
-    ["2026-10-29", new Intl.DateTimeFormat(undefined, {
+    ["2026-10-29", new Intl.DateTimeFormat("en-US", {
       year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
     }).format(new Date("2026-10-29T00:00:00.000Z"))],
-    ["2026-10-29T13:45:00Z", new Intl.DateTimeFormat(undefined, {
+    ["2026-10-29T13:45:00Z", new Intl.DateTimeFormat("en-US", {
       year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
     }).format(new Date("2026-10-29T13:45:00Z"))],
     ["not-a-date", "not-a-date"],
@@ -46,6 +46,88 @@ describe("SEQ-04 entity ticket", () => {
     renderTicket("FACT");
     const region = within(await screen.findByRole("region", { name: "Details" }));
     expect(region.getByText(expected, { exact: true })).toBeInTheDocument();
+  });
+  it.each([
+    ["PERSON", { birthday: "1815-12-10", die: "1852-11-27" }, "生年月日"],
+    ["EXPERIENCE", { personId: "person-ada" }, "所有者"],
+    ["FACT", { occurredAt: "2026-10-29" }, "発生日時"],
+    ["LINK", { linkType: "references", relatedIds: ["person-ada"] }, "関係の種類"],
+  ])("TC-04-REACT-DISPLAY-001 translates %s chrome without changing content or loading again", async (type, fields, label) => {
+    api.loadEntityDetail.mockResolvedValue({
+      ...detail, markdownBody: "# Details\n\nOriginal English document.", detail: { ...fields, link: ["https://example.org"] },
+    });
+    renderTicket(type, { path: "C:/demo", model: referenceModel, isVerified: true });
+    const preview = await screen.findByRole("article", { name: "Markdown preview" });
+    const originalHtml = preview.innerHTML;
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    expect(screen.getByRole("main")).toHaveAttribute("lang", "ja");
+    expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent(label);
+    expect(screen.getByRole("button", { name: "概要を編集" })).toHaveTextContent("Original");
+    expect(screen.getByRole("button", { name: "HASM AppでMarkdownを編集" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "外部リンク1を編集" })).toHaveTextContent("https://example.org");
+    expect(preview.innerHTML).toBe(originalHtml);
+    if (type === "PERSON") expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("1815年12月10日");
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    expect(screen.getByRole("region", { name: "Details" })).toBeInTheDocument();
+    expect(api.loadEntityDetail).toHaveBeenCalledTimes(1);
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["2026-10-29", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }],
+    ["2026-10-29T13:45:00Z", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }],
+    ["not-a-date", null],
+    ["2026-02-30", null],
+  ])("TC-04-REACT-DISPLAY-002 localizes occurrence %s and keeps the raw editor value", async (occurredAt, options) => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { occurredAt } });
+    renderTicket("FACT");
+    fireEvent.change(await screen.findByLabelText("Language"), { target: { value: "ja" } });
+    const expected = options ? new Intl.DateTimeFormat("ja-JP", options).format(new Date(occurredAt)) : occurredAt;
+    expect(within(screen.getByRole("region", { name: "詳細" })).getByText(expected)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
+    expect(screen.getByLabelText("発生日時")).toHaveValue(occurredAt);
+    fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    expect(screen.getByLabelText("Occurred at")).toHaveValue("2026-11-01");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-DISPLAY-003 applies all text sizes without discarding a draft and resets on remount", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    const view = renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Unsaved title" } });
+    for (const size of ["small", "large", "medium"]) {
+      fireEvent.change(screen.getByLabelText("Text size"), { target: { value: size } });
+      expect(screen.getByRole("main")).toHaveClass(`ticket-text-${size}`);
+      expect(screen.getByLabelText("Summary")).toHaveValue("Unsaved title");
+    }
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.change(screen.getByLabelText("文字サイズ"), { target: { value: "small" } });
+    expect(screen.getByLabelText("概要")).toHaveValue("Unsaved title");
+    view.unmount();
+    renderTicket();
+    expect(await screen.findByLabelText("Language")).toHaveValue("en");
+    expect(screen.getByLabelText("Text size")).toHaveValue("medium");
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-DISPLAY-004 translates validation, relationship fallbacks and external-link editors", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["missing"], link: [] } });
+    renderTicket("FACT", { path: "C:/demo", model: referenceModel, isVerified: true });
+    fireEvent.change(await screen.findByLabelText("Language"), { target: { value: "ja" } });
+    expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("PERSONは利用できません");
+    fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(screen.getByRole("status")).toHaveTextContent("人物には有効なエンティティのUUIDを入力してください。");
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    expect(screen.getByRole("status")).toHaveTextContent("People must contain valid entity UUIDs.");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.click(screen.getByRole("button", { name: "外部リンクを編集" }));
+    fireEvent.click(screen.getByRole("button", { name: "リンクを追加" }));
+    expect(screen.getByLabelText("リンク1")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "リンク1を削除" })).toBeInTheDocument();
+    expect(screen.getByText("認証情報や空白を含まないHTTP(S)の絶対URLを入力してください。")).toBeInTheDocument();
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
   });
   it.each([
     ["PERSON", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
@@ -119,7 +201,8 @@ describe("SEQ-04 entity ticket", () => {
     for (const title of titles) expect(values).toHaveTextContent(title);
     for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(values).not.toHaveTextContent(id);
     for (const id of ["person-ada", "exp-life", "exp-research"]) expect(view.container).not.toHaveTextContent(id);
-    expect(view.container.querySelector("form, input, select, textarea")).toBeNull();
+    expect(view.container.querySelector("form, input, textarea")).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });
   it("TC-04-REACT-REF-001 displays graph links as readable, wrapping bullets", async () => {
@@ -235,7 +318,8 @@ describe("SEQ-04 entity ticket", () => {
     expect(await screen.findByRole("heading", { name: "Original" })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: "Markdown preview" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit external link 1" })).toHaveTextContent("https://example.org");
-    expect(view.container.querySelector("form, input, textarea, select")).toBeNull();
+    expect(view.container.querySelector("form, input, textarea")).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
     expect(api.saveEntityDetail).not.toHaveBeenCalled();
@@ -282,8 +366,8 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Metadata saved. Workspace requires re-verification.");
     expect(api.saveEntityDetail).toHaveBeenCalledWith(type, "C:/demo", { ...stored, ...patch });
-    const displayedValue = type === "FACT"
-      ? new Intl.DateTimeFormat(undefined, {
+    const displayedValue = type === "FACT" || type === "PERSON"
+      ? new Intl.DateTimeFormat("en-US", {
         year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
       }).format(new Date(`${value}T00:00:00.000Z`))
       : type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value;

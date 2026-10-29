@@ -6,13 +6,52 @@
   ################################################### */
 
 .ticket-page {
+  --base-font-size: 16px;
   min-height: 100vh;
   max-width: 1440px;
   padding: 32px;
   color: var(--theme-text);
   font-family: "Yu Mincho", "游明朝", Georgia, serif;
+  font-size: var(--base-font-size);
   line-height: 1.75;
   letter-spacing: 0.03em;
+}
+
+.ticket-page.ticket-text-small {
+  --base-font-size: 14px;
+}
+
+.ticket-page.ticket-text-large {
+  --base-font-size: 18px;
+}
+
+.ticket-page .btn,
+.ticket-page .form-control,
+.ticket-page .form-select {
+  font: inherit;
+}
+
+.ticket-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ticket-preference {
+  flex: 0 1 12em;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ticket-preference .form-label {
+  margin-bottom: 4px;
+}
+
+.ticket-preference .form-select {
+  width: 100%;
+  border-radius: 0;
 }
 
 .ticket-header {
@@ -24,17 +63,18 @@
 .ticket-entity-identity {
   margin-bottom: 0;
   overflow-wrap: anywhere;
-  font-size: 0.9rem;
+  font-size: 0.9em;
 }
 
 .ticket-header h1 {
+  font-size: 2em;
   margin-bottom: 0;
   overflow-wrap: anywhere;
 }
 
 .ticket-reading-hint,
 .ticket-detail-label {
-  font-size: 0.9rem;
+  font-size: 0.9em;
 }
 
 .ticket-reading-hint {
@@ -84,8 +124,8 @@
   border-bottom: 1px solid var(--theme-border);
 }
 
-.ticket-section h2 {
-  font-size: 1.2rem;
+.ticket-page h2 {
+  font-size: 1.2em;
 }
 
 .ticket-detail-row {

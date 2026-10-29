@@ -8,6 +8,23 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Ticket Display Preferences
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-DISPLAY-001` (all entity types) | `REQ-04-RULE-021` | English/Japanese labels and accessible controls switch immediately; names, URLs and rendered Markdown stay unchanged, with no save or reload. |
+| `TC-04-REACT-DISPLAY-002` | `REQ-04-RULE-017`, `REQ-04-RULE-021` | Japanese date-only and timestamp formatting preserves calendar day/local time; malformed/impossible dates remain verbatim, and changing language preserves the raw active date draft. |
+| `TC-04-REACT-DISPLAY-003` | `REQ-04-RULE-022` | All three text presets apply without discarding a draft; remount resets language and size to English/Medium. |
+| `TC-04-REACT-DISPLAY-004` | `REQ-04-RULE-021` | Reference fallbacks, external-link editor labels and validation translate; an existing field validation message switches back to English correctly. |
+| `TC-NAV-DISPLAY-001` | `REQ-04-RULE-021`, `REQ-04-RULE-022` | Japanese GUI controls save unchanged ISO timestamp payloads through the real typed wrapper/native transport mock, retain Markdown, and return through re-verification to the graph. |
+
+Run component cases with `npm run test:eval-04`, and the real-wrapper case
+with `npm run test:robustness`. Native commands and persisted schemas do not change.
+Browser acceptance checks all presets at desktop/mobile widths, measuring
+14/16/18px body text and proportionally scaled headings/controls, with no
+horizontal page overflow. English/Japanese controls and date labels must remain
+readable under the active theme; Markdown words and source remain unchanged.
+
 ### Entity Titles and Related LINK Coverage
 
 | Test ID | Requirement | Expected result |
@@ -33,7 +50,7 @@ No native command or serialized schema change is required.
 
 | Test ID | Requirement | Expected result |
 | --- | --- | --- |
-| `TC-04-REACT-INLINE-001` (all entity types) | `REQ-04-RULE-015` | Readable summary/links/Markdown appear with no mounted form/input/select/textarea or Save/Cancel controls. |
+| `TC-04-REACT-INLINE-001` (all entity types) | `REQ-04-RULE-015` | Readable summary/links/Markdown appear with no mounted metadata form/input/textarea or Save/Cancel controls; only the two display preference selects are mounted. |
 | `TC-04-REACT-INLINE-002` | `REQ-04-RULE-016` | Summary click focuses its only input; blur does not save, Escape discards, focus returns to content, and explicit Save preserves other fields. |
 | `TC-04-REACT-INLINE-003` (all entity types) | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Detail edits produce exact typed payloads, keep summary/Markdown/URLs unchanged, and restore reading mode. |
 | `TC-04-REACT-INLINE-004` | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Bad UUID input never invokes save; a pending save disables Cancel/Refresh and suppresses duplicate submits; failure retains input and Cancel discards it. |

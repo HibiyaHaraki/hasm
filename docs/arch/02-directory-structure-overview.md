@@ -320,6 +320,7 @@ hasm-desktop/
   * Provides filter controls (`Linear`, `Logarithmic`, `SequentialIndex`), PERSON/EXPERIENCE scope selection, and handles node click navigation ([SEQ-03](./12-SEQ-03_Visualizer.md)).
 * **`EntityDetailPage.jsx` (`/entity-detail/:entity_type/:entity_id`)**
   * Wrapped in `<ProtectedRoute requireVerified={true}>`.
+  * Owns in-memory English/Japanese and Small/Medium/Large display preferences; uses `features/entityTicket/ticketLanguage.js` for ticket-local interface translations without changing Markdown, metadata, or IPC.
   * Loads ticket metadata and markdown via `loadEntityDetail`.
   * Handles metadata field changes, "Save" (`saveEntityMetadata`), and "Cancel" modals ([SEQ-04](./13-SEQ-04_Entity_Editing.md)).
   * Invokes `launchExternalMarkdownApp` on "Edit Markdown in HASM App" click ([SEQ-05](./14-SEQ-05_Edit_on_HASM_Markdown.md)).
