@@ -36,6 +36,11 @@ and browser navigation are distinct.
 | LINK details | `linkType`, `relatedIds` |
 | External links | Ordered `link` URL array, independent of graph relationships |
 
+FACT `occurredAt` remains ISO 8601 in storage and when editing. In reading mode,
+date-only values render as a localized long date; timestamps render as a
+localized date and time in the user's local time zone, with the time-zone
+abbreviation shown. Invalid values remain visible as entered.
+
 Relationship UUID arrays are edited as comma-separated UUIDs and converted
 back to arrays only on Save; empty arrays remain `[]`. Invalid UUIDs, empty
 summaries/relationship types, self-links, and unsafe URLs are displayed before

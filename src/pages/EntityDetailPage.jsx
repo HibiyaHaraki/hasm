@@ -12,6 +12,31 @@ import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitl
 
 const logger = createLogger("entity-detail");
 
+function formatOccurrence(value) {
+  if (!value) return "Not set";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(date);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return value;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
+}
+
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
   const [ticket, setTicket] = useState(null); const [form, setForm] = useState(null); const [saving, setSaving] = useState(false); const [changed, setChanged] = useState(false); const [deleted, setDeleted] = useState(false); const [message, setMessage] = useState("");
@@ -219,6 +244,7 @@ function EntityDetailPage() {
   const relationshipIds = relatedLinkIds(referenceIndex, entityId, ticket.detail);
   const navigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
   const renderDetailValue = (field) => {
+    if (field.key === "occurredAt") return formatOccurrence(ticket.detail[field.key]);
     const references = detailEntityReferences(referenceIndex, field, ticket.detail, currentEntity);
     if (!references) return ticket.detail[field.key] || "Not set";
     if (!references.length) return field.list ? "None" : "Not set";

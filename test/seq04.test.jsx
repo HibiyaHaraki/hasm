@@ -34,6 +34,20 @@ describe("SEQ-04 entity ticket", () => {
     expect(await screen.findByText(`${type}/id-1`)).toBeInTheDocument();
   });
   it.each([
+    ["2026-10-29", new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+    }).format(new Date("2026-10-29T00:00:00.000Z"))],
+    ["2026-10-29T13:45:00Z", new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    }).format(new Date("2026-10-29T13:45:00Z"))],
+    ["not-a-date", "not-a-date"],
+  ])("TC-04-REACT-TIME-001 shows FACT occurrence %s in readable date/time format", async (occurredAt, expected) => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { occurredAt } });
+    renderTicket("FACT");
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    expect(region.getByText(expected, { exact: true })).toBeInTheDocument();
+  });
+  it.each([
     ["PERSON", { linkIds: ["link-out"] }, "LINK", "link-out", "Inspired research"],
     ["EXPERIENCE", { personId: "person-ada" }, "PERSON", "person-ada", "Ada Lovelace"],
     ["EXPERIENCE", { parentExperienceIds: ["exp-life"] }, "EXPERIENCE", "exp-life", "Life in London"],
@@ -253,7 +267,12 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Metadata saved. Workspace requires re-verification.");
     expect(api.saveEntityDetail).toHaveBeenCalledWith(type, "C:/demo", { ...stored, ...patch });
-    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value);
+    const displayedValue = type === "FACT"
+      ? new Intl.DateTimeFormat(undefined, {
+        year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+      }).format(new Date(`${value}T00:00:00.000Z`))
+      : type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value;
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(displayedValue);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-INLINE-004 keeps the editor on validation/save failure and prevents duplicate saves", async () => {
