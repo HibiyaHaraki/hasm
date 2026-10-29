@@ -105,11 +105,11 @@ from **External links**. The list is the deduplicated union of current
 `detail.linkIds` and every model LINK whose `relatedIds` contains the ticket
 ID, covering both incoming and outgoing endpoints even when `linkIds` is
 empty. Each row shows LINK title, relationship type and endpoint titles in
-stored order. The LINK title is a separate navigation control; relationship
-type and each endpoint are displayed as nested bullet points so long titles
-and endpoint names remain easy to scan and wrap within the sidebar. The current
-ticket title overrides its model snapshot so a just-saved summary is
-immediately reflected in endpoint text.
+stored order. The LINK title is a separate navigation control. Each row has an
+accessible disclosure for relationship type and endpoint sub-bullets, collapsed
+initially to keep the list scannable. Long titles and endpoint names wrap within
+the sidebar. The current ticket title overrides its model snapshot so a
+just-saved summary is immediately reflected in endpoint text.
 
 Rows open the corresponding LINK ticket while retaining workspace/model
 context. Navigation is disabled during inline editing, save/refresh, and

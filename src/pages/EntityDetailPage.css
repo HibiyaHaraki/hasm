@@ -147,6 +147,23 @@
   text-underline-offset: 0.2em;
 }
 
+.ticket-relationship-disclosure {
+  margin-top: 4px;
+}
+
+.ticket-relationship-disclosure > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--theme-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.ticket-relationship-disclosure > summary:focus-visible {
+  outline: 2px solid var(--theme-text);
+  outline-offset: 2px;
+}
+
 .ticket-relationship-details {
   list-style: disc;
   margin: 4px 0 0;

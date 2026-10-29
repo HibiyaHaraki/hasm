@@ -312,19 +312,22 @@ function EntityDetailPage() {
                           </Button>
                         ) : <p>Referenced LINK information is unavailable.</p>}
                         {relationship ? (
-                          <ul className="ticket-relationship-details">
-                            <li><strong>Relationship type:</strong> {relationship.linkType || "Not set"}</li>
-                            <li>
-                              <strong>Connected entities:</strong>
-                              {(relationship.relatedIds ?? []).length ? (
-                                <ul className="ticket-relationship-endpoints">
-                                  {relationship.relatedIds.map((endpoint) => (
-                                    <li key={endpoint}>{entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity)}</li>
-                                  ))}
-                                </ul>
-                              ) : <span> No related entities.</span>}
-                            </li>
-                          </ul>
+                          <details className="ticket-relationship-disclosure">
+                            <summary>Relationship details</summary>
+                            <ul className="ticket-relationship-details">
+                              <li><strong>Relationship type:</strong> {relationship.linkType || "Not set"}</li>
+                              <li>
+                                <strong>Connected entities:</strong>
+                                {(relationship.relatedIds ?? []).length ? (
+                                  <ul className="ticket-relationship-endpoints">
+                                    {relationship.relatedIds.map((endpoint) => (
+                                      <li key={endpoint}>{entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity)}</li>
+                                    ))}
+                                  </ul>
+                                ) : <span> No related entities.</span>}
+                              </li>
+                            </ul>
+                          </details>
                         ) : null}
                       </li>
                     );
