@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { Button } from "react-bootstrap";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import VisualizerPage from "../src/pages/VisualizerPage";
@@ -150,11 +150,17 @@ describe("bounded graph-ticket navigation robustness", () => {
     renderFlow(`/entity-detail/FACT/${id}`, false, { ...model, people: [person], links: [relationship] });
     await flush();
     const open = screen.getByRole("button", { name: "Open LINK: Ada published notes" });
-    expect(open).toHaveTextContent("Ada Lovelace -> Publication");
+    expect(open).toHaveTextContent(relationship.linkName);
+    const disclosure = screen.getByText("Relationship details").closest("details");
+    fireEvent.click(screen.getByText("Relationship details"));
+    expect(within(disclosure).getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(disclosure).getByText("Publication")).toBeInTheDocument();
     fireEvent.click(open);
     await flush();
     expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: "LINK", entityId: relationship.linkId });
-    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("Ada Lovelace, Publication");
+    const details = within(screen.getByRole("region", { name: "Details" }));
+    expect(details.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(details.getByText("Publication")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
   });
@@ -281,7 +287,11 @@ describe("bounded graph-ticket navigation robustness", () => {
       modelRoot: path, detail: { ...fact, occurredAt: "2026-10-29" },
     });
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent("2026-10-29");
+    expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(
+      new Intl.DateTimeFormat(undefined, {
+        year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+      }).format(new Date("2026-10-29T00:00:00.000Z")),
+    );
   });
 
   it("TC-NAV-009 an active stalled layout still fails after progress stops", async () => {
