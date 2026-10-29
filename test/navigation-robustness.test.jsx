@@ -40,8 +40,8 @@ function NavigationProbe() {
   </>;
 }
 
-function renderFlow(start = "/visualizer", strict = false) {
-  const tree = <MemoryRouter initialEntries={[{ pathname: start, state: { path, model, isVerified: true } }]}>
+function renderFlow(start = "/visualizer", strict = false, workspaceModel = model) {
+  const tree = <MemoryRouter initialEntries={[{ pathname: start, state: { path, model: workspaceModel, isVerified: true } }]}>
     <NavigationProbe />
     <Routes>
       <Route element={<ProtectedRoute requireVerified />}>
@@ -98,6 +98,24 @@ afterEach(() => {
 });
 
 describe("bounded graph-ticket navigation robustness", () => {
+  it("TC-NAV-REF-001 opens a related LINK via the real load invoke with reader-friendly endpoint titles", async () => {
+    const person = { personId: "11111111-1111-1111-1111-111111111111", personName: "Ada Lovelace" };
+    const relationship = { linkId: "44444444-4444-4444-4444-444444444444", linkName: "Ada published notes", linkType: "published", relatedIds: [person.personId, id], link: [] };
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((command, args) => command === "load_entity_detail" && args.entityType === "LINK"
+      ? Promise.resolve({ ...ticket, entityType: "LINK", entityId: relationship.linkId, name: relationship.linkName, detail: relationship })
+      : originalInvoke(command, args));
+    renderFlow(`/entity-detail/FACT/${id}`, false, { ...model, people: [person], links: [relationship] });
+    await flush();
+    const open = screen.getByRole("button", { name: "Open LINK: Ada published notes" });
+    expect(open).toHaveTextContent("Ada Lovelace -> Publication");
+    fireEvent.click(open);
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: "LINK", entityId: relationship.linkId });
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Ada Lovelace, Publication");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
+  });
   it("TC-NAV-001 ignores progress after layout completion instead of rearming its watchdog", async () => {
     renderFlow();
     await flush();

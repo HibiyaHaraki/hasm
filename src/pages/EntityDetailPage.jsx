@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
@@ -8,6 +8,7 @@ import "./PanelCard.css";
 import "./EntityDetailPage.css";
 import { ExternalLinksView, isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
+import { createEntityReferenceIndex, detailDisplayValue, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
 
 const logger = createLogger("entity-detail");
 
@@ -19,6 +20,7 @@ function EntityDetailPage() {
   const editTriggerRef = useRef(null);
   const root = state?.path;
   const [workspaceState, setWorkspaceState] = useState(state);
+  const referenceIndex = useMemo(() => createEntityReferenceIndex(workspaceState?.model), [workspaceState?.model]);
   const lifecycleRef = useRef(null);
   useLayoutEffect(() => {
     if (!editing && editTriggerRef.current) {
@@ -213,13 +215,15 @@ function EntityDetailPage() {
       setMessage(text.includes("EXECUTABLE_NOT_FOUND") ? "hasm_markdown.exe application binary is missing." : text.includes("DIRECTORY_NOT_FOUND") ? "Entity folder does not exist on disk." : text.includes("LAUNCH_TIMEOUT") ? "Launching HASM Markdown App timed out." : text.includes("PROCESS_SPAWN_FAILED") ? "Failed to launch hasm_markdown.exe process." : text); 
     } 
   };
+  const currentEntity = { ...ticket, entityType, entityId };
+  const relationshipIds = relatedLinkIds(referenceIndex, entityId, ticket.detail);
   return (
     <Container as="main" fluid className="ticket-page">
       <header className="ticket-header">
         <div className="d-flex flex-wrap gap-2 mb-2">
           <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>Back to Visualizer</Button>
         </div>
-        <p className="mb-0">{entityType} / {entityId}</p>
+        <p className="mb-0">{entityType}</p>
         <p className="ticket-reading-hint">Click content to edit. Save or cancel before editing another field.</p>
         {editing === "summary" ? (
           <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} />
@@ -241,15 +245,45 @@ function EntityDetailPage() {
             ) : (
               <Button id="ticket-details-read" className="ticket-content-trigger ticket-details-trigger" aria-label="Edit details"
                 disabled={Boolean(editing) || refreshing} onClick={(event) => beginEdit("details", event)}>
-                {DETAIL_FIELDS[entityType].map(({ key, label, list }) => (
-                  <span className="ticket-detail-row" key={key}>
-                    <span className="ticket-detail-label">{label}</span>
-                    <span>{list ? ticket.detail[key]?.join(", ") || "None" : ticket.detail[key] || "Not set"}</span>
+                {DETAIL_FIELDS[entityType].map((field) => (
+                  <span className="ticket-detail-row" key={field.key}>
+                    <span className="ticket-detail-label">{field.label}</span>
+                    <span>{detailDisplayValue(referenceIndex, field, ticket.detail, currentEntity)}</span>
                   </span>
                 ))}
               </Button>
             )}
           </section>
+          {entityType !== "LINK" ? (
+            <section className="ticket-section" aria-labelledby="ticket-relationships-heading">
+              <h2 id="ticket-relationships-heading">Related LINK entities</h2>
+              {!referenceIndex.available ? <p>Workspace relationship information is unavailable.</p> : null}
+              {workspaceState?.isVerified === false && relationshipIds.length ? <p>Return to Visualizer to re-verify before opening related entities.</p> : null}
+              {relationshipIds.length ? (
+                <ul className="ticket-relationships">
+                  {relationshipIds.map((id) => {
+                    const match = referenceIndex.entities.get(id);
+                    const relationship = match?.type === "LINK" ? match.entity : null;
+                    const title = entityReferenceTitle(referenceIndex, id, "LINK", currentEntity);
+                    return (
+                      <li key={id}>
+                        {relationship ? (
+                          <Button className="ticket-content-trigger" disabled={Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false}
+                            aria-label={`Open LINK: ${title}`}
+                            onClick={() => navigate(`/entity-detail/LINK/${id}`, { state: workspaceState })}>
+                            <span className="ticket-relationship-title">{title}</span>
+                            <span className="ticket-detail-label">{relationship.linkType || "Relationship type not set"}</span>
+                            <span>{(relationship.relatedIds ?? []).map((endpoint) =>
+                              entityReferenceTitle(referenceIndex, endpoint, undefined, currentEntity)).join(" -> ") || "No related entities"}</span>
+                          </Button>
+                        ) : <p>Referenced LINK information is unavailable.</p>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : referenceIndex.available ? <p>No related LINK entities.</p> : null}
+            </section>
+          ) : null}
           <section className="ticket-section" aria-labelledby="ticket-links-heading">
             <h2 id="ticket-links-heading">External links</h2>
             {editing === "links" ? (

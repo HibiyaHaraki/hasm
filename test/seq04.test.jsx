@@ -14,6 +14,92 @@ function SavedStateProbe() { const location = useLocation(); return <output data
 function renderTicket(entityType = "PERSON", state = { path: "C:/demo" }) { return render(<MemoryRouter initialEntries={[{ pathname: `/entity-detail/${entityType}/id-1`, state }]}><Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /><Route path="/error-model" element={<LocationProbe />} /><Route path="/error-markdown" element={<LocationProbe />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes></MemoryRouter>); }
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 describe("SEQ-04 entity ticket", () => {
+  const referenceModel = {
+    people: [{ personId: "person-ada", personName: "Ada Lovelace" }],
+    experiences: [
+      { experienceId: "exp-life", experienceName: "Life in London" },
+      { experienceId: "exp-research", experienceName: "Analytical Engine research" },
+    ],
+    facts: [{ factId: "fact-notes", factName: "Published notes" }],
+    links: [
+      { linkId: "link-out", linkName: "Inspired research", linkType: "inspires", relatedIds: ["id-1", "exp-research"] },
+      { linkId: "link-in", linkName: "Documented by Ada", linkType: "documents", relatedIds: ["person-ada", "id-1"] },
+      { linkId: "link-explicit", linkName: "Further reading", linkType: "references", relatedIds: ["person-ada", "exp-life"] },
+      { linkId: "link-unrelated", linkName: "Unrelated relationship", linkType: "references", relatedIds: ["person-ada", "fact-notes"] },
+    ],
+  };
+  it.each([
+    ["EXPERIENCE", { personId: "person-ada", parentExperienceIds: ["exp-life"] }, ["Ada Lovelace", "Life in London"]],
+    ["FACT", { personIds: ["person-ada"], experienceIds: ["exp-life", "exp-research"] }, ["Ada Lovelace", "Life in London", "Analytical Engine research"]],
+    ["LINK", { relatedIds: ["person-ada", "exp-research"] }, ["Ada Lovelace", "Analytical Engine research"]],
+  ])("TC-04-REACT-REF-001 displays titles instead of IDs in %s reference information", async (type, fields, titles) => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: fields });
+    const view = renderTicket(type, { path: "C:/demo", model: referenceModel });
+    const values = await screen.findByRole("button", { name: "Edit details" });
+    for (const title of titles) expect(values).toHaveTextContent(title);
+    for (const id of ["person-ada", "exp-life", "exp-research", "id-1"]) expect(view.container).not.toHaveTextContent(id);
+    expect(view.container.querySelector("form, input, select, textarea")).toBeNull();
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+  it.each(["PERSON", "EXPERIENCE", "FACT"])("TC-04-REACT-REF-002 lists incoming, outgoing and explicit LINK entities once for %s", async (type) => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { linkIds: ["link-out", "link-out", "link-explicit"], link: ["https://example.org"] } });
+    renderTicket(type, { path: "C:/demo", model: referenceModel });
+    const links = within(await screen.findByRole("region", { name: "Related LINK entities" }));
+    expect(links.getAllByRole("listitem")).toHaveLength(3);
+    expect(links.getByRole("button", { name: "Open LINK: Inspired research" })).toHaveTextContent("inspires");
+    expect(links.getByRole("button", { name: "Open LINK: Inspired research" })).toHaveTextContent("Original -> Analytical Engine research");
+    expect(links.getByRole("button", { name: "Open LINK: Documented by Ada" })).toHaveTextContent("Ada Lovelace -> Original");
+    expect(links.getByRole("button", { name: "Open LINK: Further reading" })).toHaveTextContent("Ada Lovelace -> Life in London");
+    expect(links.queryByText("Unrelated relationship")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "External links" })).toHaveTextContent("https://example.org");
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    expect(links.getByRole("button", { name: "Open LINK: Inspired research" })).toBeDisabled();
+  });
+  it("TC-04-REACT-REF-003 handles unavailable references without displaying opaque IDs", async () => {
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["missing-person"], experienceIds: ["missing-experience"], linkIds: ["missing-link"] } });
+    const view = renderTicket("FACT", { path: "C:/demo", model: referenceModel });
+    const values = await screen.findByRole("button", { name: "Edit details" });
+    expect(values).toHaveTextContent("Unavailable PERSON");
+    expect(values).toHaveTextContent("Unavailable EXPERIENCE");
+    expect(values).toHaveTextContent("Unavailable LINK");
+    expect(screen.getByText("Referenced LINK information is unavailable.")).toBeInTheDocument();
+    expect(view.container).not.toHaveTextContent("missing-person");
+    expect(view.container).not.toHaveTextContent("missing-experience");
+    expect(view.container).not.toHaveTextContent("missing-link");
+  });
+  it("TC-04-REACT-REF-004 shows empty and missing-workspace relationship states explicitly", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket("PERSON", { path: "C:/demo", model: { people: [], experiences: [], facts: [], links: [] } });
+    expect(await screen.findByText("No related LINK entities.")).toBeInTheDocument();
+    cleanup();
+    renderTicket();
+    expect(await screen.findByText("Workspace relationship information is unavailable.")).toBeInTheDocument();
+  });
+  it("TC-04-REACT-REF-005 opens a related LINK with the workspace context", async () => {
+    api.loadEntityDetail.mockImplementation(async (_root, type, id) => type === "LINK"
+      ? { ...detail, name: "Inspired research", detail: referenceModel.links.find((link) => link.linkId === id) }
+      : detail);
+    renderTicket("PERSON", { path: "C:/demo", model: referenceModel, isVerified: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Open LINK: Inspired research" }));
+    expect(await screen.findByRole("heading", { name: "Inspired research" })).toBeInTheDocument();
+    expect(api.loadEntityDetail).toHaveBeenLastCalledWith("C:/demo", "LINK", "link-out");
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent("Analytical Engine research");
+    expect(screen.queryByRole("region", { name: "Related LINK entities" })).not.toBeInTheDocument();
+  });
+  it("TC-04-REACT-REF-006 updates endpoint titles after save and preserves re-verification before related navigation", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.saveEntityDetail.mockResolvedValue({});
+    renderTicket("PERSON", { path: "C:/demo", model: referenceModel, isVerified: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Updated title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("heading", { name: "Updated title" });
+    const link = screen.getByRole("button", { name: "Open LINK: Inspired research" });
+    expect(link).toHaveTextContent("Updated title -> Analytical Engine research");
+    expect(link).toBeDisabled();
+    expect(screen.getByText("Return to Visualizer to re-verify before opening related entities.")).toBeInTheDocument();
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
   it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-INLINE-001 opens %s in reading mode without editing forms", async (type) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { ...detail.detail, link: ["https://example.org"] } });
     const view = renderTicket(type);
@@ -67,7 +153,7 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Metadata saved. Workspace requires re-verification.");
     expect(api.saveEntityDetail).toHaveBeenCalledWith(type, "C:/demo", { ...stored, ...patch });
-    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent(value);
+    expect(screen.getByRole("button", { name: "Edit details" })).toHaveTextContent(type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-INLINE-004 keeps the editor on validation/save failure and prevents duplicate saves", async () => {

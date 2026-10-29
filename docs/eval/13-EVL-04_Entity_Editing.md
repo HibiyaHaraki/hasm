@@ -8,6 +8,22 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Entity Titles and Related LINK Coverage
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-REACT-REF-001` | `REQ-04-RULE-018` | EXPERIENCE owner/parents, FACT people/experiences and LINK endpoints display titles without UUIDs or forms. |
+| `TC-04-REACT-REF-002` (PERSON, EXPERIENCE, FACT) | `REQ-04-RULE-019` | Incoming/outgoing endpoint references and explicit graph links are deduplicated, unrelated links excluded, title/type/endpoints visible alongside external URLs; editing disables navigation. |
+| `TC-04-REACT-REF-003` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Missing references show unavailable labels without UUID fallbacks or broken navigation. |
+| `TC-04-REACT-REF-004` | `REQ-04-RULE-019` | Empty list and unavailable model are distinguished explicitly. |
+| `TC-04-REACT-REF-005` | `REQ-04-RULE-019` | Related LINK opens its detail and resolves endpoint titles with retained workspace/model context. |
+| `TC-04-REACT-REF-006` | `REQ-04-RULE-019` | Saved summary immediately updates endpoint text; unverified workspace shows guidance and disables related navigation without reloading the model. |
+| `TC-NAV-REF-001` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Actual ticket -> real JS wrapper -> mocked Tauri transport invokes `load_entity_detail` with exact LINK identity; destination retains titles with no whole-model reload. |
+
+Run reference component cases with `npm run test:eval-04`, and the
+component-to-invoke navigation case with `npm run test:robustness`.
+No native command or serialized schema change is required.
+
 ### Reader-First Inline Editing
 
 | Test ID | Requirement | Expected result |

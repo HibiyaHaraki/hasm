@@ -101,6 +101,25 @@
   color: var(--theme-text);
 }
 
+.ticket-relationships {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ticket-relationships li {
+  margin-bottom: 12px;
+}
+
+.ticket-relationships .ticket-content-trigger > span {
+  display: block;
+}
+
+.ticket-relationship-title {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 @media (max-width: 700px) {
   .ticket-page {
     padding: 14px;

@@ -70,6 +70,37 @@ sequenceDiagram
     end
 ```
 
+### Readable entity references and related LINK information
+
+The ticket header shows entity type and title, not its UUID. Read-only owner,
+parent experience, people, experience, graph-link and LINK-endpoint fields
+resolve identifiers to their entity titles using the existing route model.
+Missing references explicitly read `Unavailable PERSON`, `Unavailable
+EXPERIENCE`, `Unavailable LINK`, or `Unavailable entity`; unnamed records use
+`Untitled {TYPE}` (or a LINK's relationship type). Opaque UUIDs remain in
+serialized data and the explicit relationship editor, not in reading-mode
+reference labels. No additional workspace/Markdown load is performed.
+
+`EntityReferences.js` builds entity-title and reverse LINK-endpoint indexes,
+memoized per route-model snapshot. Index construction is O(entities + LINK
+endpoints) in memory, with no filesystem/database scan. Detail loads and saves
+keep their existing single-entity backend cost; reference lookups are O(1).
+
+PERSON, EXPERIENCE and FACT tickets include **Related LINK entities**, separate
+from **External links**. The list is the deduplicated union of current
+`detail.linkIds` and every model LINK whose `relatedIds` contains the ticket
+ID, covering both incoming and outgoing endpoints even when `linkIds` is
+empty. Each row shows LINK title, relationship type and endpoint titles in
+stored order. The current ticket title overrides its model snapshot so a
+just-saved summary is immediately reflected in endpoint text.
+
+Rows open the corresponding LINK ticket while retaining workspace/model
+context. Navigation is disabled during inline editing, save/refresh, and
+after a metadata save has invalidated verification; a visible instruction
+then directs the user back to Visualizer for re-verification. Missing LINK
+records, unavailable route-model context and an empty relationship list have
+explicit readable states. No relationship fields or IPC payloads change.
+
 ### Read-only rendered Markdown
 
 `MarkdownPanel` renders `markdownBody` as HTML using `markdown-it` with raw
