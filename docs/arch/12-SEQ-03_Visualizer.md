@@ -67,18 +67,28 @@ The current implementation owns the entire visualizer surface in the reusable `s
 
 ### 2D Lane Width and Z Scale
 
-The SVG graph and HTML FACT/Time table share lane geometry from `graph2DLayout.js`.
+In `SequentialIndex`, the SVG graph and HTML FACT/Time table share lane geometry from `graph2DLayout.js`.
 The graph pane width is `21 + max(1, laneCount) * 56 + 10` CSS pixels, reserving space for
 the last EXPERIENCE label before the table. The table fills the remaining width; the split
 container scrolls horizontally when the lanes and minimum table width exceed the viewport.
 No percentage-based width or lane-count cap may clip the rightmost lanes.
 
-In 2D, successful layout completion commits both geometry and its Z scale. Table row height
+In 2D, successful layout completion commits geometry, time mode, and Z scale together. SequentialIndex table row height
 is `30 * zScaleFactor` pixels; the renderer uses the measured table row/header dimensions to
 align FACT dots and branch endpoints. Rejected layout requests retain the previous geometry
-and row scale. Time modes preserve newest-first, equally spaced 2D rows; in 3D they continue
-to determine Z-coordinate distances. Vertical scrolling remains owned by the FACT table and
-is mirrored synchronously to the SVG.
+and time/row scale. SequentialIndex preserves newest-first, equally spaced rows. Its vertical
+scrolling remains owned by the FACT table and is mirrored synchronously to the SVG.
+
+`Linear` and `Logarithmic` hide the FACT table. A left-hand Y-axis projects the successful
+layout's Z coordinates into SVG pixels, newest at the top, retaining linear/logarithmic
+distance ratios. Distinct FACTs at the same time and ancestor reflections share Y. Markers,
+branch endpoints, connectors, and LINK resolution use the same projection. Axis ticks use
+distinct FACT Z values and date labels; overlapping labels are omitted without moving ticks.
+The axis reserves 190 CSS pixels before the unchanged lane geometry. FACT names and dates
+are available on marker hover, and marker clicks retain ticket navigation. The graph owns
+native vertical scrolling in these modes; its EXPERIENCE/time header stays fixed. Z scale
+multiplies the timeline extent (at least eight row heights), not the distance ratios.
+No IPC payload or 3D behavior changes.
 
 ### Scope Selection and Render Budget (Large Packages)
 

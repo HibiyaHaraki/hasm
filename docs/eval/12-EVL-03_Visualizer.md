@@ -19,6 +19,8 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | `TC-03-SCOPE-006`, `TC-03-SCOPE-007` | `test/visualizer-scope.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-IPC-002` GUI controls through real API wrapper to mocked Tauri invoke | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-IPC-003` IPC payload through real host and 2D SVG renderer: six dashed segments for four mixed FACT/EXPERIENCE endpoints, hover emphasis, shared LINK ticket navigation | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-IPC-005` GUI time-mode changes through real IPC wrapper and SVG renderer: hidden table, chronological scaled Y, simultaneous/reflected FACT alignment, date ticks, hover, native scrolling, ticket navigation, SequentialIndex restoration | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-2D-TIME-001` empty/simultaneous timelines, exact distance ratios, and 0.5x/2x timeline scaling | `node --test src/hasm_visualizer/test/twoCommitGraph.test.js` | Local shared-package regression |
 | `TC-03-IPC-004` native generated invoke returns all six supported pairs, matching endpoint coordinates and original LINK identity, ignoring PERSON and duplicate IDs | `visualizer_commands_link_endpoints_through_registered_invoke` in `src-tauri/tests/entity_editor_commands_ipc.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
 | `TC-03-LINK-MULTI-JS` and shared SVG regression | `node --test src/hasm_visualizer/test/linkGeometry.test.js src/hasm_visualizer/test/twoCommitGraph.test.js` | Local shared-package regression |
 | `TC-03-REACT-TOOLBAR-001` compact controls, collapsed scope panel, persistent selection, accessible expanded/pressed states, Done/Escape/outside dismissal without extra layout | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
@@ -91,9 +93,12 @@ not a diagnosis of a particular user's workspace corruption.
 | `TC-03-IPC-002` | `REQ-03-FUNC-503`, `REQ-03-FUNC-510` | GUI EXPERIENCE selection and Z-scale changes reach `compute_visualizer_layout` through the real API wrapper with the narrowed model and numeric scale. |
 
 Browser acceptance additionally checks actual table row centers against SVG FACT centers at
-0.5x, 1x, and 2x, verifies alignment while vertically scrolling, and verifies the FACT/Time
+0.5x, 1x, and 2x in SequentialIndex, verifies alignment while vertically scrolling, and verifies the FACT/Time
 table follows the last lane on narrow screens through horizontal scrolling. These are real
 browser measurements, not coverage provided by the opt-in placeholder geometry smoke test.
+For Linear and Logarithmic, verify no FACT table is visible, simultaneous FACTs share a
+horizontal level, dates follow the Y-axis and remain aligned while scrolling, hover shows
+the FACT name/date, and switching back restores the original SequentialIndex presentation.
 
 ---
 
