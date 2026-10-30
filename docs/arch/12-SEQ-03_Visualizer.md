@@ -82,6 +82,19 @@ is mirrored synchronously to the SVG.
 
 ### Scope Selection and Render Budget (Large Packages)
 
+The graph controls use a compact, wrapping toolbar, ordered as optional sample
+package, Scope, View (2D/3D), Time scale, Z scale with numeric output, and host
+actions. The Scope trigger always shows the current entity count. PERSON and
+EXPERIENCE multi-selects, their All/None actions, and Clear scope live in an
+initially closed overlay panel rather than expanding the toolbar. The panel is
+bounded by the viewport with internal scrolling for large lists; opening it
+does not move the graph or request a new layout. Done, Escape, the trigger, and
+outside pointer interaction dismiss it without clearing selections. Done and
+Escape return focus to the trigger. Controls remain labeled and keyboard
+reachable; the trigger exposes `aria-expanded`/`aria-controls`, and view buttons
+expose their pressed state. On narrow windows, controls form a two-column grid
+with full-width sample/scope controls; the graph retains its own scrolling.
+
 A 60,000-entity package cannot be laid out or rendered whole, so the visualizer narrows the model **before** layout rather than trimming geometry afterwards:
 
 | Stage | Mechanism | Location |

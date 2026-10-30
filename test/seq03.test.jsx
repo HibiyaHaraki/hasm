@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import VisualizerPage from "../src/pages/VisualizerPage";
@@ -75,6 +75,39 @@ function switchTo3D() {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
 
 describe("SEQ-03 visualizer lifecycle", () => {
+  it("TC-03-REACT-TOOLBAR-001 keeps scope lists collapsed and preserves selection across dismissal", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(1));
+    const toolbar = screen.getByRole("region", { name: "Graph controls" });
+    const scopeButton = within(toolbar).getByRole("button", { name: /^Scope:/ });
+    expect(scopeButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(within(toolbar).getByRole("button", { name: "2D" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(toolbar).getByLabelText("Time scale")).toBeVisible();
+    expect(within(toolbar).getByLabelText("Z scale")).toBeVisible();
+    fireEvent.click(scopeButton);
+    const panel = screen.getByRole("region", { name: "Scope selection" });
+    expect(panel).toBeVisible();
+    expect(scopeButton).toHaveAttribute("aria-controls", panel.id);
+    expect(within(panel).getAllByRole("listbox")).toHaveLength(2);
+    selectOptions(within(panel).getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(2));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(scopeButton).toHaveFocus();
+    expect(scopeButton).toHaveAttribute("aria-expanded", "false");
+    expect(scopeButton).toHaveTextContent("1 selected");
+    fireEvent.click(scopeButton);
+    expect(within(screen.getByRole("region", { name: "Scope selection" })).getByLabelText("EXPERIENCE scope")).toHaveValue(["exp-2"]);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(scopeButton).toHaveFocus();
+    fireEvent.click(scopeButton);
+    fireEvent.pointerDown(screen.getByRole("heading", { name: "Commit graph" }));
+    expect(scopeButton).toHaveAttribute("aria-expanded", "false");
+    expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(2);
+  });
+
   it("TC-03-REACT-001 renders streamed layout progress and initializes the scene", async () => {
     let progressHandler;
     let resolveLayout;

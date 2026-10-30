@@ -21,6 +21,7 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | `TC-03-IPC-003` IPC payload through real host and 2D SVG renderer: six dashed segments for four mixed FACT/EXPERIENCE endpoints, hover emphasis, shared LINK ticket navigation | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-IPC-004` native generated invoke returns all six supported pairs, matching endpoint coordinates and original LINK identity, ignoring PERSON and duplicate IDs | `visualizer_commands_link_endpoints_through_registered_invoke` in `src-tauri/tests/entity_editor_commands_ipc.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
 | `TC-03-LINK-MULTI-JS` and shared SVG regression | `node --test src/hasm_visualizer/test/linkGeometry.test.js src/hasm_visualizer/test/twoCommitGraph.test.js` | Local shared-package regression |
+| `TC-03-REACT-TOOLBAR-001` compact controls, collapsed scope panel, persistent selection, accessible expanded/pressed states, Done/Escape/outside dismissal without extra layout | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 
 `TC-03-IPC-003` supplies measured element bounds in jsdom and mocks only the native
 transport; it does not mock the host or SVG renderer. `TC-03-IPC-004` separately
@@ -31,6 +32,14 @@ types, viewport-aware attachment, camelCase IDs, original LINK identity,
 duplicate/missing/PERSON exclusion, and six SVG paths for a multi-endpoint LINK.
 
 Desktop rows requiring an installed GUI driver remain acceptance scenarios.
+
+Toolbar browser acceptance measures actual bounds at 1280, 768, 390, and 320
+CSS-pixel viewport widths. Controls and the scope overlay must remain inside
+the viewport, with no page-level horizontal overflow. Opening scope must not
+change toolbar height or graph position. Verify sample and externally supplied
+models, long scope option names, keyboard dismissal/focus restoration, and that
+time/Z-scale controls and host actions remain reachable without page scrolling.
+Only the bounded scope panel and graph may require their own content scrolling.
 
 ### Bounded Navigation Robustness in CI
 
