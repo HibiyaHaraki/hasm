@@ -49,3 +49,6 @@ src-tauri/icons/*.icns
 src/icons/*.png
 src/icons/*.ico
 src/icons/*.icns
+
+# Generated splash bundle (synced from hasm_logo by scripts/sync-splash.mjs)
+public/splash/

@@ -7,6 +7,7 @@ import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
   browseWorkspaceDirectory: vi.fn(),
+  completeAppLaunch: vi.fn(),
   createHasmWorkspace: vi.fn(),
   createPerson: vi.fn(),
   createExperience: vi.fn(),
@@ -115,6 +116,40 @@ describe("SEQ-01 app launch validation", () => {
     renderBoot();
     expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByText("HASM Markdown application")).toHaveAttribute("data-active", "true");
+    expect(api.completeAppLaunch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["select", () => {
+      api.validateAppVersion.mockResolvedValue({ isModelSelected: false, path: null });
+    }, "/select"],
+    ["loading-model", () => {
+      api.validateAppVersion.mockResolvedValue({ isModelSelected: true, path: "C:/workspace" });
+      api.validateHasmFolderPath.mockResolvedValue();
+    }, "/loading-model"],
+    ["select-invalid-path", () => {
+      api.validateAppVersion.mockResolvedValue({ isModelSelected: true, path: "C:/missing" });
+      api.validateHasmFolderPath.mockRejectedValue(new Error("missing"));
+    }, "/select"],
+    ["error-app", () => {
+      api.validateAppVersion.mockRejectedValue(new Error("Version inspection failed"));
+    }, "/error-app"],
+  ])("TC-01-REACT-015 reports splash handoff outcome %s once boot finishes", async (outcome, arrange, route) => {
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    arrange();
+    renderBoot();
+    expect(await screen.findByTestId("location")).toHaveTextContent(route);
+    await waitFor(() => expect(api.completeAppLaunch).toHaveBeenCalledWith(outcome));
+    expect(api.completeAppLaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-01-REACT-016 still navigates when the splash handoff report fails", async () => {
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockResolvedValue({ isModelSelected: false, path: null });
+    api.completeAppLaunch.mockRejectedValue(new Error("splash unavailable"));
+    renderBoot();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/select");
+    await waitFor(() => expect(api.completeAppLaunch).toHaveBeenCalledWith("select"));
   });
 
   it("TC-01-REACT-002 routes a direct launch to workspace selection", async () => {

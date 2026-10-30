@@ -40,6 +40,14 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Setup Python for splash generation
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hasm_logo splash generator
+        run: python -m pip install ./hasm_logo
+
       - name: Install dependencies
         run: npm install
 
@@ -122,6 +130,10 @@ jobs:
       - name: EVAL-01 Rust command tests
         working-directory: src-tauri
         run: cargo test app_commands
+
+      - name: EVAL-01 Rust splash handoff tests
+        working-directory: src-tauri
+        run: cargo test splash_commands
 
       - name: EVAL-02 Rust model loading tests
         working-directory: src-tauri

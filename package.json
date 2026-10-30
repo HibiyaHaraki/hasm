@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run sync:splash && vite",
     "sync:tauri-icons": "node ./scripts/sync-tauri-icons.mjs",
-    "build": "npm run sync:tauri-icons && npm run build:markdown && npm run build:frontend",
+    "sync:splash": "node ./scripts/sync-splash.mjs",
+    "build": "npm run sync:tauri-icons && npm run sync:splash && npm run build:markdown && npm run build:frontend",
     "build:frontend": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",

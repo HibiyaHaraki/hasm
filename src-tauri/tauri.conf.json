@@ -12,9 +12,22 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "hasm",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "visible": false
+      },
+      {
+        "label": "splashscreen",
+        "title": "HASM - Starting",
+        "url": "splash/sprash_animation.html?background=theme",
+        "width": 900,
+        "height": 540,
+        "center": true,
+        "decorations": false,
+        "resizable": false,
+        "backgroundColor": "#f8fafc"
       }
     ],
     "security": {
