@@ -9,6 +9,7 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() =
 
 const api = await import("../src/features/hasm/api.js");
 const { default: VisualizerPage } = await import("../src/pages/VisualizerPage.jsx");
+const { computeVisualizerLayoutJS } = await import("../src/hasm_visualizer/layoutCalculator.js");
 
 afterEach(() => { cleanup(); invoke.mockReset(); vi.restoreAllMocks(); });
 
@@ -112,5 +113,105 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
     fireEvent.click(segments[5]);
     expect(await screen.findByText("LINK ticket opened")).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("compute_visualizer_layout", expect.objectContaining({ model }));
+  });
+
+  it("TC-03-IPC-005 switches real 2D time axes through invoke, aligns simultaneous FACTs, and restores sequential rows", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => (
+      { left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }
+    ));
+    const model = {
+      people: [],
+      experiences: [
+        { experienceId: "parent", name: "Parent" },
+        { experienceId: "child", name: "Child", parentExperienceIds: ["parent"] },
+      ],
+      // Deliberately unsorted, with simultaneous events and an ancestor reflection.
+      facts: [
+        { factId: "latest", name: "Latest", experienceIds: ["child"], occurredAt: "2026-11-01" },
+        { factId: "early", name: "Early", experienceIds: ["parent"], occurredAt: "2026-01-01" },
+        { factId: "middle", name: "Middle", experienceIds: ["child"], occurredAt: "2026-03-01" },
+        { factId: "same", name: "Same time", experienceIds: ["parent"], occurredAt: "2026-03-01" },
+      ],
+      links: [{ linkId: "ff", relatedIds: ["early", "latest"] }],
+    };
+    invoke.mockImplementation((command, args) => {
+      expect(command).toBe("compute_visualizer_layout");
+      return Promise.resolve(computeVisualizerLayoutJS(args.model, args.filter));
+    });
+    const { container } = render(React.createElement(MemoryRouter, {
+      initialEntries: [{ pathname: "/visualizer", state: { model, path: "fixture.hasm", isVerified: true } }],
+    }, React.createElement(Routes, null,
+      React.createElement(Route, { path: "/visualizer", element: React.createElement(VisualizerPage) }),
+      React.createElement(Route, { path: "/entity-detail/FACT/latest", element: React.createElement("p", null, "FACT ticket opened") }),
+    )));
+    const graph = () => container.querySelector(".HasmVisualizer_GraphPane2D");
+    const circles = () => [...graph().querySelectorAll("circle")];
+    await waitFor(() => expect(circles()).toHaveLength(6));
+    const sequentialYs = circles().map((circle) => circle.getAttribute("cy"));
+    expect(container.querySelector("table")).not.toBeNull();
+    expect(new Set(sequentialYs).size).toBe(4);
+    for (const mode of ["Linear", "Logarithmic"]) {
+      fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: mode } });
+      await waitFor(() => expect(graph().textContent).toContain(`Time (${mode})`));
+      expect(container.querySelector("table")).toBeNull();
+      expect(invoke).toHaveBeenLastCalledWith("compute_visualizer_layout", {
+        model, filter: { timeScaleMode: mode, zScaleFactor: 1 },
+      });
+      const payload = computeVisualizerLayoutJS(model, { timeScaleMode: mode, zScaleFactor: 1 });
+      const facts = payload.nodes3d.filter((node) => node.entityType === "FACT");
+      const ys = new Map(facts.map((node, index) => [node.id, Number(circles()[index].getAttribute("cy"))]));
+      expect(ys.get("same")).toBe(ys.get("middle"));
+      expect(ys.get("latest")).toBeLessThan(ys.get("middle"));
+      expect(ys.get("middle")).toBeLessThan(ys.get("early"));
+      // Preserve actual linear/logarithmic distances, not just chronological order.
+      const zs = new Map(facts.map((node) => [node.id, node.z]));
+      expect((ys.get("early") - ys.get("middle")) / (ys.get("early") - ys.get("latest")))
+        .toBeCloseTo((zs.get("middle") - zs.get("early")) / (zs.get("latest") - zs.get("early")));
+      expect(new Set(facts.filter((node) => node.id === "middle").map((node) => (
+        circles()[facts.indexOf(node)].getAttribute("cy")
+      ))).size).toBe(1);
+      const labels = [...graph().querySelectorAll("text")];
+      for (const node of facts) {
+        const label = labels.find((element) => element.textContent === model.facts.find((fact) => fact.factId === node.id).occurredAt);
+        expect(Number(label.getAttribute("y"))).toBe(ys.get(node.id));
+      }
+      const earlyCircle = circles()[facts.findIndex((node) => node.id === "early")];
+      fireEvent.pointerEnter(earlyCircle, { clientX: 100, clientY: 100 });
+      expect(container.querySelector(".HasmVisualizer_Tooltip")).toHaveTextContent("[FACT] Early");
+      expect(container.querySelector(".HasmVisualizer_Tooltip")).toHaveTextContent("2026-01-01");
+      fireEvent.pointerLeave(earlyCircle);
+      expect(container.querySelector(".HasmVisualizer_Tooltip")).toBeNull();
+      const link = graph().querySelector("path[stroke-dasharray]");
+      expect(link.getAttribute("d")).toContain(String(ys.get("early")));
+      const branches = [...graph().querySelectorAll('path:not([stroke-dasharray])')].slice(0, 2);
+      for (const branch of branches) {
+        const [, , firstY, , , lastY] = branch.getAttribute("d").split(" ");
+        expect([ys.get("early"), ys.get("middle")]).toContain(Number(firstY));
+        expect(Number(lastY)).toBe(ys.get("latest"));
+      }
+      const before = graph().querySelector("svg").parentElement.style.transform;
+      graph().scrollTop = 100;
+      fireEvent.scroll(graph());
+      expect(graph().querySelector("svg").parentElement.style.transform).toBe(before);
+      expect(graph().lastElementChild.style.top).toBe("100px");
+      expect(graph().style.overflowY).toBe("auto");
+    }
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "SequentialIndex" } });
+    await waitFor(() => expect(container.querySelector("table")).not.toBeNull());
+    await waitFor(() => expect(circles().map((circle) => circle.getAttribute("cy"))).toEqual(sequentialYs));
+    expect(graph().querySelector("text")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "Linear" } });
+    await waitFor(() => expect(graph().textContent).toContain("Time (Linear)"));
+    const linearYs = circles().map((circle) => circle.getAttribute("cy"));
+    invoke.mockRejectedValueOnce(new Error("Layout calculation stalled"));
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "SequentialIndex" } });
+    expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
+    expect(container.querySelector("table")).toBeNull();
+    expect(graph().textContent).toContain("Time (Linear)");
+    expect(circles().map((circle) => circle.getAttribute("cy"))).toEqual(linearYs);
+    const latestIndex = computeVisualizerLayoutJS(model, { timeScaleMode: "Linear" }).nodes3d
+      .filter((node) => node.entityType === "FACT").findIndex((node) => node.id === "latest");
+    fireEvent.click(circles()[latestIndex]);
+    expect(await screen.findByText("FACT ticket opened")).toBeInTheDocument();
   });
 });
