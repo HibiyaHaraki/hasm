@@ -19,4 +19,12 @@ describe("EVAL-01 Tauri IPC bridge contracts", () => {
     expect(invoke).toHaveBeenNthCalledWith(3, "validate_hasm_folder_path", { path: "C:/workspace" });
     expect(invoke).toHaveBeenNthCalledWith(4, "create_visualizer_demo_workspace");
   });
+
+  it("TC-01-IPC-002 invokes the splash handoff command with the boot outcome", () => {
+    invoke.mockClear();
+    api.completeAppLaunch("select");
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith("complete_app_launch", { outcome: "select" });
+  });
 });

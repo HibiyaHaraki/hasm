@@ -70,6 +70,14 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Setup Python for splash generation
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hasm_logo splash generator
+        run: python -m pip install ./hasm_logo
+
       - name: Install dependencies
         run: npm install
 

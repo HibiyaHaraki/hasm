@@ -8,18 +8,28 @@ pub mod hasm;
 #[path = "hasm_logger/src/tauri/logger.rs"]
 mod logger;
 
+use crate::hasm::splash_commands::{start_splash_fallback, SplashState};
 use crate::logger::init_logger;
+use std::time::Instant;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_logger();
+    // [SEQ-MD-01][SPLASH] Minimum splash duration is measured from process launch.
+    let launched_at = Instant::now();
     // Step 1. Build Tauri app container.
     tauri::Builder::default()
         // Step 2. Register plugins used by desktop runtime.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(SplashState::new(launched_at))
+        .setup(|app| {
+            start_splash_fallback(app.handle());
+            Ok(())
+        })
         // Step 3. Register frontend-invokable command handlers.
         .invoke_handler(tauri::generate_handler![
+            hasm::splash_commands::complete_app_launch,
             hasm::app_commands::validate_hasm_markdown_app,
             hasm::app_commands::validate_app_version,
             hasm::app_commands::validate_hasm_folder_path,

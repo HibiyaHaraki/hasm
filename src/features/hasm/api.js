@@ -22,6 +22,11 @@ export function validateHasmFolderPath(path) {
   return invoke("validate_hasm_folder_path", { path });
 }
 
+// [SEQ-MD-01][SPLASH] Reports boot completion; Rust closes the splash after its minimum duration.
+export function completeAppLaunch(outcome) {
+  return invoke("complete_app_launch", { outcome });
+}
+
 export async function pickWorkspaceDirectory(defaultPath = "NewLife.hasm") {
   const { save } = await import("@tauri-apps/plugin-dialog");
   return save({ defaultPath });
