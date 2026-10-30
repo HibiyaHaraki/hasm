@@ -13,8 +13,11 @@ fn visualizer_commands_link_endpoints_through_registered_invoke() {
     let mut model = demo.model;
     let from_id = model.facts[0].fact_id;
     let to_id = model.facts[1].fact_id;
+    let first_experience_id = model.experiences[0].experience_id;
+    let second_experience_id = model.experiences[1].experience_id;
     model.links.truncate(1);
-    model.links[0].related_ids = vec![from_id, to_id];
+    let link_id = model.links[0].link_id.to_string();
+    model.links[0].related_ids = vec![model.people[0].person_id, from_id, to_id, first_experience_id, second_experience_id, from_id];
     let response = tauri::test::get_ipc_response(&window, tauri::webview::InvokeRequest {
         cmd: "compute_visualizer_layout".into(),
         callback: tauri::ipc::CallbackFn(0),
@@ -30,14 +33,27 @@ fn visualizer_commands_link_endpoints_through_registered_invoke() {
     std::fs::remove_dir_all(demo.path).unwrap();
     let links = response["lines3d"].as_array().unwrap().iter()
         .filter(|line| line["lineType"] == "LINK").collect::<Vec<_>>();
-    assert_eq!(links.len(), 1);
+    assert_eq!(links.len(), 6);
+    let endpoints = [from_id, to_id, first_experience_id, second_experience_id].map(|id| id.to_string());
+    let pairs = links.iter().map(|line| (
+        line["fromId"].as_str().unwrap(), line["toId"].as_str().unwrap(),
+    )).collect::<std::collections::HashSet<_>>();
+    for (index, source) in endpoints.iter().enumerate() {
+        for target in &endpoints[index + 1..] {
+            assert!(pairs.contains(&(source.as_str(), target.as_str())));
+        }
+    }
     let link = links[0];
     assert_eq!(link["fromId"], from_id.to_string());
     assert_eq!(link["toId"], to_id.to_string());
-    for (id_key, point_key) in [("fromId", "from"), ("toId", "to")] {
-        let node = response["nodes3d"].as_array().unwrap().iter()
-            .find(|node| node["id"] == link[id_key] && node["isDirectFact"] == true).unwrap();
-        assert_eq!(link[point_key], json!([node["x"], node["y"], node["z"]]));
+    for link in links {
+        assert_eq!(link["id"], link_id);
+        for (id_key, point_key) in [("fromId", "from"), ("toId", "to")] {
+            let node = response["nodes3d"].as_array().unwrap().iter()
+                .find(|node| node["id"] == link[id_key]
+                    && (node["entityType"] == "EXPERIENCE" || node["isDirectFact"] == true)).unwrap();
+            assert_eq!(link[point_key], json!([node["x"], node["y"], node["z"]]));
+        }
     }
 }
 

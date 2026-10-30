@@ -47,29 +47,39 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
     }));
   });
 
-  it("TC-03-IPC-003 renders an IPC LINK as a visible dashed 2D path and opens its ticket", async () => {
+  it("TC-03-IPC-003 renders all six mixed-type IPC LINK segments in 2D and opens their shared ticket", async () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
       const height = this.tagName === "TH" || this.tagName === "TR" ? 36 : 400;
       return { left: 0, top: 0, right: 600, bottom: height, width: 600, height };
     });
     const model = {
       people: [{ personId: "person-1", personName: "Ada" }],
-      experiences: [{ experienceId: "exp-1", personId: "person-1", experienceName: "Research" }],
+      experiences: [
+        { experienceId: "exp-1", personId: "person-1", experienceName: "Research" },
+        { experienceId: "exp-2", personId: "person-1", experienceName: "Teaching" },
+      ],
       facts: [
         { factId: "fact-1", factName: "First", experienceIds: ["exp-1"], occurredAt: "2026-01-01" },
-        { factId: "fact-2", factName: "Second", experienceIds: ["exp-1"], occurredAt: "2026-01-02" },
+        { factId: "fact-2", factName: "Second", experienceIds: ["exp-2"], occurredAt: "2026-01-02" },
       ],
-      links: [{ linkId: "link-1", relatedIds: ["fact-1", "fact-2"] }],
+      links: [{ linkId: "link-1", relatedIds: ["person-1", "fact-1", "fact-2", "exp-1", "exp-2"] }],
     };
     invoke.mockResolvedValue({
       nodes3d: [
         { id: "exp-1", entityType: "EXPERIENCE", label: "Research", x: 0, y: 0, z: 0 },
+        { id: "exp-2", entityType: "EXPERIENCE", label: "Teaching", x: 6, y: 4, z: 0 },
         { id: "fact-1", entityType: "FACT", label: "First", x: 0, y: 0, z: 3, isDirectFact: true, linkedEntityIds: ["fact-2"] },
-        { id: "fact-2", entityType: "FACT", label: "Second", x: 0, y: 0, z: 6, isDirectFact: true, linkedEntityIds: ["fact-1"] },
+        { id: "fact-2", entityType: "FACT", label: "Second", x: 6, y: 4, z: 6, isDirectFact: true, linkedEntityIds: ["fact-1"] },
       ],
       lines3d: [
         { id: "branch-exp-1", lineType: "BRANCH", from: [0, 0, 3], to: [0, 0, 6] },
-        { id: "link-1", lineType: "LINK", from: [0, 0, 3], to: [0, 0, 6], fromId: "fact-1", toId: "fact-2" },
+        { id: "branch-exp-2", lineType: "BRANCH", from: [6, 4, 3], to: [6, 4, 6] },
+        ...[
+          ["fact-1", "fact-2"], ["fact-1", "exp-1"], ["fact-1", "exp-2"],
+          ["fact-2", "exp-1"], ["fact-2", "exp-2"], ["exp-1", "exp-2"],
+        ].map(([fromId, toId]) => ({
+          id: "link-1", lineType: "LINK", fromId, toId,
+        })),
       ],
       warnings: [],
     });
@@ -81,6 +91,15 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
     )));
     await waitFor(() => expect(container.querySelector('path[stroke-dasharray]')).not.toBeNull());
     const line = container.querySelector('path[stroke-dasharray]');
+    const segments = [...container.querySelectorAll('path[stroke-dasharray]')];
+    expect(segments).toHaveLength(6);
+    for (const segment of segments) {
+      expect(segment.style.display).not.toBe("none");
+      expect(segment.getAttribute("d")).toMatch(/^M [\d.]+ [\d.]+ L [\d.]+ [\d.]+$/);
+      fireEvent.pointerEnter(segment);
+      expect(segment.getAttribute("opacity")).toBe("1");
+      fireEvent.pointerLeave(segment);
+    }
     expect(line.style.display).not.toBe("none");
     expect(line.getAttribute("stroke-dasharray")).toBe("6 5");
     expect(line.getAttribute("d")).toMatch(/^M [\d.]+ [\d.]+ L [\d.]+ [\d.]+$/);
@@ -90,7 +109,7 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
     expect(line.getAttribute("opacity")).toBe("1");
     fireEvent.pointerLeave(container.querySelector("circle"));
     expect(line.getAttribute("opacity")).toBe("0.7");
-    fireEvent.click(line);
+    fireEvent.click(segments[5]);
     expect(await screen.findByText("LINK ticket opened")).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("compute_visualizer_layout", expect.objectContaining({ model }));
   });
