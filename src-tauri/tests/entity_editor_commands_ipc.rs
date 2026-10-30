@@ -3,6 +3,61 @@ use serde_json::{json, Value};
 use tauri::Listener;
 
 #[test]
+fn visualizer_commands_link_endpoints_through_registered_invoke() {
+    let app = tauri::test::mock_builder()
+        .invoke_handler(tauri::generate_handler![visualizer_commands::compute_visualizer_layout])
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
+    let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
+    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    let mut model = demo.model;
+    let from_id = model.facts[0].fact_id;
+    let to_id = model.facts[1].fact_id;
+    let first_experience_id = model.experiences[0].experience_id;
+    let second_experience_id = model.experiences[1].experience_id;
+    model.links.truncate(1);
+    let link_id = model.links[0].link_id.to_string();
+    model.links[0].related_ids = vec![model.people[0].person_id, from_id, to_id, first_experience_id, second_experience_id, from_id];
+    let response = tauri::test::get_ipc_response(&window, tauri::webview::InvokeRequest {
+        cmd: "compute_visualizer_layout".into(),
+        callback: tauri::ipc::CallbackFn(0),
+        error: tauri::ipc::CallbackFn(1),
+        url: "http://tauri.localhost".parse().unwrap(),
+        body: tauri::ipc::InvokeBody::Json(json!({
+            "model": model,
+            "filter": { "timeScaleMode": "SequentialIndex", "zScaleFactor": 1.0 }
+        })),
+        headers: Default::default(),
+        invoke_key: tauri::test::INVOKE_KEY.into(),
+    }).unwrap().deserialize::<Value>().unwrap();
+    std::fs::remove_dir_all(demo.path).unwrap();
+    let links = response["lines3d"].as_array().unwrap().iter()
+        .filter(|line| line["lineType"] == "LINK").collect::<Vec<_>>();
+    assert_eq!(links.len(), 6);
+    let endpoints = [from_id, to_id, first_experience_id, second_experience_id].map(|id| id.to_string());
+    let pairs = links.iter().map(|line| (
+        line["fromId"].as_str().unwrap(), line["toId"].as_str().unwrap(),
+    )).collect::<std::collections::HashSet<_>>();
+    for (index, source) in endpoints.iter().enumerate() {
+        for target in &endpoints[index + 1..] {
+            assert!(pairs.contains(&(source.as_str(), target.as_str())));
+        }
+    }
+    let link = links[0];
+    assert_eq!(link["fromId"], from_id.to_string());
+    assert_eq!(link["toId"], to_id.to_string());
+    for link in links {
+        assert_eq!(link["id"], link_id);
+        for (id_key, point_key) in [("fromId", "from"), ("toId", "to")] {
+            let node = response["nodes3d"].as_array().unwrap().iter()
+                .find(|node| node["id"] == link[id_key]
+                    && (node["entityType"] == "EXPERIENCE" || node["isDirectFact"] == true)).unwrap();
+            assert_eq!(link[point_key], json!([node["x"], node["y"], node["z"]]));
+        }
+    }
+}
+
+#[test]
 fn model_commands_entity_stage_progress_through_registered_invoke() {
     let app = tauri::test::mock_builder()
         .invoke_handler(tauri::generate_handler![

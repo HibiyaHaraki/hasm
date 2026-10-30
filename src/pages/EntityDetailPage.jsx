@@ -254,16 +254,33 @@ function EntityDetailPage() {
     if (!references) return ticket.detail[field.key] || t("Not set");
     if (!references.length) return t(field.list ? "None" : "Not set");
     if (field.key === "linkIds" || field.key === "relatedIds") {
+      const renderReference = ({ id, type, title }) => type && !navigationDisabled ? (
+        <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+          aria-label={t("Open {type}: {title}", { type, title })}>{title}</Link>
+      ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>;
+      if (field.key === "relatedIds") {
+        const groups = new Map();
+        references.forEach((reference) => {
+          const group = groups.get(reference.type) || [];
+          group.push(reference);
+          groups.set(reference.type, group);
+        });
+        return (
+          <ul className="ticket-detail-references">
+            {[...groups].map(([type, endpoints]) => (
+              <li key={type || "unavailable"}>
+                {type || t("Unavailable {type}", { type: t("entity") })}
+                <ul className="ticket-detail-references">
+                  {endpoints.map((reference) => <li key={reference.id}>{renderReference(reference)}</li>)}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        );
+      }
       return (
         <ul className="ticket-detail-references">
-          {references.map(({ id, type, title }) => (
-            <li key={id}>
-              {type && !navigationDisabled ? (
-                <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
-                  aria-label={t("Open {type}: {title}", { type, title })}>{title}</Link>
-              ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>}
-            </li>
-          ))}
+          {references.map((reference) => <li key={reference.id}>{renderReference(reference)}</li>)}
         </ul>
       );
     }

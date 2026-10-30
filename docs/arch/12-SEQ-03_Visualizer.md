@@ -11,7 +11,7 @@ The HASM 3D Visualizer represents life experiences and activities in a three-dim
 * **PERSON (No Dedicated Line):** `PERSON` does not render its own node, mesh, or line. Each `EXPERIENCE` node carries its owning PERSON's name, so hovering or clicking an EXPERIENCE trunk also identifies the PERSON it belongs to.
 * **EXPERIENCE (Git Branches):** Each `EXPERIENCE` entity is rendered as a continuous parallel line fixed on the **XY plane** and extending along the **Z-axis**, without a separate node mesh. Hovering or clicking the line identifies the EXPERIENCE and its owning PERSON.
 * **FACT (Git Commits):** Each `FACT` entity is rendered as a cube stationed directly on its parent `EXPERIENCE` branch at a specific Z-coordinate calculated from its time metadata. A directly registered FACT is opaque; a recursively reflected child FACT is translucent, so direct commits are visually emphasized.
-* **LINK (Relationships):** Only links with two FACT endpoints are rendered, as normal-weight straight lines between their direct FACT cubes. Links involving a PERSON or EXPERIENCE are not shown in the current graph.
+* **LINK (Relationships):** Every unordered pair of distinct, renderable FACT/EXPERIENCE endpoints in a LINK is emitted as a straight dashed line in both 2D (SVG paths) and 3D (Three.js lines). Four eligible endpoints produce six segments. PERSON, missing endpoints, and EXPERIENCEs without a timeline are excluded without discarding other valid pairs; repeated endpoint IDs do not create duplicate or self segments. FACT-FACT segments connect direct FACT projections. FACT-EXPERIENCE segments attach to the nearest visible timeline point; EXPERIENCE-EXPERIENCE segments start nearest the viewport center on the source timeline and end nearest that point on the target timeline. View changes recompute attachments. Every segment carries the original LINK ID for ticket navigation and endpoint `fromId`/`toId` for geometry and hover. Highlighting uses separate node-level `linkedEntityIds`, so highlighted FACTs alone do not prove that LINK geometry resolved.
 * **Creation Toolbar:** Persistent 3D control bar providing direct access to **`Create PERSON`**, **`Create EXPERIENCE`**, **`Create FACT`**, and **`Create LINK`** modals.
 
 ### Coordinate Policy
@@ -63,7 +63,7 @@ read-only and warning information.
 
 ### Implemented Module Mapping
 
-The current implementation owns the entire visualizer surface in the reusable `src/hasm_visualizer` package: `HasmVisualizerComponent.jsx` (toolbar, PERSON/EXPERIENCE scope selection, 2D/3D switching, scene lifecycle), `threeCommitGraph.js` and `twoCommitGraph.js` (Three.js scene ownership and node interaction), `layoutFilter.js` (filter state), `modelScope.js` (scope narrowing), and `layoutCalculator.js` (a client-side layout kept in parity with Rust for hosts without a Tauri backend). `src/pages/VisualizerPage.jsx` is a thin host: it supplies the loaded model, the Rust-backed `computeLayout` callback with IPC progress and watchdog handling, node-click routing, and the SEQ-03 header/overlay slots. The previous duplicate under `src/features/visualizer/` was removed. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; coordinate policy is intentionally isolated there for later revision.
+The current implementation owns the entire visualizer surface in the reusable `src/hasm_visualizer` package: `HasmVisualizerComponent.jsx` (toolbar, PERSON/EXPERIENCE scope selection, 2D/3D switching, scene lifecycle), `threeCommitGraph.js` and `twoCommitGraph.js` (Three.js scene ownership and node interaction), `layoutFilter.js` (filter state), `modelScope.js` (scope narrowing), and `layoutCalculator.js` (a client-side layout kept in parity with Rust for hosts without a Tauri backend). `src/pages/VisualizerPage.jsx` is a thin host: it supplies the loaded model, the Rust-backed `computeLayout` callback with IPC progress and watchdog handling, node-click routing, and the SEQ-03 header/overlay slots. The previous duplicate under `src/features/visualizer/` was removed. Rust returns generic `Node3dGeometry` and `Line3dGeometry` from `src-tauri/src/hasm/visualizer_commands.rs`; LINK lines carry endpoint IDs (`fromId`, `toId`) as well as coordinates so the shared renderer can resolve the relationship. Coordinate policy is intentionally isolated there for later revision.
 
 ### 2D Lane Width and Z Scale
 
@@ -81,6 +81,19 @@ to determine Z-coordinate distances. Vertical scrolling remains owned by the FAC
 is mirrored synchronously to the SVG.
 
 ### Scope Selection and Render Budget (Large Packages)
+
+The graph controls use a compact, wrapping toolbar, ordered as optional sample
+package, Scope, View (2D/3D), Time scale, Z scale with numeric output, and host
+actions. The Scope trigger always shows the current entity count. PERSON and
+EXPERIENCE multi-selects, their All/None actions, and Clear scope live in an
+initially closed overlay panel rather than expanding the toolbar. The panel is
+bounded by the viewport with internal scrolling for large lists; opening it
+does not move the graph or request a new layout. Done, Escape, the trigger, and
+outside pointer interaction dismiss it without clearing selections. Done and
+Escape return focus to the trigger. Controls remain labeled and keyboard
+reachable; the trigger exposes `aria-expanded`/`aria-controls`, and view buttons
+expose their pressed state. On narrow windows, controls form a two-column grid
+with full-width sample/scope controls; the graph retains its own scrolling.
 
 A 60,000-entity package cannot be laid out or rendered whole, so the visualizer narrows the model **before** layout rather than trimming geometry afterwards:
 

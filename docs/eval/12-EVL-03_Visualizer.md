@@ -18,8 +18,28 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | `TC-03-REACT-SCOPE-004`, `TC-03-REACT-SCOPE-005`, `TC-03-REACT-2D-001`, `TC-03-REACT-2D-002`, `TC-03-ZSCALE-001` | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-SCOPE-006`, `TC-03-SCOPE-007` | `test/visualizer-scope.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-IPC-002` GUI controls through real API wrapper to mocked Tauri invoke | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-IPC-003` IPC payload through real host and 2D SVG renderer: six dashed segments for four mixed FACT/EXPERIENCE endpoints, hover emphasis, shared LINK ticket navigation | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+| `TC-03-IPC-004` native generated invoke returns all six supported pairs, matching endpoint coordinates and original LINK identity, ignoring PERSON and duplicate IDs | `visualizer_commands_link_endpoints_through_registered_invoke` in `src-tauri/tests/entity_editor_commands_ipc.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
+| `TC-03-LINK-MULTI-JS` and shared SVG regression | `node --test src/hasm_visualizer/test/linkGeometry.test.js src/hasm_visualizer/test/twoCommitGraph.test.js` | Local shared-package regression |
+| `TC-03-REACT-TOOLBAR-001` compact controls, collapsed scope panel, persistent selection, accessible expanded/pressed states, Done/Escape/outside dismissal without extra layout | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
+
+`TC-03-IPC-003` supplies measured element bounds in jsdom and mocks only the native
+transport; it does not mock the host or SVG renderer. `TC-03-IPC-004` separately
+checks the actual native command's serialized response. These tests cover the
+endpoint-ID contract on both sides, but are not an installed-desktop visual test
+or a 3D GPU rendering test. The shared-package tests also check all three pair
+types, viewport-aware attachment, camelCase IDs, original LINK identity,
+duplicate/missing/PERSON exclusion, and six SVG paths for a multi-endpoint LINK.
 
 Desktop rows requiring an installed GUI driver remain acceptance scenarios.
+
+Toolbar browser acceptance measures actual bounds at 1280, 768, 390, and 320
+CSS-pixel viewport widths. Controls and the scope overlay must remain inside
+the viewport, with no page-level horizontal overflow. Opening scope must not
+change toolbar height or graph position. Verify sample and externally supplied
+models, long scope option names, keyboard dismissal/focus restoration, and that
+time/Z-scale controls and host actions remain reachable without page scrolling.
+Only the bounded scope panel and graph may require their own content scrolling.
 
 ### Bounded Navigation Robustness in CI
 
@@ -128,5 +148,5 @@ These unit and integration tests verify Rust background worker thread execution 
 | **TC-03-RUST-003** | `REQ-03-RULE-001``REQ-03-FUNC-102` | Negative (No Model) | `compute_visualizer_layout` | 1. Ensure `HASM_MODEL` mutex is `None`.2. Invoke `compute_visualizer_layout`. | 1. Rejects with `Err(VisualizerError::NoActiveModel)`. |
 | **TC-03-RUST-004** | `REQ-03-RULE-001``REQ-03-FUNC-103` | Negative (Unverified) | `compute_visualizer_layout` | 1. Set `HASM_MODEL.is_verified = false`.2. Invoke `compute_visualizer_layout`. | 1. Rejects with `Err(VisualizerError::ModelNotVerified)`. |
 | **TC-03-RUST-005** | `REQ-03-RULE-002` | Positive (Z-Axis Math) | `compute_visualizer_layout` | 1. Run layout calculation testing `Linear`, `Logarithmic`, and `SequentialIndex` modes. | 1. Correctly calculates Z-coordinates according to selected mathematical mode formulas. |
-| **TC-03-RUST-006** | `REQ-03-RULE-006``REQ-03-RULE-007``REQ-03-RULE-011``REQ-03-RULE-012``REQ-03-FUNC-303``REQ-03-FUNC-306` | Positive (Topology) | `compute_visualizer_layout` | 1. Seed parent, sibling child, and grandchild EXPERIENCE records plus FACTs with ordered `occurred_at` timestamps.<br/>2. Add a FACT-to-FACT LINK and a FACT-to-EXPERIENCE LINK.<br/>3. Compute `SequentialIndex` layout. | 1. Earlier FACT receives lower Z than later FACT.<br/>2. Related EXPERIENCEs occupy successive $x = 6d$ generations and sibling lanes do not overlap.<br/>3. Each EXPERIENCE trunk is straight only from its first FACT to its final FACT; an empty EXPERIENCE has no trunk.<br/>4. Curved `BRANCH_OUT` and `BRANCH_MERGE` geometries exist for the declared parent-child relationship.<br/>5. A direct FACT is marked direct and its inherited projection is marked non-direct.<br/>6. Only the FACT-to-FACT LINK is emitted.<br/>7. The child FACT is also placed on its parent trunk. |
+| **TC-03-RUST-006** | `REQ-03-RULE-006``REQ-03-RULE-007``REQ-03-RULE-011``REQ-03-RULE-012``REQ-03-FUNC-303``REQ-03-FUNC-306` | Positive (Topology) | `compute_visualizer_layout` | 1. Seed parent, sibling child, and grandchild EXPERIENCE records plus FACTs with ordered `occurred_at` timestamps.<br/>2. Add FACT-to-FACT and FACT-to-EXPERIENCE LINKs, and a multi-endpoint LINK containing two FACTs, two EXPERIENCEs, a PERSON, and a duplicate ID.<br/>3. Compute `SequentialIndex` layout. | 1. Earlier FACT receives lower Z than later FACT.<br/>2. Related EXPERIENCEs occupy successive $x = 6d$ generations and sibling lanes do not overlap.<br/>3. Each EXPERIENCE trunk is straight only from its first FACT to its final FACT; an empty EXPERIENCE has no trunk.<br/>4. Curved `BRANCH_OUT` and `BRANCH_MERGE` geometries exist for the declared parent-child relationship.<br/>5. A direct FACT is marked direct and its inherited projection is marked non-direct.<br/>6. Both two-endpoint LINKs render, and the multi-endpoint LINK emits exactly six distinct pairs with the original LINK ID and resolvable endpoint IDs; PERSON endpoints and duplicates add no segments.<br/>7. The child FACT is also placed on its parent trunk. |
 | **TC-03-RUST-007** | `REQ-03-FUNC-110` | Positive (Development) | `create_visualizer_demo_workspace` | 1. Invoke the development demo command.<br/>2. Inspect generated workspace. | 1. Returns a non-empty model with 3 EXPERIENCE records and 5 dated FACT records.<br/>2. `hasm.db`, Markdown files, and assets exist. |

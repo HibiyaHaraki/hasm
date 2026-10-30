@@ -220,20 +220,43 @@ describe("SEQ-04 entity ticket", () => {
     expect(view.container).not.toHaveTextContent("link-out");
     expect(view.container).not.toHaveTextContent("link-explicit");
   });
-  it("TC-04-REACT-REF-001 displays LINK related entities as title bullets", async () => {
+  it.each([
+    [["person-ada", "exp-research"], [["PERSON", "Ada Lovelace"], ["EXPERIENCE", "Analytical Engine research"]]],
+    [["fact-second", "fact-notes"], [["FACT", "Another fact"], ["FACT", "Published notes"]]],
+    [["fact-second", "person-ada", "fact-notes"], [["FACT", "Another fact"], ["PERSON", "Ada Lovelace"], ["FACT", "Published notes"]]],
+    [["link-out", "missing-endpoint"], [["LINK", "Inspired research"], [null, "Unavailable entity"]]],
+  ])("TC-04-REACT-REF-010 displays LINK endpoint types with nested title bullets (case %#)", async (relatedIds, endpoints) => {
     api.loadEntityDetail.mockResolvedValue({
       ...detail,
-      detail: { relatedIds: ["person-ada", "exp-research"] },
+      detail: { relatedIds },
     });
-    const view = renderTicket("LINK", { path: "C:/demo", model: referenceModel, isVerified: true });
+    const model = { ...referenceModel, facts: [...referenceModel.facts, { factId: "fact-second", factName: "Another fact" }] };
+    const view = renderTicket("LINK", { path: "C:/demo", model, isVerified: true });
     const region = within(await screen.findByRole("region", { name: "Details" }));
-    const bullets = region.getByRole("list");
+    const bullets = region.getAllByRole("list")[0];
     expect(bullets).toHaveClass("ticket-detail-references");
-    expect(within(bullets).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(bullets).getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
-    expect(within(bullets).getByRole("link", { name: "Open EXPERIENCE: Analytical Engine research" })).toBeInTheDocument();
-    expect(view.container).not.toHaveTextContent("person-ada");
-    expect(view.container).not.toHaveTextContent("exp-research");
+    const types = [...new Set(endpoints.map(([type]) => type))];
+    expect(bullets.children).toHaveLength(types.length);
+    types.forEach((type, index) => {
+      const item = bullets.children[index];
+      expect(item.firstChild.textContent).toBe(type || "Unavailable entity");
+      const nested = within(item).getByRole("list");
+      const groupedEndpoints = endpoints.map(([endpointType, title], endpointIndex) => ({
+        type: endpointType, title, id: relatedIds[endpointIndex],
+      })).filter((endpoint) => endpoint.type === type);
+      const titles = within(nested).getAllByRole("listitem");
+      expect(titles).toHaveLength(groupedEndpoints.length);
+      groupedEndpoints.forEach(({ title, id }, titleIndex) => {
+        expect(titles[titleIndex]).toHaveTextContent(title);
+        if (type) {
+          expect(within(titles[titleIndex]).getByRole("link", { name: `Open ${type}: ${title}` }))
+            .toHaveAttribute("href", `/entity-detail/${type}/${id}`);
+        } else {
+          expect(within(titles[titleIndex]).queryByRole("link")).not.toBeInTheDocument();
+        }
+      });
+    });
+    for (const id of relatedIds) expect(view.container).not.toHaveTextContent(id);
   });
   it.each(["PERSON", "EXPERIENCE", "FACT"])("TC-04-REACT-REF-002 lists incoming, outgoing and explicit LINK entities once for %s", async (type) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { linkIds: ["link-out", "link-out", "link-explicit"], link: ["https://example.org"] } });

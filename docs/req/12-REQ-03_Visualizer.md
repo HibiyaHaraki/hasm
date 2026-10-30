@@ -22,7 +22,7 @@ This specification defines the functional, data, time constraint, progress strea
 * **[REQ-03-RULE-009] Distinguishable Per-EXPERIENCE Coloring:** React MUST assign each EXPERIENCE trunk a hue via $\text{hue}_i = (i \times 137.508°) \bmod 360°$ so adjacent EXPERIENCEs remain visually distinguishable at any count. A FACT commit sphere MUST use a color derived from its EXPERIENCE's hue that is visibly different from that EXPERIENCE's trunk color while remaining recognizably related (same hue family). All derived colors MUST be adjusted toward WCAG AA contrast (ratio ≥ 4.5) against the active background.
 * **[REQ-03-RULE-010] EXPERIENCE Hover Identifies Owning PERSON:** Hovering or clicking an EXPERIENCE trunk MUST expose that EXPERIENCE's owning PERSON name in addition to the EXPERIENCE's own metadata, since PERSON has no dedicated line or mesh of its own.
 * **[REQ-03-RULE-011] FACT Projection Emphasis:** A FACT projection directly registered on its rendered EXPERIENCE MUST be opaque. A recursively reflected FACT projection MUST render as a translucent cube with $\alpha = 0.32$, so direct commits remain visually emphasized.
-* **[REQ-03-RULE-012] FACT-Only Link Rendering:** The visualizer MUST render only a LINK whose first two `related_ids` identify FACT entities, using their direct FACT coordinates. Links that involve a PERSON or EXPERIENCE MUST not render in the current graph.
+* **[REQ-03-RULE-012] Multi-Entity Link Rendering:** For each LINK, the layout MUST emit every unordered pair of distinct renderable FACT/EXPERIENCE IDs in `related_ids`, in first-appearance order, supporting FACT-FACT, FACT-EXPERIENCE, and EXPERIENCE-EXPERIENCE in both 2D and 3D. PERSON, missing IDs, and EXPERIENCEs without a timeline MUST be excluded while retaining remaining valid pairs. Duplicate IDs MUST NOT produce self or duplicate segments. With N eligible IDs, N(N-1)/2 segments MUST be emitted. Each segment MUST carry the original LINK ID and endpoint `fromId`/`toId`; clicking any segment MUST open that LINK ticket. FACT endpoints MUST use direct projections; EXPERIENCE endpoints MUST attach to their visible timelines using the shared viewport-aware geometry resolver. FACT-EXPERIENCE attaches nearest the FACT; EXPERIENCE-EXPERIENCE starts nearest the viewport center and ends nearest that source point. Hovering either endpoint MUST emphasize its incident segments. Coincident endpoints remain zero-length; no artificial offsets or membranes are introduced.
 * **[REQ-03-RULE-013] Hover Relationship Highlighting:** Hovering a FACT or EXPERIENCE MUST apply a visible highlight color to that entity, its linked rendered FACT entities, and its parent EXPERIENCE trunks. EXPERIENCE trunks and branch curves MUST render with bold tube geometry; FACT-to-FACT links MUST remain normal thin lines.
 * **[REQ-03-RULE-014] Shared Visualizer Ownership:** The visualizer surface MUST be provided by the reusable `src/hasm_visualizer` package. `VisualizerPage` MUST act only as a host, supplying the model, the layout callback, node-click routing, and page chrome. A duplicate Three.js or layout implementation MUST NOT be maintained elsewhere in the application.
 * **[REQ-03-RULE-015] Scope-Before-Layout Invariant:** For packages above the configured scope threshold, the model MUST be narrowed by the PERSON / EXPERIENCE scope selection **before** layout is requested. An unscoped large package MUST NOT trigger `compute_visualizer_layout`.
@@ -62,6 +62,17 @@ pub struct RenderPayload {
     pub nodes_3d: Vec<Node3DGeometry>,
     pub lines_3d: Vec<Line3DGeometry>,
     pub warnings: Vec<String>,
+}
+
+// LINK entries in lines_3d include the endpoint entity IDs used by the renderers.
+pub struct Line3DGeometry {
+    pub id: String,
+    pub line_type: String,
+    pub from: [f32; 3],
+    pub to: [f32; 3],
+    pub from_id: Option<String>,
+    pub to_id: Option<String>,
+    pub control_points: Option<Vec<[f32; 3]>>,
 }
 
 // FACT metadata used by chronological commit placement
@@ -115,7 +126,7 @@ pub enum VisualizerError {
 
 ### Chapter 5: PERSON / EXPERIENCE Scope Selection (`HasmVisualizerComponent`)
 
-* **[REQ-03-FUNC-501] Scope Controls:** The visualizer toolbar MUST offer a multi-select EXPERIENCE scope control and, when the package has at least two PERSONs, a multi-select PERSON scope control, each labeled and keyboard reachable, plus a control that clears the scope. The PERSON selection and its All/None actions MUST be hidden for a single-PERSON or empty-PERSON package.
+* **[REQ-03-FUNC-501] Scope Controls:** The visualizer toolbar MUST offer an initially collapsed Scope panel containing a multi-select EXPERIENCE scope control and, when the package has at least two PERSONs, a multi-select PERSON scope control, each labeled and keyboard reachable, plus a control that clears the scope. The PERSON selection and its All/None actions MUST be hidden for a single-PERSON or empty-PERSON package. The Scope trigger MUST expose expanded state and panel association. Done, Escape, trigger activation, and outside pointer interaction MUST dismiss the panel without losing selections; Done and Escape MUST restore trigger focus. Opening or closing the panel MUST NOT request layout or displace the graph.
 * **[REQ-03-FUNC-502] Composed Option Lists:** When one or more PERSONs are selected, the EXPERIENCE option list MUST show only EXPERIENCEs owned by those PERSONs, and any previously selected EXPERIENCE outside the new PERSON set MUST be dropped.
 * **[REQ-03-FUNC-503] Scope Narrowing Semantics:** Applying a scope MUST retain the selected EXPERIENCEs and their descendants, then add ancestors for connectivity without expanding those ancestors into sibling branches. FACTs registered on retained branches MUST be included. Additional FACTs belonging to selected PERSONs MUST be included only when no explicit EXPERIENCE selection is applied. Only LINKs whose `related_ids` are all inside the scope MUST be retained.
 * **[REQ-03-FUNC-504] Empty Scope Passthrough:** An empty scope MUST return the model unchanged so behavior for small packages is identical to the unscoped path.
@@ -125,3 +136,4 @@ pub enum VisualizerError {
 * **[REQ-03-FUNC-508] Dual Model Shape Support:** Scope accessors MUST read both the camelCase entity shape returned by the Tauri backend and the snake_case shape used by the bundled sample packages.
 * **[REQ-03-FUNC-509] Lane-Adaptive 2D Table Position:** The FACT/Time table MUST begin immediately after the rightmost rendered lane's label area using shared pixel lane geometry, not a viewport percentage. The table MUST move when the visible lane count changes. Narrow viewports MUST allow horizontal scrolling without clipping lanes.
 * **[REQ-03-FUNC-510] Visible 2D Z Scale:** Z scale MUST multiply the 2D row height (30 CSS pixels at 1x), keeping FACT dots, branch endpoints, and table rows aligned, including at 0.5x and 2x and while scrolling. Failed layout updates MUST preserve both the previous geometry and its row scale. In 3D the scale MUST continue to reach `compute_visualizer_layout` and scale Z coordinates in all three time modes.
+* **[REQ-03-FUNC-511] Compact Graph Controls:** The toolbar MUST separate optional sample selection, Scope, View, Time scale, Z scale, and host actions in that order. Scope lists MUST NOT determine the closed toolbar height. View buttons MUST expose pressed state. Controls MUST wrap without page-level horizontal overflow, use theme colors and visible keyboard focus, and remain within the viewport at desktop and mobile widths. Scope-panel scrolling MUST be local to its bounded overlay, not require scrolling the page to reach toolbar controls.

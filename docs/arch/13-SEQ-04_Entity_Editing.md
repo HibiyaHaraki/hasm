@@ -42,6 +42,13 @@ date-only values render as a localized long date; timestamps render as a
 localized date and time in the user's local time zone, with the time-zone
 abbreviation shown. Invalid values remain visible as entered.
 
+On LINK tickets, Details > Related entities groups endpoints under one bullet
+per entity type, with readable titles in nested bullets. Types follow their first
+appearance in `relatedIds`; titles retain their order within each type.
+Resolved titles retain typed-ticket navigation;
+missing endpoints show an unavailable label without a link. Editing and
+verification navigation guards are unchanged.
+
 ### Ticket display preferences
 
 The ticket header provides **Language** (English / Japanese) and **Text size**
