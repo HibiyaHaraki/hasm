@@ -22,7 +22,7 @@ This specification defines the functional, data, time constraint, progress strea
 * **[REQ-03-RULE-009] Distinguishable Per-EXPERIENCE Coloring:** React MUST assign each EXPERIENCE trunk a hue via $\text{hue}_i = (i \times 137.508°) \bmod 360°$ so adjacent EXPERIENCEs remain visually distinguishable at any count. A FACT commit sphere MUST use a color derived from its EXPERIENCE's hue that is visibly different from that EXPERIENCE's trunk color while remaining recognizably related (same hue family). All derived colors MUST be adjusted toward WCAG AA contrast (ratio ≥ 4.5) against the active background.
 * **[REQ-03-RULE-010] EXPERIENCE Hover Identifies Owning PERSON:** Hovering or clicking an EXPERIENCE trunk MUST expose that EXPERIENCE's owning PERSON name in addition to the EXPERIENCE's own metadata, since PERSON has no dedicated line or mesh of its own.
 * **[REQ-03-RULE-011] FACT Projection Emphasis:** A FACT projection directly registered on its rendered EXPERIENCE MUST be opaque. A recursively reflected FACT projection MUST render as a translucent cube with $\alpha = 0.32$, so direct commits remain visually emphasized.
-* **[REQ-03-RULE-012] FACT-Only Link Rendering:** The visualizer MUST render only a LINK whose first two `related_ids` identify FACT entities, using their direct FACT coordinates. Links that involve a PERSON or EXPERIENCE MUST not render in the current graph.
+* **[REQ-03-RULE-012] FACT-Only Link Rendering:** The visualizer MUST render only a LINK whose first two `related_ids` identify FACT entities, using their direct FACT coordinates, as a visible straight dashed line in both 2D and 3D. Each emitted LINK line MUST include `fromId` and `toId` matching those FACT IDs so both renderers can resolve endpoint nodes and support hover behavior. Hovering a FACT MUST emphasize its incident LINK line, and clicking that line MUST open its LINK ticket. Links that involve a PERSON or EXPERIENCE MUST not render in the current graph.
 * **[REQ-03-RULE-013] Hover Relationship Highlighting:** Hovering a FACT or EXPERIENCE MUST apply a visible highlight color to that entity, its linked rendered FACT entities, and its parent EXPERIENCE trunks. EXPERIENCE trunks and branch curves MUST render with bold tube geometry; FACT-to-FACT links MUST remain normal thin lines.
 * **[REQ-03-RULE-014] Shared Visualizer Ownership:** The visualizer surface MUST be provided by the reusable `src/hasm_visualizer` package. `VisualizerPage` MUST act only as a host, supplying the model, the layout callback, node-click routing, and page chrome. A duplicate Three.js or layout implementation MUST NOT be maintained elsewhere in the application.
 * **[REQ-03-RULE-015] Scope-Before-Layout Invariant:** For packages above the configured scope threshold, the model MUST be narrowed by the PERSON / EXPERIENCE scope selection **before** layout is requested. An unscoped large package MUST NOT trigger `compute_visualizer_layout`.
@@ -62,6 +62,17 @@ pub struct RenderPayload {
     pub nodes_3d: Vec<Node3DGeometry>,
     pub lines_3d: Vec<Line3DGeometry>,
     pub warnings: Vec<String>,
+}
+
+// LINK entries in lines_3d include the endpoint entity IDs used by the renderers.
+pub struct Line3DGeometry {
+    pub id: String,
+    pub line_type: String,
+    pub from: [f32; 3],
+    pub to: [f32; 3],
+    pub from_id: Option<String>,
+    pub to_id: Option<String>,
+    pub control_points: Option<Vec<[f32; 3]>>,
 }
 
 // FACT metadata used by chronological commit placement

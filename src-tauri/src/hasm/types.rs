@@ -82,6 +82,10 @@ pub struct Line3dGeometry {
     pub line_type: String,
     pub from: [f32; 3],
     pub to: [f32; 3],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub control_points: Option<Vec<[f32; 3]>>,
 }

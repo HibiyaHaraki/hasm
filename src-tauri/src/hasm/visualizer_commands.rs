@@ -100,13 +100,13 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
         };
         let first_fact_z = fact_zs.iter().copied().reduce(f32::min).unwrap_or(z_step);
         let last_fact_z = fact_zs.iter().copied().reduce(f32::max).unwrap_or(first_fact_z);
-        lines.push(Line3dGeometry { id: format!("branch-{}", experience.experience_id), line_type: "BRANCH".to_string(), from: [x, y, first_fact_z], to: [x, y, last_fact_z], control_points: None });
+        lines.push(Line3dGeometry { id: format!("branch-{}", experience.experience_id), line_type: "BRANCH".to_string(), from: [x, y, first_fact_z], to: [x, y, last_fact_z], from_id: None, to_id: None, control_points: None });
         for parent_id in &experience.parent_experience_ids {
             if let Some([parent_x, parent_y]) = branch_positions.get(parent_id) {
                 let branch_control = midpoint_control([*parent_x, *parent_y, first_fact_z], [x, y, first_fact_z]);
-                lines.push(Line3dGeometry { id: format!("branch-{parent_id}-{}", experience.experience_id), line_type: "BRANCH_OUT".to_string(), from: [*parent_x, *parent_y, first_fact_z], to: [x, y, first_fact_z], control_points: Some(vec![branch_control]) });
+                lines.push(Line3dGeometry { id: format!("branch-{parent_id}-{}", experience.experience_id), line_type: "BRANCH_OUT".to_string(), from: [*parent_x, *parent_y, first_fact_z], to: [x, y, first_fact_z], from_id: None, to_id: None, control_points: Some(vec![branch_control]) });
                 let merge_control = midpoint_control([x, y, last_fact_z], [*parent_x, *parent_y, last_fact_z]);
-                lines.push(Line3dGeometry { id: format!("merge-{}-{parent_id}", experience.experience_id), line_type: "BRANCH_MERGE".to_string(), from: [x, y, last_fact_z], to: [*parent_x, *parent_y, last_fact_z], control_points: Some(vec![merge_control]) });
+                lines.push(Line3dGeometry { id: format!("merge-{}-{parent_id}", experience.experience_id), line_type: "BRANCH_MERGE".to_string(), from: [x, y, last_fact_z], to: [*parent_x, *parent_y, last_fact_z], from_id: None, to_id: None, control_points: Some(vec![merge_control]) });
             }
         }
     }
@@ -121,7 +121,15 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
         let (Some(source), Some(target)) = (direct_fact_positions.get(source_id), direct_fact_positions.get(target_id)) else {
             continue;
         };
-        lines.push(Line3dGeometry { id: link.link_id.to_string(), line_type: "LINK".to_string(), from: *source, to: *target, control_points: None });
+        lines.push(Line3dGeometry {
+            id: link.link_id.to_string(),
+            line_type: "LINK".to_string(),
+            from: *source,
+            to: *target,
+            from_id: Some(source_id.to_string()),
+            to_id: Some(target_id.to_string()),
+            control_points: None,
+        });
     }
 
     RenderPayload { nodes_3d: nodes, lines_3d: lines, warnings: Vec::new() }
@@ -389,6 +397,14 @@ mod tests {
         assert!(first_fact_nodes.iter().any(|node| node.is_direct_fact == Some(true)));
         assert!(first_fact_nodes.iter().any(|node| node.is_direct_fact == Some(false)));
         assert_eq!(payload.lines_3d.iter().filter(|line| line.line_type == "LINK").count(), 1);
+        let fact_link = payload.lines_3d.iter().find(|line| line.line_type == "LINK").unwrap();
+        let first_fact_node_id = first_fact_id.to_string();
+        let second_fact_node_id = second_fact_id.to_string();
+        assert_eq!(fact_link.from_id.as_deref(), Some(first_fact_node_id.as_str()));
+        assert_eq!(fact_link.to_id.as_deref(), Some(second_fact_node_id.as_str()));
+        let serialized_link = serde_json::to_value(fact_link).unwrap();
+        assert_eq!(serialized_link["fromId"].as_str(), Some(first_fact_node_id.as_str()));
+        assert_eq!(serialized_link["toId"].as_str(), Some(second_fact_node_id.as_str()));
         assert!(first_fact_nodes[0].linked_entity_ids.as_ref().unwrap().contains(&second_fact_id.to_string()));
     }
 
