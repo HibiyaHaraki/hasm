@@ -20,6 +20,11 @@
   font-size: 0.85em;
 }
 
+.ticket-graph-current {
+  color: var(--theme-text);
+  font-weight: 700;
+}
+
 .ticket-graph-entities {
   overflow-wrap: anywhere;
 }

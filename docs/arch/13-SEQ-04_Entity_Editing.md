@@ -69,6 +69,16 @@ requests cannot update a new ticket, and renderer listeners are disposed on
 replacement/unmount. Language/theme changes redraw without another layout invoke;
 saving or refreshing metadata updates extraction from the latest detail.
 
+The renderer's existing `setHighlight` API emphasizes the addressed entity on
+initial render and after redraws. Hover adds highlights without clearing this
+persistent selection; leaving restores the current entity alone. FACT selection
+emphasizes all direct and reflected markers, EXPERIENCE selection its timeline,
+and LINK selection its endpoint-connected dashed segments. PERSON has no visual
+node, so its retained EXPERIENCE timelines are emphasized instead. A bold
+**Current entity** caption and current list row identify the ticket even for
+empty EXPERIENCEs; its accessible list link has `aria-current="page"`. Emphasis
+persists while navigation is disabled and does not require another layout invoke.
+
 ### Reader-first ticket and inline metadata editors
 
 Every ticket initially renders readable content, with no form, input, select,

@@ -5,6 +5,8 @@ import EntityDetailPage from "../src/pages/EntityDetailPage";
 import { extractEntityGraphModel } from "../src/features/entityTicket/entityGraphModel";
 import { computeVisualizerLayoutJS } from "../src/hasm_visualizer/layoutCalculator.js";
 import * as graphRenderer from "../src/hasm_visualizer/twoCommitGraph.js";
+import { DEFAULT_COLOR_PATTERN, getPatternById } from "../src/hasm_color_pattern/src/index.js";
+import { ensureReadableColor } from "../src/hasm_visualizer/threeCommitGraph.js";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
@@ -106,6 +108,60 @@ describe("Entity graph extraction", () => {
 });
 
 describe("Entity graph GUI and real IPC wrapper", () => {
+  it.each([["FACT", "focus"], ["EXPERIENCE", "child"], ["LINK", "incoming"], ["PERSON", "p"]])(
+    "TC-04-GRAPH-EMPHASIS-001 persistently emphasizes the current %s across hover, redraw and editing",
+    async (type, id) => {
+      const rendererSpy = vi.spyOn(graphRenderer, "createCommitGraph2D");
+      renderTicket(type, id);
+      const region = await screen.findByRole("region", { name: "Extended commit graph" });
+      await waitFor(() => expect(region.querySelector("svg")).not.toBeNull());
+      const theme = getPatternById(DEFAULT_COLOR_PATTERN).colors;
+      const highlight = ensureReadableColor(theme.textColor, theme.textBackgroundColor);
+      const assertEmphasis = () => {
+        const payload = rendererSpy.mock.calls.at(-1)[1];
+        let markers;
+        let attribute;
+        if (type === "FACT") {
+          markers = [...region.querySelectorAll("circle")].filter((_, position) =>
+            payload.nodes3d.filter((node) => node.entityType === "FACT")[position].id === id);
+          expect(markers.length).toBeGreaterThan(1);
+          markers.forEach((marker) => expect(marker).toHaveAttribute("fill", highlight));
+          return;
+        }
+        if (type === "LINK") {
+          markers = [...region.querySelectorAll("path[stroke-dasharray]")];
+          expect(markers.length).toBeGreaterThan(0);
+          markers.forEach((marker) => expect(marker).toHaveAttribute("opacity", "1"));
+          attribute = "stroke";
+        } else {
+          markers = [...region.querySelectorAll("svg path:not([stroke-dasharray])")].filter((_, position) => {
+            const line = payload.lines3d.filter((entry) => entry.lineType !== "LINK")[position];
+            return line.lineType === "BRANCH" && (type === "PERSON" || line.id === `branch-${id}`);
+          });
+          attribute = "stroke";
+        }
+        expect(markers.length).toBeGreaterThan(0);
+        markers.forEach((marker) => expect(marker).toHaveAttribute(attribute, highlight));
+      };
+      assertEmphasis();
+      expect(region.querySelector(".ticket-graph-current strong")).toHaveTextContent(`${type}:`);
+      expect(region.querySelector('a[aria-current="page"]')).toHaveAttribute("href", `/entity-detail/${type}/${id}`);
+      const hoverTarget = region.querySelector("circle");
+      fireEvent.pointerEnter(hoverTarget);
+      assertEmphasis();
+      fireEvent.pointerLeave(hoverTarget);
+      assertEmphasis();
+      const calls = bridge.invoke.mock.calls.filter(([command]) => command === "compute_visualizer_layout").length;
+      fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+      expect(region).toHaveTextContent("現在のエンティティ");
+      assertEmphasis();
+      expect(bridge.invoke.mock.calls.filter(([command]) => command === "compute_visualizer_layout")).toHaveLength(calls);
+      fireEvent.click(screen.getByRole("button", { name: "概要を編集" }));
+      assertEmphasis();
+      expect(region.querySelector('a[aria-current="page"]')).toBeNull();
+      expect(region.querySelector(".ticket-graph-entities .ticket-graph-current")).toHaveTextContent(`${type}:`);
+    },
+  );
   it.each([["FACT", "focus"], ["EXPERIENCE", "child"], ["LINK", "incoming"], ["PERSON", "p"]])(
     "TC-04-GRAPH-IPC-001 displays %s graph at the bottom and invokes layout with the exact extracted model",
     async (type, id) => {

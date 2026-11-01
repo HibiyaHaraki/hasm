@@ -10,6 +10,13 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ### Entity Extended Commit Graph
 
+`TC-04-GRAPH-EMPHASIS-001` (FACT, EXPERIENCE, LINK, PERSON) verifies
+`REQ-04-RULE-024` with the real SVG renderer: current markers/timelines/LINK
+segments use highlight colors on load, retain them while another entity is
+hovered and after pointer leave, show a bold current caption and accessible
+current list entry, and remain emphasized after language redraw and when editing
+disables navigation. No additional layout invoke is permitted.
+
 Run `npm run test:eval-04` for extraction, rendered SVG and real JS-to-Tauri
 wrapper tests in `test/entity-commit-graph.test.jsx`. Native layout geometry
 continues to use the existing EVAL-03 command contract without a Rust change.

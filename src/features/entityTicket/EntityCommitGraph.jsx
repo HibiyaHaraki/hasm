@@ -50,22 +50,44 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
     if (!layout || !sceneRef.current) return undefined;
     try {
       const dates = new Map(graphModel.facts.map((fact) => [fact.factId, fact.occurredAt]));
-      return createCommitGraph2D(
+      const currentNode = {
+        id: entityId,
+        linkedEntityIds: entityType === "LINK"
+          ? index.entities.get(entityId)?.entity.relatedIds ?? []
+          : entityType === "PERSON"
+            ? graphModel.experiences.map((experience) => experience.experienceId)
+            : [],
+      };
+      // SEQ-MD-04: hover adds emphasis but never clears the addressed ticket.
+      const renderer = createCommitGraph2D(
         sceneRef.current, layout, getPatternById(activePatternId).colors,
-        (node) => { if (!disabled) onSelect(node); }, (node) => setHoveredNode(node), dates, null,
+        (node) => { if (!disabled) onSelect(node); }, (node) => {
+          setHoveredNode(node);
+          renderer.setHighlight({
+            ...currentNode,
+            linkedEntityIds: [...currentNode.linkedEntityIds, ...(node
+              ? [node.id, ...(node.linkedEntityIds ?? []), ...(node.parentExperienceIds ?? [])]
+              : [])],
+          });
+        }, dates, null,
         { timeScaleMode: "Linear", timeLabel: translateTicket("Occurred at", {}, language) },
       );
+      renderer.setHighlight(currentNode);
+      return renderer;
     } catch (failure) {
       logger.error("[SEQ-MD-04][GRAPH] rendering failed", failure);
       setRenderError(failure?.message || String(failure));
       return undefined;
     }
-  }, [layout, graphModel, activePatternId, disabled, onSelect, language]);
+  }, [layout, graphModel, index, entityId, entityType, activePatternId, disabled, onSelect, language]);
 
   const width = layout ? graphWidthForLaneCount(computeLaneIndexByKey(layout).size) + TIME_AXIS_WIDTH_PX : 0;
   return (
     <section className="ticket-section ticket-commit-graph" aria-labelledby="ticket-graph-heading">
       <h2 id="ticket-graph-heading">{t("Extended commit graph")}</h2>
+      {graphModel ? <p className="ticket-graph-current">
+        {t("Current entity")}: <strong>{entityType}: {entityReferenceTitle(index, entityId, entityType, null, t)}</strong>
+      </p> : null}
       {!graphModel ? <p>{t("Workspace relationship information is unavailable.")}</p> : (
         <>
           {!layout && !error ? <p role="status">{t("Loading graph...")}</p> : null}
@@ -86,10 +108,11 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
             <summary>{t("Graph entities")}</summary>
             <ul className="ticket-graph-entities">
               {[...index.entities].map(([id, { type }]) => (
-                <li key={`${type}-${id}`}>
+                <li key={`${type}-${id}`} className={id === entityId && type === entityType ? "ticket-graph-current" : undefined}>
                   <span>{type}: </span>
                   {disabled ? <span aria-disabled="true">{entityReferenceTitle(index, id, type, null, t)}</span> : (
-                    <Link to={`/entity-detail/${type}/${id}`} state={workspaceState}>
+                    <Link to={`/entity-detail/${type}/${id}`} state={workspaceState}
+                      aria-current={id === entityId && type === entityType ? "page" : undefined}>
                       {entityReferenceTitle(index, id, type, null, t)}
                     </Link>
                   )}
