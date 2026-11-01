@@ -4,7 +4,7 @@ import { computeVisualizerLayout, withTimeout } from "../hasm/api";
 import { useTheme } from "../theme/ThemeContext";
 import { getPatternById } from "../../hasm_color_pattern/src/index.js";
 import { createCommitGraph2D } from "../../hasm_visualizer/twoCommitGraph.js";
-import { computeLaneIndexByKey, graphWidthForLaneCount, TIME_AXIS_WIDTH_PX } from "../../hasm_visualizer/graph2DLayout.js";
+import { computeFactRowIndexById, computeLaneIndexByKey, graphWidthForLaneCount, ROW_HEIGHT_PX, TABLE_HEADER_HEIGHT_PX } from "../../hasm_visualizer/graph2DLayout.js";
 import { createLogger } from "../../hasm_logger/src/react/logger.js";
 import { extractEntityGraphModel } from "./entityGraphModel";
 import { createEntityReferenceIndex, entityReferenceTitle } from "./EntityReferences";
@@ -12,11 +12,13 @@ import { translateTicket } from "./ticketLanguage";
 import "./EntityCommitGraph.css";
 
 const logger = createLogger("entity-commit-graph");
-const FILTER = { timeScaleMode: "Linear", zScaleFactor: 1 };
+const FILTER = { timeScaleMode: "SequentialIndex", zScaleFactor: 1 };
 
 export function EntityCommitGraph({ entityType, entityId, detail, workspaceState, disabled, onSelect, language }) {
   const { activePatternId } = useTheme();
   const sceneRef = useRef(null);
+  const factTableRef = useRef(null);
+  const rendererRef = useRef(null);
   const [layout, setLayout] = useState(null);
   const [error, setError] = useState("");
   const [renderError, setRenderError] = useState("");
@@ -27,6 +29,13 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
   );
   const index = useMemo(() => createEntityReferenceIndex(graphModel), [graphModel]);
   const t = (text, values) => translateTicket(text, values, language);
+  const factRows = useMemo(() => layout ? [...computeFactRowIndexById(layout).keys()] : [], [layout]);
+  const syncScroll = (nextScrollTop) => {
+    const table = factTableRef.current;
+    if (!table) return;
+    table.scrollTop = Math.max(0, Math.min(nextScrollTop, table.scrollHeight - table.clientHeight));
+    rendererRef.current?.setScrollTop(table.scrollTop);
+  };
 
   useEffect(() => {
     let active = true;
@@ -70,10 +79,17 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
               : [])],
           });
         }, dates, null,
-        { timeScaleMode: "Linear", timeLabel: translateTicket("Occurred at", {}, language) },
+        {
+          timeScaleMode: "SequentialIndex",
+          rowHeightPx: ROW_HEIGHT_PX,
+          headerHeightPx: TABLE_HEADER_HEIGHT_PX,
+          onScroll: syncScroll,
+        },
       );
       renderer.setHighlight(currentNode);
-      return renderer;
+      rendererRef.current = renderer;
+      renderer.setScrollTop(factTableRef.current?.scrollTop ?? 0);
+      return () => { rendererRef.current = null; renderer(); };
     } catch (failure) {
       logger.error("[SEQ-MD-04][GRAPH] rendering failed", failure);
       setRenderError(failure?.message || String(failure));
@@ -81,7 +97,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
     }
   }, [layout, graphModel, index, entityId, entityType, activePatternId, disabled, onSelect, language]);
 
-  const width = layout ? graphWidthForLaneCount(computeLaneIndexByKey(layout).size) + TIME_AXIS_WIDTH_PX : 0;
+  const width = layout ? graphWidthForLaneCount(computeLaneIndexByKey(layout).size) : 0;
   return (
     <section className="ticket-section ticket-commit-graph" aria-labelledby="ticket-graph-heading">
       <h2 id="ticket-graph-heading">{t("Extended commit graph")}</h2>
@@ -95,8 +111,36 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
           {layout?.warnings?.length ? <p role="status">{layout.warnings.join(" ")}</p> : null}
           {layout ? (
             <div className="ticket-graph-viewport">
-              <div ref={sceneRef} className="ticket-graph-scene" style={{ width: `max(100%, ${width}px)` }}
-                role="group" aria-label={t("Extended commit graph")} />
+              <div className="ticket-graph-sequential">
+                <div ref={sceneRef} className="ticket-graph-scene" style={{ width }}
+                  role="group" aria-label={t("Extended commit graph")} />
+                <div ref={factTableRef} className="ticket-graph-fact-table"
+                  onScroll={(event) => rendererRef.current?.setScrollTop(event.currentTarget.scrollTop)}
+                  style={{ "--ticket-graph-row-height": `${ROW_HEIGHT_PX}px`, "--ticket-graph-header-height": `${TABLE_HEADER_HEIGHT_PX}px` }}>
+                  <table aria-label={t("FACT titles")}>
+                    <thead><tr><th scope="col">{t("FACT titles")}</th><th scope="col">{t("Occurred at")}</th></tr></thead>
+                    <tbody>
+                      {factRows.map((id) => {
+                        const title = entityReferenceTitle(index, id, "FACT", null, t);
+                        const isCurrent = entityType === "FACT" && id === entityId;
+                        return (
+                          <tr key={id}>
+                            <td title={title}>
+                              {disabled ? <span>{isCurrent ? <strong>{title}</strong> : title}</span> : (
+                                <Link to={`/entity-detail/FACT/${id}`} state={workspaceState}
+                                  aria-current={isCurrent ? "page" : undefined}>
+                                  {isCurrent ? <strong>{title}</strong> : title}
+                                </Link>
+                              )}
+                            </td>
+                            <td title={index.entities.get(id)?.entity.occurredAt ?? ""}>{index.entities.get(id)?.entity.occurredAt ?? ""}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           ) : null}
           <p className="ticket-graph-hint">{t("Solid FACTs are recorded events; hollow FACTs are ancestor reflections. Dashed lines are LINKs.")}</p>

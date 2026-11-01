@@ -12,6 +12,52 @@
 
 .ticket-graph-scene {
   height: 300px;
+  flex: 0 0 auto;
+}
+
+.ticket-graph-sequential {
+  display: flex;
+  min-width: max-content;
+}
+
+.ticket-graph-fact-table {
+  height: 300px;
+  overflow-y: auto;
+  flex: 1 0 300px;
+  color: var(--theme-text);
+  background: var(--theme-textbackground);
+}
+
+.ticket-graph-fact-table table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 0.8rem;
+}
+
+.ticket-graph-fact-table th,
+.ticket-graph-fact-table td {
+  padding: 0 8px;
+  border-bottom: 1px solid var(--theme-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-graph-fact-table th {
+  position: sticky;
+  top: 0;
+  height: var(--ticket-graph-header-height);
+  background: var(--theme-textbackground);
+}
+
+.ticket-graph-fact-table td {
+  height: var(--ticket-graph-row-height);
+}
+
+.ticket-graph-fact-table a {
+  color: var(--theme-text);
 }
 
 .ticket-graph-hint {

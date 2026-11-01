@@ -108,6 +108,58 @@ describe("Entity graph extraction", () => {
 });
 
 describe("Entity graph GUI and real IPC wrapper", () => {
+  it("TC-04-GRAPH-SEQUENTIAL-001 aligns unique newest-first FACT rows and bolds only the addressed FACT title", async () => {
+    const rendererSpy = vi.spyOn(graphRenderer, "createCommitGraph2D");
+    renderTicket();
+    const table = await screen.findByRole("table", { name: "FACT titles" });
+    await waitFor(() => expect(table.querySelectorAll("tbody tr")).toHaveLength(4));
+    const rows = [...table.querySelectorAll("tbody tr")];
+    expect(rows.map((row) => row.cells[0].textContent)).toEqual(["linked-fact", "after", "focus", "before"]);
+    expect(table.querySelectorAll("strong")).toHaveLength(1);
+    expect(table.querySelector("strong")).toHaveTextContent("focus");
+    expect(table.querySelector('a[aria-current="page"]')).toHaveAttribute("href", "/entity-detail/FACT/focus");
+    expect(rendererSpy.mock.calls.at(-1)[7]).toMatchObject({
+      timeScaleMode: "SequentialIndex", rowHeightPx: 30, headerHeightPx: 37,
+    });
+    const viewport = table.parentElement;
+    const renderer = rendererSpy.mock.results.at(-1).value;
+    const setScrollTop = vi.spyOn(renderer, "setScrollTop");
+    Object.defineProperties(viewport, {
+      scrollHeight: { configurable: true, value: 600 },
+      clientHeight: { configurable: true, value: 300 },
+    });
+    fireEvent.scroll(viewport, { target: { scrollTop: 60 } });
+    expect(setScrollTop).toHaveBeenLastCalledWith(60);
+    fireEvent.wheel(screen.getByRole("group", { name: "Extended commit graph" }), { deltaY: 45 });
+    expect(viewport.scrollTop).toBe(105);
+    expect(setScrollTop).toHaveBeenLastCalledWith(105);
+    fireEvent.wheel(screen.getByRole("group", { name: "Extended commit graph" }), { deltaY: 1000 });
+    expect(viewport.scrollTop).toBe(300);
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    expect(screen.getByRole("table", { name: "FACTのタイトル" }).querySelector("strong")).toHaveTextContent("focus");
+    fireEvent.click(screen.getByRole("button", { name: "概要を編集" }));
+    expect(table.querySelector("strong")).toHaveTextContent("focus");
+    expect(within(table).queryByRole("link")).toBeNull();
+  });
+  it.each([["PERSON", "p"], ["EXPERIENCE", "child"], ["LINK", "incoming"]])(
+    "TC-04-GRAPH-SEQUENTIAL-002 does not bold a FACT title on a %s ticket",
+    async (type, id) => {
+      renderTicket(type, id);
+      const table = await screen.findByRole("table", { name: "FACT titles" });
+      expect(table.querySelector("strong")).toBeNull();
+      expect(table.querySelector('[aria-current="page"]')).toBeNull();
+    },
+  );
+  it("TC-04-GRAPH-SEQUENTIAL-003 opens a FACT title through the real detail invoke", async () => {
+    renderTicket();
+    const table = await screen.findByRole("table", { name: "FACT titles" });
+    fireEvent.click(within(table).getByRole("link", { name: "after" }));
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", {
+      modelRoot: "fixture.hasm", entityType: "FACT", entityId: "after",
+    }));
+    await waitFor(() => expect(screen.getByRole("table", { name: "FACT titles" }).querySelector("strong")).toHaveTextContent("after"));
+    expect(bridge.invoke.mock.calls.some(([command]) => command === "load_hasm_model_db")).toBe(false);
+  });
   it.each([["FACT", "focus"], ["EXPERIENCE", "child"], ["LINK", "incoming"], ["PERSON", "p"]])(
     "TC-04-GRAPH-EMPHASIS-001 persistently emphasizes the current %s across hover, redraw and editing",
     async (type, id) => {
@@ -171,7 +223,7 @@ describe("Entity graph GUI and real IPC wrapper", () => {
       expect(view.container.querySelector("main").lastElementChild).toBe(region);
       expect(bridge.invoke).toHaveBeenCalledWith("compute_visualizer_layout", {
         model: extractEntityGraphModel(model, type, id, detailFor(type, id)),
-        filter: { timeScaleMode: "Linear", zScaleFactor: 1 },
+        filter: { timeScaleMode: "SequentialIndex", zScaleFactor: 1 },
       });
       expect(bridge.invoke.mock.calls.some(([command]) => command === "load_hasm_model_db")).toBe(false);
     },

@@ -49,7 +49,7 @@ sequenceDiagram
     Ticket->>Graph: Current detail and route workspace model
     Graph->>Extract: Extract entity-specific relationships
     Extract-->>Graph: Reduced model with original serialized shapes
-    Graph->>IPC: Reduced model, Linear time scale, Z scale 1
+    Graph->>IPC: Reduced model, SequentialIndex time scale, Z scale 1
     IPC-->>Graph: nodes3d, lines3d, warnings
     Graph->>Renderer: Geometry and active color-pattern colors
     Renderer-->>Ticket: Selected FACT, EXPERIENCE or LINK
@@ -78,6 +78,18 @@ node, so its retained EXPERIENCE timelines are emphasized instead. A bold
 **Current entity** caption and current list row identify the ticket even for
 empty EXPERIENCEs; its accessible list link has `aria-current="page"`. Emphasis
 persists while navigation is disabled and does not require another layout invoke.
+
+Detail graphs use 2D **SequentialIndex** with a FACT title/date table immediately
+beside the SVG lanes, not a linear time axis. `computeFactRowIndexById` supplies
+unique newest-first rows shared with the renderer, including one title row for
+FACTs reflected on multiple branches. The addressed FACT's title is bold and its
+link has `aria-current="page"`; other FACT titles stay regular, including on
+PERSON, EXPERIENCE and LINK tickets. Matching uses entity type and UUID, not name.
+The table owns native vertical scrolling and forwards its scroll offset to the
+renderer; graph wheel input changes and clamps that same offset. Both use shared
+30px rows and a 37px sticky header, and retain scroll alignment on redraws.
+Horizontal overflow stays within the 300px-high graph panel. Title links retain
+the full workspace state and existing editing/verification navigation guards.
 
 ### Reader-first ticket and inline metadata editors
 

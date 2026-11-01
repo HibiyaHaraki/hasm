@@ -10,6 +10,17 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ### Entity Extended Commit Graph
 
+`TC-04-GRAPH-SEQUENTIAL-001` verifies `REQ-04-RULE-025`: the real IPC wrapper
+requests SequentialIndex, deduplicated newest-first title rows align with shared
+30px/37px renderer geometry, only the addressed FACT title is bold, table scroll
+and clamped graph wheel input use one offset, and language changes/editing retain
+bold identity. `TC-04-GRAPH-SEQUENTIAL-002` checks PERSON, EXPERIENCE and LINK
+tickets do not falsely bold any FACT title. Browser acceptance measures title
+row centers against SVG marker centers before/after scrolling at wide/narrow
+widths and verifies the matching title's computed font weight.
+`TC-04-GRAPH-SEQUENTIAL-003` verifies FACT title navigation through the real
+detail invoke with workspace context and moves bold emphasis to the destination.
+
 `TC-04-GRAPH-EMPHASIS-001` (FACT, EXPERIENCE, LINK, PERSON) verifies
 `REQ-04-RULE-024` with the real SVG renderer: current markers/timelines/LINK
 segments use highlight colors on load, retain them while another entity is

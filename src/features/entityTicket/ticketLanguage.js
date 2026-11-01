@@ -4,6 +4,7 @@ const japanese = {
   "Could not display graph:": "グラフを表示できません:",
   "Graph layout timed out.": "グラフの配置計算がタイムアウトしました。",
   "Graph entities": "グラフのエンティティ",
+  "FACT titles": "FACTのタイトル",
   "Current entity": "現在のエンティティ",
   "Solid FACTs are recorded events; hollow FACTs are ancestor reflections. Dashed lines are LINKs.": "塗りつぶされたFACTは記録された事実、白抜きのFACTは祖先への反映です。破線はLINKです。",
   "Language": "言語",
