@@ -1,0 +1,29 @@
+.ticket-commit-graph {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.ticket-graph-viewport {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-textbackground);
+}
+
+.ticket-graph-scene {
+  height: 300px;
+}
+
+.ticket-graph-hint {
+  margin-top: 0.75rem;
+  color: var(--theme-muted);
+  font-size: 0.85em;
+}
+
+.ticket-graph-entities {
+  overflow-wrap: anywhere;
+}
+
+.ticket-graph-entities a {
+  color: var(--theme-readable-accent, var(--theme-text));
+}

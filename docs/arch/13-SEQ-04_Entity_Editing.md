@@ -10,6 +10,65 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### Compact entity Extended Commit Graph
+
+Every loaded ticket ends with `EntityCommitGraph`, a 300px-high, horizontally
+scrollable graph surface. `entityGraphModel.js` extracts a model from route state,
+overlaying the current loaded/saved detail without mutating the workspace model.
+No workspace reload, filesystem scan, new command, or submodule modification is
+needed. Graph extraction is an optional presentation scan of in-memory metadata,
+not part of the constant-time native detail load/save contract.
+
+* FACT: retain every direct EXPERIENCE placement, all ancestor EXPERIENCEs for
+  recursive hollow markers, and the nearest preceding/following FACT on each
+  direct or reflected timeline. Ordering matches layout (`occurredAt`, then UUID).
+  Include incoming/outgoing and explicit LINKs and their endpoints.
+* EXPERIENCE: retain directly belonging FACTs, immediate parent/child EXPERIENCEs,
+  and incoming/outgoing and explicit LINKs with their endpoints.
+* LINK: retain this LINK and its resolved endpoints, including every EXPERIENCE
+  placement of each related FACT. Do not follow other LINKs transitively.
+* PERSON: retain owned EXPERIENCEs (including the life root when present), their
+  full descendant closure regardless of owner, and their directly belonging FACTs.
+
+Retained FACTs bring all their placements and ancestor branches; owners provide
+scope/color context. An otherwise unpopulated retained EXPERIENCE gets its latest
+direct FACT, if available, as a supporting timeline point because the shared
+renderer attaches EXPERIENCE LINKs only to recorded timelines. This does not
+expand unrelated LINKs or entire neighboring histories. Missing referenced
+records are omitted, and iterative visited sets terminate cyclic ancestry.
+PERSONs remain ownership context, not visual nodes; the shared visualizer does
+not draw PERSON-related LINK segments. Empty EXPERIENCEs still have lane labels.
+
+```mermaid
+sequenceDiagram
+    participant Ticket as EntityDetailPage
+    participant Graph as EntityCommitGraph
+    participant Extract as entityGraphModel
+    participant IPC as compute_visualizer_layout
+    participant Renderer as hasm_visualizer/createCommitGraph2D
+    Ticket->>Graph: Current detail and route workspace model
+    Graph->>Extract: Extract entity-specific relationships
+    Extract-->>Graph: Reduced model with original serialized shapes
+    Graph->>IPC: Reduced model, Linear time scale, Z scale 1
+    IPC-->>Graph: nodes3d, lines3d, warnings
+    Graph->>Renderer: Geometry and active color-pattern colors
+    Renderer-->>Ticket: Selected FACT, EXPERIENCE or LINK
+    Ticket->>Ticket: Open typed ticket with full workspace state
+```
+
+The host reuses the existing native layout bridge and shared SVG renderer
+directly, rather than mounting the full-screen visualizer toolbar. The renderer
+owns graph geometry, solid/hollow markers, dashed LINKs, scrolling and disposal;
+host CSS only sizes its own panel and never overrides submodule graph classes.
+A collapsed **Graph entities** list supplies readable keyboard-accessible typed
+links, including records not represented by a visual node.
+Editing, save/refresh and unverified state disable both graph clicks and list
+navigation. Layout errors/timeouts (10 seconds), renderer errors and native
+warnings remain visible without replacing the readable ticket. Abandoned
+requests cannot update a new ticket, and renderer listeners are disposed on
+replacement/unmount. Language/theme changes redraw without another layout invoke;
+saving or refreshing metadata updates extraction from the latest detail.
+
 ### Reader-first ticket and inline metadata editors
 
 Every ticket initially renders readable content, with no form, input, select,

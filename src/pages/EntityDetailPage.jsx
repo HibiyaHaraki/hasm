@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
@@ -10,6 +10,7 @@ import { ExternalLinksView, isExternalUrl } from "../features/entityTicket/Exter
 import { createLogger } from "../hasm_logger/src/react/logger.js";
 import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
 import { translateTicket } from "../features/entityTicket/ticketLanguage";
+import { EntityCommitGraph } from "../features/entityTicket/EntityCommitGraph";
 
 const logger = createLogger("entity-detail");
 
@@ -52,6 +53,11 @@ function EntityDetailPage() {
   const [workspaceState, setWorkspaceState] = useState(state);
   const referenceIndex = useMemo(() => createEntityReferenceIndex(workspaceState?.model), [workspaceState?.model]);
   const lifecycleRef = useRef(null);
+  const graphNavigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
+  const openGraphEntity = useCallback((node) => {
+    if (graphNavigationDisabled) return;
+    navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: workspaceState });
+  }, [graphNavigationDisabled, navigate, workspaceState]);
   useLayoutEffect(() => {
     if (!editing && editTriggerRef.current) {
       const trigger = document.getElementById(editTriggerRef.current)
@@ -416,6 +422,9 @@ function EntityDetailPage() {
           </section>
         </Col>
       </Row>
+      <EntityCommitGraph entityType={entityType} entityId={entityId} detail={ticket.detail}
+        workspaceState={workspaceState} disabled={graphNavigationDisabled}
+        onSelect={openGraphEntity} language={language} />
     </Container>
   );
 }

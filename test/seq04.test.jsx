@@ -1,18 +1,19 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EntityDetailPage from "../src/pages/EntityDetailPage";
 import { externalLinkSite, isExternalUrl } from "../src/features/entityTicket/ExternalLinksEditor";
 
 const openUrl = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl }));
-const api = vi.hoisted(() => ({ loadEntityDetail: vi.fn(), checkEntityMtime: vi.fn(), reloadEntityMarkdown: vi.fn(), saveEntityDetail: vi.fn(), switchWorkspaceCleanly: vi.fn(), loadHasmModelDb: vi.fn() }));
-vi.mock("../src/features/hasm/api", () => api);
+const api = vi.hoisted(() => ({ computeVisualizerLayout: vi.fn(), loadEntityDetail: vi.fn(), checkEntityMtime: vi.fn(), reloadEntityMarkdown: vi.fn(), saveEntityDetail: vi.fn(), switchWorkspaceCleanly: vi.fn(), loadHasmModelDb: vi.fn() }));
+vi.mock("../src/features/hasm/api", async (importOriginal) => ({ ...await importOriginal(), ...api }));
 const detail = { name: "Original", markdownBody: "# Detail", loadedMtimeMs: 10, detail: { personName: "Original" } };
 function LocationProbe() { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.state?.model ? ":model" : ""}</output>; }
 function SavedStateProbe() { const location = useLocation(); return <output data-testid="saved-state">{JSON.stringify(location.state)}</output>; }
 function renderTicket(entityType = "PERSON", state = { path: "C:/demo" }) { return render(<MemoryRouter initialEntries={[{ pathname: `/entity-detail/${entityType}/id-1`, state }]}><Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /><Route path="/error-model" element={<LocationProbe />} /><Route path="/error-markdown" element={<LocationProbe />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes></MemoryRouter>); }
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
+beforeEach(() => { api.computeVisualizerLayout.mockResolvedValue({ nodes3d: [], lines3d: [], warnings: [] }); });
 describe("SEQ-04 entity ticket", () => {
   const referenceModel = {
     people: [{ personId: "person-ada", personName: "Ada Lovelace" }],
@@ -117,9 +118,9 @@ describe("SEQ-04 entity ticket", () => {
     expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("PERSONは利用できません");
     fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    expect(screen.getByRole("status")).toHaveTextContent("人物には有効なエンティティのUUIDを入力してください。");
+    expect(screen.getByText("人物には有効なエンティティのUUIDを入力してください。")).toHaveAttribute("role", "status");
     fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
-    expect(screen.getByRole("status")).toHaveTextContent("People must contain valid entity UUIDs.");
+    expect(screen.getByText("People must contain valid entity UUIDs.")).toHaveAttribute("role", "status");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
     fireEvent.click(screen.getByRole("button", { name: "外部リンクを編集" }));
@@ -306,7 +307,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(await screen.findByText("No related LINK entities.")).toBeInTheDocument();
     cleanup();
     renderTicket();
-    expect(await screen.findByText("Workspace relationship information is unavailable.")).toBeInTheDocument();
+    expect(await within(await screen.findByRole("region", { name: "Related LINK entities" })).findByText("Workspace relationship information is unavailable.")).toBeInTheDocument();
   });
   it("TC-04-REACT-REF-005 opens a related LINK with the workspace context", async () => {
     api.loadEntityDetail.mockImplementation(async (_root, type, id) => type === "LINK"
@@ -332,7 +333,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(relationship).toHaveTextContent("Updated title");
     expect(within(relationship).getByText("Analytical Engine research")).toBeInTheDocument();
     expect(link).toBeDisabled();
-    expect(screen.getByText("Return to Visualizer to re-verify before opening related entities.")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Related LINK entities" })).getByText("Return to Visualizer to re-verify before opening related entities.")).toBeInTheDocument();
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });
   it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-INLINE-001 opens %s in reading mode without editing forms", async (type) => {
@@ -406,7 +407,7 @@ describe("SEQ-04 entity ticket", () => {
     const ids = screen.getByLabelText("Graph links");
     fireEvent.change(ids, { target: { value: "not-a-uuid" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Graph links must contain valid entity UUIDs");
+    expect(screen.getByText("Graph links must contain valid entity UUIDs.")).toHaveAttribute("role", "status");
     expect(ids).toHaveValue("not-a-uuid");
     expect(api.saveEntityDetail).not.toHaveBeenCalled();
     fireEvent.change(ids, { target: { value: "11111111-1111-1111-1111-111111111111" } });
@@ -417,7 +418,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Refresh Markdown" })).toBeDisabled();
     rejectSave(new Error("Database is locked"));
-    expect(await screen.findByRole("status")).toHaveTextContent("Database is locked");
+    expect(await screen.findByText("Database is locked")).toHaveAttribute("role", "status");
     expect(ids).toHaveValue("11111111-1111-1111-1111-111111111111");
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -506,7 +507,7 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.change(input, { target: { value: "javascript:alert(1)" } });
     fireEvent.submit(input.closest("form"));
     expect(api.saveEntityDetail).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("absolute HTTP(S)");
+    expect(screen.getByText("Each external link must be an absolute HTTP(S) URL without credentials or whitespace.")).toHaveAttribute("role", "status");
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
   it("TC-04-REACT-LINK-003 opens URLs through the OS opener and surfaces failures", async () => {
@@ -594,7 +595,7 @@ describe("SEQ-04 entity ticket", () => {
   it("TC-04-REACT-PERF-002 polls freshness on focus without reloading the package", async () => {
     api.loadEntityDetail.mockResolvedValue(detail);
     api.checkEntityMtime.mockResolvedValue({ isModified: false, isDeleted: false, currentMtimeMs: 10 });
-    renderTicket();
+    await act(async () => { renderTicket(); });
     await screen.findByRole("button", { name: "Edit summary" });
     window.dispatchEvent(new Event("focus"));
     await vi.waitFor(() => expect(api.checkEntityMtime).toHaveBeenCalledTimes(1));
