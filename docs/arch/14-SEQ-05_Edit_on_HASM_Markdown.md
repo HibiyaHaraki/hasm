@@ -16,10 +16,12 @@ Enter/Space with the preview focused invokes the same launch action without
 mounting an inline Markdown form. Selecting document text and activating
 preview hyperlinks do not launch the editor. Its IPC identity and native launch contract are
 unchanged. The current editor accepts an entity folder containing `main.md`
-and `assets.json` (or an archive), not a standalone `.md` path. The launcher
+(or an archive), not a standalone `.md` path. `assets.json` is optional for
+folders: HASM scaffolds entity folders with only `main.md` and `assets/`, and
+the editor treats a missing manifest as having no registered assets without
+creating the file on open (`REQ-MD-01-013` in the editor submodule). The launcher
 passes the entity folder so the editor opens its `main.md`. Standalone file
-support and folders without the editor's required metadata need a separate
-editor-submodule change; this preview change does not add that support.
+support needs a separate editor-submodule change.
 
 ---
 
