@@ -21,9 +21,10 @@ Automated React and IPC coverage runs through `npm run test:eval-05`; Rust comma
 `TC-05-RUST-005` timeout injection, `TC-05-RUST-006` database-handle monitoring, and live detached-process/multi-instance desktop rows are acceptance scenarios; CI intentionally does not launch desktop editor windows.
 
 The component-to-invoke tests do not assert that a desktop editor window
-mounted the document. Native launch still uses the folder contract and
-requires the editor's `main.md` and `assets.json`; standalone `.md` input and
-missing-manifest folders are not supported by the unchanged submodule.
+mounted the document. Native launch uses the folder contract and requires the
+editor's `main.md`; `assets.json` is optional, so asset-free HASM entity folders
+open with an empty manifest (editor tests `TC-MD-01-RUST-006`/`007`). Standalone
+`.md` input is not supported.
 
 ---
 
