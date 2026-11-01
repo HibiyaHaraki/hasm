@@ -114,9 +114,11 @@ describe("Entity graph GUI and real IPC wrapper", () => {
     const table = await screen.findByRole("table", { name: "FACT titles" });
     await waitFor(() => expect(table.querySelectorAll("tbody tr")).toHaveLength(4));
     const rows = [...table.querySelectorAll("tbody tr")];
-    expect(rows.map((row) => row.cells[0].textContent)).toEqual(["linked-fact", "after", "focus", "before"]);
+    expect(rows.map((row) => row.cells[0].querySelector('a[href*="/FACT/"]').textContent)).toEqual(["linked-fact", "after", "focus", "before"]);
     expect(table.querySelectorAll("strong")).toHaveLength(1);
     expect(table.querySelector("strong")).toHaveTextContent("focus");
+    expect(table.querySelector(".HasmVisualizer_ExperienceBadge")).toHaveClass("HasmVisualizer_ExperienceBadgeInline");
+    expect(table.querySelector(".HasmVisualizer_ExperienceBadge").nextSibling.textContent).toBe(" ");
     expect(table.querySelector('a[aria-current="page"]')).toHaveAttribute("href", "/entity-detail/FACT/focus");
     expect(rendererSpy.mock.calls.at(-1)[7]).toMatchObject({
       timeScaleMode: "SequentialIndex", rowHeightPx: 30, headerHeightPx: 37,
@@ -159,6 +161,16 @@ describe("Entity graph GUI and real IPC wrapper", () => {
     }));
     await waitFor(() => expect(screen.getByRole("table", { name: "FACT titles" }).querySelector("strong")).toHaveTextContent("after"));
     expect(bridge.invoke.mock.calls.some(([command]) => command === "load_hasm_model_db")).toBe(false);
+  });
+  it("TC-04-GRAPH-SEQUENTIAL-004 opens the EXPERIENCE badge through the real detail invoke", async () => {
+    renderTicket();
+    const table = await screen.findByRole("table", { name: "FACT titles" });
+    const badge = table.querySelector(".HasmVisualizer_ExperienceBadge");
+    expect(badge).toHaveAttribute("href", "/entity-detail/EXPERIENCE/linked");
+    fireEvent.click(badge);
+    await waitFor(() => expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", {
+      modelRoot: "fixture.hasm", entityType: "EXPERIENCE", entityId: "linked",
+    }));
   });
   it.each([["FACT", "focus"], ["EXPERIENCE", "child"], ["LINK", "incoming"], ["PERSON", "p"]])(
     "TC-04-GRAPH-EMPHASIS-001 persistently emphasizes the current %s across hover, redraw and editing",

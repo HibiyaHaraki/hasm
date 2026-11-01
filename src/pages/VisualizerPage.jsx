@@ -32,10 +32,10 @@ function VisualizerPage() {
   const fail = useCallback((error, isFilterUpdate) => {
     if (!activeRef.current) return;
     if (error?.message?.includes("ERR_NO_ACTIVE_MODEL")) return navigate("/select", { replace: true });
-    if (error?.message?.includes("ERR_MODEL_NOT_VERIFIED")) return navigate("/loading-model", { replace: true, state: { path: state?.path, returnTo: "/visualizer" } });
+    if (error?.message?.includes("ERR_MODEL_NOT_VERIFIED")) return navigate("/loading-model", { replace: true, state: { ...state, path: state?.path, returnTo: "/visualizer" } });
     if (isFilterUpdate) return setRenderState((current) => ({ ...current, loading: false, notice: "Filter update timed out. Reverting view." }));
     return navigate("/error-model", { replace: true, state: { error: error?.message || "Layout calculation stalled" } });
-  }, [navigate, state?.path]);
+  }, [navigate, state]);
 
   const resetWatchdog = useCallback(() => {
     window.clearTimeout(watchdogRef.current);
@@ -65,7 +65,7 @@ function VisualizerPage() {
       return undefined;
     }
     if (state?.isVerified === false) {
-      navigate("/loading-model", { replace: true, state: { path: state.path, returnTo: "/visualizer" } });
+      navigate("/loading-model", { replace: true, state: { ...state, path: state.path, returnTo: "/visualizer" } });
       return undefined;
     }
 
@@ -118,8 +118,8 @@ function VisualizerPage() {
     }
   }, [fail, resetWatchdog]);
 
-  const openEntityTicket = useCallback((node) => {
-    navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: { ...state, model, isVerified: state?.isVerified !== false } });
+  const openEntityTicket = useCallback((node, visualizerView) => {
+    navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: { ...state, model, visualizerView, isVerified: state?.isVerified !== false } });
   }, [model, navigate, state]);
 
   const factDatesById = useMemo(() => new Map((model?.facts || []).map((fact) => [fact.factId, fact.occurredAt])), [model]);
@@ -131,8 +131,10 @@ function VisualizerPage() {
       colorPattern={activePatternId}
       labels={VISUALIZER_LABELS}
       model={model}
+      initialViewState={state?.visualizerView}
       computeLayout={computeLayout}
       onSelectNode={openEntityTicket}
+      getNodeHref={(node) => `/entity-detail/${node.entityType}/${node.id}`}
       factDatesById={factDatesById}
       headerSlot={(
         <div className="d-flex align-items-center justify-content-between mb-2">

@@ -10,6 +10,8 @@ import { extractEntityGraphModel } from "./entityGraphModel";
 import { createEntityReferenceIndex, entityReferenceTitle } from "./EntityReferences";
 import { translateTicket } from "./ticketLanguage";
 import "./EntityCommitGraph.css";
+import { ExperienceBadge, experienceAtNode } from "../../hasm_visualizer/ExperienceBadge.jsx";
+import { buildExperienceColorMaps, positionKey } from "../../hasm_visualizer/threeCommitGraph.js";
 
 const logger = createLogger("entity-commit-graph");
 const FILTER = { timeScaleMode: "SequentialIndex", zScaleFactor: 1 };
@@ -30,6 +32,15 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
   const index = useMemo(() => createEntityReferenceIndex(graphModel), [graphModel]);
   const t = (text, values) => translateTicket(text, values, language);
   const factRows = useMemo(() => layout ? [...computeFactRowIndexById(layout).keys()] : [], [layout]);
+  const theme = getPatternById(activePatternId).colors;
+  const experienceColors = useMemo(() => layout ? buildExperienceColorMaps(layout, theme) : null, [layout, theme]);
+  const badgeFor = (node, inline = false) => {
+    const experience = experienceAtNode(layout, node);
+    return <ExperienceBadge experience={experience} inline={inline}
+      href={experience && !disabled ? `/entity-detail/EXPERIENCE/${experience.id}` : undefined}
+      onSelect={onSelect}
+      color={experience && experienceColors.trunkColorByPositionKey.get(positionKey(experience.x, experience.y))} theme={theme} />;
+  };
   const syncScroll = (nextScrollTop) => {
     const table = factTableRef.current;
     if (!table) return;
@@ -126,6 +137,9 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
                         return (
                           <tr key={id}>
                             <td title={title}>
+                              {badgeFor(layout.nodes3d.find((node) => node.entityType === "FACT" && node.id === id && node.isDirectFact)
+                                || layout.nodes3d.find((node) => node.entityType === "FACT" && node.id === id), true)}
+                              {' '}
                               {disabled ? <span>{isCurrent ? <strong>{title}</strong> : title}</span> : (
                                 <Link to={`/entity-detail/FACT/${id}`} state={workspaceState}
                                   aria-current={isCurrent ? "page" : undefined}>
@@ -145,6 +159,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
           ) : null}
           <p className="ticket-graph-hint">{t("Solid FACTs are recorded events; hollow FACTs are ancestor reflections. Dashed lines are LINKs.")}</p>
           {hoveredNode ? <p className="ticket-graph-hint" role="status">
+            {badgeFor(hoveredNode)}
             {hoveredNode.entityType}: {hoveredNode.label}
           </p> : null}
           {workspaceState?.isVerified === false ? <p>{t("Return to Visualizer to re-verify before opening related entities.")}</p> : null}

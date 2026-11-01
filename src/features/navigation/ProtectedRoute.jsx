@@ -36,6 +36,7 @@ function ProtectedRoute({ requireVerified = false }) {
         to="/loading-model"
         replace
         state={{
+          ...location.state,
           path: location.state?.path || window.sessionStorage.getItem("hasm-active-workspace"),
           returnTo: location.pathname,
           redirectReason: "モデルの検証が完了していません。再ロード・検証を実行します。",

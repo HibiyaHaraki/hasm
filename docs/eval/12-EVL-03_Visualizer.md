@@ -155,3 +155,21 @@ These unit and integration tests verify Rust background worker thread execution 
 | **TC-03-RUST-005** | `REQ-03-RULE-002` | Positive (Z-Axis Math) | `compute_visualizer_layout` | 1. Run layout calculation testing `Linear`, `Logarithmic`, and `SequentialIndex` modes. | 1. Correctly calculates Z-coordinates according to selected mathematical mode formulas. |
 | **TC-03-RUST-006** | `REQ-03-RULE-006``REQ-03-RULE-007``REQ-03-RULE-011``REQ-03-RULE-012``REQ-03-FUNC-303``REQ-03-FUNC-306` | Positive (Topology) | `compute_visualizer_layout` | 1. Seed parent, sibling child, and grandchild EXPERIENCE records plus FACTs with ordered `occurred_at` timestamps.<br/>2. Add FACT-to-FACT and FACT-to-EXPERIENCE LINKs, and a multi-endpoint LINK containing two FACTs, two EXPERIENCEs, a PERSON, and a duplicate ID.<br/>3. Compute `SequentialIndex` layout. | 1. Earlier FACT receives lower Z than later FACT.<br/>2. Related EXPERIENCEs occupy successive $x = 6d$ generations and sibling lanes do not overlap.<br/>3. Each EXPERIENCE trunk is straight only from its first FACT to its final FACT; an empty EXPERIENCE has no trunk.<br/>4. Curved `BRANCH_OUT` and `BRANCH_MERGE` geometries exist for the declared parent-child relationship.<br/>5. A direct FACT is marked direct and its inherited projection is marked non-direct.<br/>6. Both two-endpoint LINKs render, and the multi-endpoint LINK emits exactly six distinct pairs with the original LINK ID and resolvable endpoint IDs; PERSON endpoints and duplicates add no segments.<br/>7. The child FACT is also placed on its parent trunk. |
 | **TC-03-RUST-007** | `REQ-03-FUNC-110` | Positive (Development) | `create_visualizer_demo_workspace` | 1. Invoke the development demo command.<br/>2. Inspect generated workspace. | 1. Returns a non-empty model with 3 EXPERIENCE records and 5 dated FACT records.<br/>2. `hasm.db`, Markdown files, and assets exist. |
+## Automated view regression additions
+
+Run `npm run test:eval-03` for `test/visualizer-view.test.jsx`:
+
+| Test ID | Expected result |
+| --- | --- |
+| `TC-03-VIEW-001` | Repeated same-line projections render once, with direct precedence and ancestor reflection retained. |
+| `TC-03-VIEW-002` | Real layout invokes retain filters through graph-ticket-return without resetting controls. |
+| `TC-03-VIEW-003` | Hover shows one exact-line EXPERIENCE badge with matching branch color; FACT table uses an inline direct EXPERIENCE name badge followed by a space and title, without a color-only dot, while graph circles remain. |
+| `TC-03-VIEW-006` | EXPERIENCE table badge opens its EXPERIENCE rather than the containing FACT and preserves workspace context and view state on return. |
+| `TC-03-VIEW-004` | 3D mode and camera snapshot restore through ticket return. |
+| `TC-03-VIEW-005` | Verification guard and model reload retain view filters and EXPERIENCE scope. |
+
+Browser acceptance checks all modes, scopes, scroll/camera positions, and
+graph-ticket-return after metadata save/re-verification. Hover direct and reflected
+FACTs separately, check only the exact line name appears, and measure table/marker
+alignment across Z scale and narrow/wide widths. Native geometry and persisted
+schemas are unchanged.

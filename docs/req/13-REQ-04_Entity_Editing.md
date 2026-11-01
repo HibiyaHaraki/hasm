@@ -6,6 +6,15 @@ This specification defines the functional, data, time constraint, and validation
 
 ## 1. System Invariants & Core Rules
 
+The FACT hover and SequentialIndex title badges also follow the EXPERIENCE
+navigation rules: badge links open the specific EXPERIENCE using the existing
+graph selection callback and become plain text while navigation is disabled.
+The visual styling follows the EXPERIENCE
+badge requirements in [REQ-03](./12-REQ-03_Visualizer.md): exact hovered-line
+identity, representative direct table placement, matching line colors and
+contrast-safe text. Main visualizer settings remain workspace route context
+through ticket saves and re-verification.
+
 * **[REQ-04-RULE-025] Sequential Detail Graph and FACT Titles:** Detail graphs MUST use the shared 2D renderer with `SequentialIndex` layout and an adjacent newest-first FACT title/date table. Reflections MUST share one title row per FACT UUID. Only the title matching the addressed FACT type and UUID MUST be bold, including while editing; other titles MUST remain regular. Graph and title rows MUST share row geometry and vertical scrolling, with clamped graph wheel input and panel-local horizontal overflow. Titles MUST preserve typed-ticket navigation guards and workspace context. Display changes MUST preserve bold identity and MUST NOT request another layout.
 
 * **[REQ-04-RULE-024] Current Graph Entity Emphasis:** The detail graph MUST persistently emphasize the addressed FACT markers (including reflections), EXPERIENCE timeline, or LINK endpoint-connected segments using the shared highlight API. PERSON tickets MUST emphasize their retained EXPERIENCE timelines instead of inventing PERSON nodes. Hover MUST retain current-entity emphasis and pointer leave MUST restore it. Theme/language redraws and disabled navigation MUST preserve emphasis without new layout invokes. A bold current-entity caption and list row MUST identify the addressed entity, including empty timelines; its navigable list entry MUST expose `aria-current="page"`.

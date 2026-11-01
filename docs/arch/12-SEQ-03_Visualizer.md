@@ -45,6 +45,29 @@ The Open Workspace page (`/select`) includes **Test 3D commit graph** for develo
 
 ### Navigation and Watchdog Ownership
 
+`HasmVisualizerComponent` accepts an optional `initialViewState` and returns a
+snapshot as the second node-selection callback argument. `VisualizerPage` carries
+it as `visualizerView` in full workspace route state. Detail navigation and return,
+including SEQ-02 re-verification after saving, retain this context. Filters,
+PERSON/EXPERIENCE scope, 2D/3D mode and renderer scroll/camera positions are restored
+on remount, without global browser storage or changes to serialized entities.
+Settings snapshots do not change renderer callback identity when a filter changes;
+failed layout changes must keep the previous scene intact.
+
+SequentialIndex rendering deduplicates FACT projections by UUID and XY EXPERIENCE
+position before creating SVG circles, preferring direct markers. Distinct branch
+placements and ancestor reflections remain intentional. Unique title rows prefer
+a directly recorded projection rather than whichever reflection appears first.
+FACT tooltip badges resolve exactly one EXPERIENCE from the hovered marker's
+position, in both 2D and 3D. Table badges name the representative direct EXPERIENCE
+before the FACT title on the same line, separated by a space. The host supplies
+EXPERIENCE ticket URLs; badge activation selects that EXPERIENCE through the
+existing snapshot-preserving navigation callback, not the surrounding FACT row.
+Badges share the branch color, derive contrast-safe text,
+replace the table's redundant color-only dot without changing graph markers,
+and scale within the existing synchronized row height. Detail graphs reuse the
+same badge component without changing entity selection or serialized shapes.
+
 `VisualizerPage` owns a page lifetime and the identity of the current layout
 request. Only a pending current request may consume progress or reset the
 10-second watchdog. Completion, failure, supersession, and leaving the page

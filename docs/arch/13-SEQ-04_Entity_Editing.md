@@ -91,6 +91,15 @@ renderer; graph wheel input changes and clamps that same offset. Both use shared
 Horizontal overflow stays within the 300px-high graph panel. Title links retain
 the full workspace state and existing editing/verification navigation guards.
 
+FACT title rows also show an EXPERIENCE badge before the title on the same line,
+separated by a space, using the shared visualizer badge and the representative
+direct projection's line color. Badges link to that EXPERIENCE ticket through the
+guarded graph-selection callback. While ticket navigation is disabled, badges
+remain non-interactive text. Hover
+shows the badge for exactly the hovered projection's line, including reflections.
+`visualizerView` route context from the main graph is preserved through tickets,
+metadata saves, and re-verification so returning restores the main view settings.
+
 ### Reader-first ticket and inline metadata editors
 
 Every ticket initially renders readable content, with no form, input, select,

@@ -181,7 +181,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     for (let cycle = 0; cycle < 12; cycle += 1) {
       await flush();
       // Click the real FACT table row, rather than replacing either page with a route stub.
-      fireEvent.click(screen.getByText("Publication", { selector: "td" }));
+      fireEvent.click(screen.getByText("Publication", { selector: ".HasmVisualizer_FactTitle" }));
       await flush();
       expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent("Publication");
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();

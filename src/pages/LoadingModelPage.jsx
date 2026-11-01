@@ -46,7 +46,7 @@ function LoadingModelPage() {
       return;
     }
     setState((current) => ({ ...current, notice: redirectReason }));
-    navigate("/loading-model", { replace: true, state: { path } });
+    navigate("/loading-model", { replace: true, state: { ...location.state, redirectReason: "", path } });
   }, [navigate, path, redirectReason]);
 
   useEffect(() => {
@@ -183,7 +183,7 @@ function LoadingModelPage() {
           logger.info("[SEQ-MD-02][LOAD] workspace loaded and verified");
           setState((current) => ({
             ...current,
-            result: { path, model, isVerified: true, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities },
+            result: { ...location.state, path, model, isVerified: true, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities },
           }));
         }
       } catch (error) {

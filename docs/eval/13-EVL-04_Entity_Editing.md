@@ -10,6 +10,15 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ### Entity Extended Commit Graph
 
+Shared badge behavior and main-view return/re-verification are covered by
+`TC-03-VIEW-002` to `TC-03-VIEW-005` in `test/visualizer-view.test.jsx`.
+EVAL-04 continues to check current FACT title emphasis, navigation guards and
+graph/table scrolling with the badges mounted.
+
+`TC-04-GRAPH-SEQUENTIAL-004` checks that an EXPERIENCE badge loads its specific
+EXPERIENCE through the real detail IPC wrapper. `TC-04-GRAPH-SEQUENTIAL-001`
+also verifies that editing removes all table links, including badge links.
+
 `TC-04-GRAPH-SEQUENTIAL-001` verifies `REQ-04-RULE-025`: the real IPC wrapper
 requests SequentialIndex, deduplicated newest-first title rows align with shared
 30px/37px renderer geometry, only the addressed FACT title is bold, table scroll
