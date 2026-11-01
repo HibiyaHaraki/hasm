@@ -6,6 +6,21 @@ This specification defines the functional, data, time constraint, and validation
 
 ## 1. System Invariants & Core Rules
 
+The FACT hover and SequentialIndex title badges also follow the EXPERIENCE
+navigation rules: badge links open the specific EXPERIENCE using the existing
+graph selection callback and become plain text while navigation is disabled.
+The visual styling follows the EXPERIENCE
+badge requirements in [REQ-03](./12-REQ-03_Visualizer.md): exact hovered-line
+identity, representative direct table placement, matching line colors and
+contrast-safe text. Main visualizer settings remain workspace route context
+through ticket saves and re-verification.
+
+* **[REQ-04-RULE-025] Sequential Detail Graph and FACT Titles:** Detail graphs MUST use the shared 2D renderer with `SequentialIndex` layout and an adjacent newest-first FACT title/date table. Reflections MUST share one title row per FACT UUID. Only the title matching the addressed FACT type and UUID MUST be bold, including while editing; other titles MUST remain regular. Graph and title rows MUST share row geometry and vertical scrolling, with clamped graph wheel input and panel-local horizontal overflow. Titles MUST preserve typed-ticket navigation guards and workspace context. Display changes MUST preserve bold identity and MUST NOT request another layout.
+
+* **[REQ-04-RULE-024] Current Graph Entity Emphasis:** The detail graph MUST persistently emphasize the addressed FACT markers (including reflections), EXPERIENCE timeline, or LINK endpoint-connected segments using the shared highlight API. PERSON tickets MUST emphasize their retained EXPERIENCE timelines instead of inventing PERSON nodes. Hover MUST retain current-entity emphasis and pointer leave MUST restore it. Theme/language redraws and disabled navigation MUST preserve emphasis without new layout invokes. A bold current-entity caption and list row MUST identify the addressed entity, including empty timelines; its navigable list entry MUST expose `aria-current="page"`.
+
+* **[REQ-04-RULE-023] Entity Extended Commit Graph:** Every loaded PERSON, EXPERIENCE, FACT and LINK ticket MUST end with a compact, theme-aware graph using `hasm_visualizer`. Extraction MUST retain the relationships specified in [SEQ-04](../arch/13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph), including all FACT placements and ancestor reflections, adjacent timeline events, incoming/outgoing LINK endpoints, and recursively descended PERSON EXPERIENCEs. It MUST preserve serialized shapes, avoid mutating/reloading the workspace, terminate on cyclic ancestry, and exclude unrelated LINK expansion. Supporting latest FACTs MAY anchor otherwise unpopulated retained EXPERIENCE timelines. The graph MUST use the existing `compute_visualizer_layout` invoke and shared SVG renderer, stay 300px high with panel-local scrolling, and provide accessible typed navigation with full workspace context. Editing, persistence/refresh and unverified state MUST disable navigation. Missing-model states, layout/renderer errors, 10-second layout timeouts and warnings MUST be explicit; late results MUST NOT affect abandoned tickets, and renderer resources MUST be disposed. Display preference changes MUST NOT recalculate native layout.
+
 * **[REQ-04-RULE-001] Read-Only Markdown Scope:** The Entity Detail Page MUST ONLY modify metadata stored in SQLite (`hasm.db`). Direct file modifications to physical `main.md` files MUST NOT occur within this view during metadata save.
 * **[REQ-04-RULE-002] Dynamic Verification Timeout:** Markdown verification via `hasm_markdown.exe` MUST enforce a file-size-based dynamic timeout with a minimum of **3,000ms** and an upper safety cap of **15,000ms**.
 * **[REQ-04-RULE-003] Atomic Database Transactions:** All metadata updates to SQLite (`hasm.db`) MUST be executed within an explicit database transaction (`BEGIN` / `COMMIT`) with a strict **5,000ms** hard timeout.

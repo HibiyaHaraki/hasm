@@ -15,6 +15,12 @@ The overall application architecture, lifecycle, and sequence flows referenced b
 
 ## Chapter 1: Directory Structure Overview
 
+Entity-ticket graph ownership: `src/features/entityTicket/entityGraphModel.js`
+extracts related in-memory metadata, and `EntityCommitGraph.jsx` /
+`EntityCommitGraph.css` host the compact page-bottom graph. They reuse the existing
+`features/hasm/api.js` layout invoke and `hasm_visualizer/twoCommitGraph.js` renderer
+without changing submodules. See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
+
 
 ```
 

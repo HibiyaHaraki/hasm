@@ -8,6 +8,64 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Entity Extended Commit Graph
+
+Shared badge behavior and main-view return/re-verification are covered by
+`TC-03-VIEW-002` to `TC-03-VIEW-005` in `test/visualizer-view.test.jsx`.
+EVAL-04 continues to check current FACT title emphasis, navigation guards and
+graph/table scrolling with the badges mounted.
+
+`TC-04-GRAPH-SEQUENTIAL-004` checks that an EXPERIENCE badge loads its specific
+EXPERIENCE through the real detail IPC wrapper. `TC-04-GRAPH-SEQUENTIAL-001`
+also verifies that editing removes all table links, including badge links.
+
+`TC-04-GRAPH-SEQUENTIAL-001` verifies `REQ-04-RULE-025`: the real IPC wrapper
+requests SequentialIndex, deduplicated newest-first title rows align with shared
+30px/37px renderer geometry, only the addressed FACT title is bold, table scroll
+and clamped graph wheel input use one offset, and language changes/editing retain
+bold identity. `TC-04-GRAPH-SEQUENTIAL-002` checks PERSON, EXPERIENCE and LINK
+tickets do not falsely bold any FACT title. Browser acceptance measures title
+row centers against SVG marker centers before/after scrolling at wide/narrow
+widths and verifies the matching title's computed font weight.
+`TC-04-GRAPH-SEQUENTIAL-003` verifies FACT title navigation through the real
+detail invoke with workspace context and moves bold emphasis to the destination.
+
+`TC-04-GRAPH-EMPHASIS-001` (FACT, EXPERIENCE, LINK, PERSON) verifies
+`REQ-04-RULE-024` with the real SVG renderer: current markers/timelines/LINK
+segments use highlight colors on load, retain them while another entity is
+hovered and after pointer leave, show a bold current caption and accessible
+current list entry, and remain emphasized after language redraw and when editing
+disables navigation. No additional layout invoke is permitted.
+
+Run `npm run test:eval-04` for extraction, rendered SVG and real JS-to-Tauri
+wrapper tests in `test/entity-commit-graph.test.jsx`. Native layout geometry
+continues to use the existing EVAL-03 command contract without a Rust change.
+
+| Test ID | Requirement | Expected result |
+| --- | --- | --- |
+| `TC-04-GRAPH-001` | `REQ-04-RULE-023` | FACT retains all placements/ancestors, solid/hollow markers, nearest neighbors and both LINK directions, excluding unrelated events/LINKs without input mutation. |
+| `TC-04-GRAPH-002` | `REQ-04-RULE-023` | EXPERIENCE retains direct facts, immediate parents/children, linked endpoints and supporting timeline FACTs. |
+| `TC-04-GRAPH-003` | `REQ-04-RULE-023` | LINK retains endpoints and all related FACT placements without following other LINKs. |
+| `TC-04-GRAPH-004` | `REQ-04-RULE-023` | PERSON retains owned branches and descendants with different owners, with their FACTs. |
+| `TC-04-GRAPH-005` | `REQ-04-RULE-023` | Cyclic/missing references terminate safely; absent model is distinct. |
+| `TC-04-GRAPH-006` | `REQ-04-RULE-023` | Simultaneous FACT neighbors use deterministic UUID order; current detail overlays metadata without losing other fields. |
+| `TC-04-GRAPH-IPC-001` (all types) | `REQ-04-RULE-023` | Page-bottom graph renders SVG after the real API wrapper sends the exact extracted model and filter to mocked Tauri transport, without workspace reload. |
+| `TC-04-GRAPH-IPC-002` | `REQ-04-RULE-023` | Actual rendered FACT selection opens its ticket through `load_entity_detail`; editing blocks selection and accessible list navigation. |
+| `TC-04-GRAPH-IPC-003` (LINK, EXPERIENCE) | `REQ-04-RULE-023` | Rendered LINK and EXPERIENCE selection invokes the exact typed detail route; hover identifies the entity. |
+| `TC-04-GRAPH-007` | `REQ-04-RULE-023` | Missing-model and native-layout failures remain explicit without losing Markdown. |
+| `TC-04-GRAPH-008` | `REQ-04-RULE-023` | Japanese graph chrome changes without another invoke; saved metadata appears and unverified navigation stays disabled. |
+| `TC-04-GRAPH-009` | `REQ-04-RULE-023` | Abandoned layout failures cannot update the page. |
+| `TC-04-GRAPH-010` | `REQ-04-RULE-023` | Renderer failures remain explicit without losing Markdown. |
+| `TC-04-GRAPH-011` | `REQ-04-RULE-023` | A stalled layout times out at exactly ten seconds, with no alert before the threshold; later success cannot replace the error. |
+
+Desktop acceptance: on every entity type at wide and narrow widths, the graph
+follows all ticket content, the scene measures 300px high, overflow stays inside
+the panel, labels and markers use the active theme, and long names remain
+discoverable through Graph entities. Check reflected markers, dashed LINK
+selection, keyboard list navigation, and viewport-dependent EXPERIENCE LINK
+attachments while scrolling. Native transport and visual acceptance are distinct
+from isolated Rust geometry tests.
+
 ### Ticket Display Preferences
 
 | Test ID | Requirement | Expected result |

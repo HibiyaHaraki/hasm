@@ -2,6 +2,12 @@
 
 This document explains the screen flow design, sequence mapping, React routing, state architecture, and complete CRUD / graph-binding lifecycle across the HASM Desktop Application (`hasm-desktop`).
 
+Every entity detail ticket additionally ends with a compact Extended Commit Graph:
+the host extracts entity-specific relationships from the loaded model, calls the
+existing native layout command, and renders through `hasm_visualizer`. Graph
+selection retains the full workspace state and follows ticket navigation guards.
+See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
+
 ---
 
 ## 1. System Overview Flowchart

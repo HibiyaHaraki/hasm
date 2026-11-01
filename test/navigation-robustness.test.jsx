@@ -138,7 +138,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     await flush();
     fireEvent.click(screen.getByRole("link", { name: `Open ${target}: ${title}` }));
     await flush();
-    expect(bridge.invoke).toHaveBeenLastCalledWith("load_entity_detail", { modelRoot: path, entityType: target, entityId: targetId });
+    expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: target, entityId: targetId });
     expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent(title);
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_hasm_model_db")).toHaveLength(0);
@@ -181,7 +181,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     for (let cycle = 0; cycle < 12; cycle += 1) {
       await flush();
       // Click the real FACT table row, rather than replacing either page with a route stub.
-      fireEvent.click(screen.getByText("Publication", { selector: "td" }));
+      fireEvent.click(screen.getByText("Publication", { selector: ".HasmVisualizer_FactTitle" }));
       await flush();
       expect(screen.getByRole("button", { name: "Edit summary" })).toHaveTextContent("Publication");
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
@@ -308,7 +308,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.getByRole("main")).toHaveClass("ticket-text-small");
     expect(screen.getByRole("region", { name: "詳細" })).toHaveTextContent("2026年1月15日");
     expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
-    expect(bridge.invoke).toHaveBeenCalledTimes(1);
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_entity_detail")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
     fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01T10:30:00Z" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -316,7 +316,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", {
       modelRoot: path, detail: { ...fact, occurredAt: "2026-11-01T10:30:00Z" },
     });
-    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent("メタデータを保存しました。");
+    expect(within(screen.getByRole("main")).getByText(/メタデータを保存しました。/)).toHaveAttribute("role", "status");
     expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
     fireEvent.click(screen.getByRole("button", { name: "ビジュアライザーに戻る" }));
     await flush();

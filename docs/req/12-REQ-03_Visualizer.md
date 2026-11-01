@@ -138,3 +138,21 @@ pub enum VisualizerError {
 * **[REQ-03-FUNC-510] Visible 2D Z Scale:** In SequentialIndex, Z scale MUST multiply the 2D row height (30 CSS pixels at 1x), keeping FACT dots, branch endpoints, and table rows aligned, including at 0.5x and 2x and while scrolling. In Linear/Logarithmic it MUST multiply the projected timeline extent while preserving time-distance ratios. Failed layout updates MUST preserve the previous geometry, time mode, and scale. In 3D the scale MUST continue to reach `compute_visualizer_layout` and scale Z coordinates in all three time modes.
 * **[REQ-03-FUNC-511] Compact Graph Controls:** The toolbar MUST separate optional sample selection, Scope, View, Time scale, Z scale, and host actions in that order. Scope lists MUST NOT determine the closed toolbar height. View buttons MUST expose pressed state. Controls MUST wrap without page-level horizontal overflow, use theme colors and visible keyboard focus, and remain within the viewport at desktop and mobile widths. Scope-panel scrolling MUST be local to its bounded overlay, not require scrolling the page to reach toolbar controls.
 * **[REQ-03-FUNC-512] Time-Scaled 2D Axis:** Linear/Logarithmic MUST hide the FACT title/time table and show FACT names/dates on marker hover. They MUST project layout time coordinates onto a labeled Y-axis, newest first, preserving the selected scale's distance ratios. Simultaneous FACTs and reflected copies MUST share Y. Branch and LINK geometry MUST use that same projection. Distinct time coordinates MUST retain ticks even when dense labels are omitted. The graph MUST own vertical scrolling with a fixed header in these modes. SequentialIndex behavior and node-click navigation MUST remain unchanged.
+## View identity, return state and EXPERIENCE badge requirements
+
+* SequentialIndex MUST suppress repeated FACT UUID/XY projections on the same
+  EXPERIENCE line, preferring a direct projection, while preserving separate
+  placements and ancestor reflections and unique FACT title rows.
+* Graph-ticket-return MUST preserve filter, scope, 2D/3D mode and per-mode
+  scroll/camera state in workspace route context, including re-verification after
+  a save. It MUST NOT modify persisted entity/model shapes or use shared global
+  browser settings.
+* FACT hover MUST show exactly one EXPERIENCE badge for the hovered line,
+  including reflected markers. SequentialIndex title rows MUST show a
+  representative direct EXPERIENCE badge before the FACT title on the same line,
+  separated by a space, falling back to
+  a reflection only when needed. Badge colors MUST match the EXPERIENCE line and
+  use contrast-safe text; badges MUST preserve graph/table row alignment. The
+  name badge MUST replace the table's color-only dot, not the graph FACT markers.
+* EXPERIENCE table badges MUST open their specific EXPERIENCE ticket, not the
+  containing FACT, and preserve workspace context and visualizer view state.
