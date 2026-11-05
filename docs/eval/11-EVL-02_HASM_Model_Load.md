@@ -94,6 +94,7 @@ These unit and component tests focus on `LoadingModelPage.tsx`, Watchdog Timer p
 ## 3. Tauri Level Tests (Rust Domain Engine & Lock File I/O)
 
 These unit and integration tests verify Rust command interfaces, OS process table inspection (`sysinfo` / OS PID check), `.hasm/lock` file creation/deletion, and `HasmModel::verify_storage()` execution using `cargo test`.
+If OS process inspection initialization fails, the lock-check command must return an error without changing the existing lock; this host failure is not deterministically injected by the automated suite.
 
 | Test ID | Trace Requirement ID | Test Type | Rust Module / Function | Test Steps | Expected Result |
 | --- | --- | --- | --- | --- | --- |
