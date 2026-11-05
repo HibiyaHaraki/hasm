@@ -40,7 +40,7 @@
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.4",
-    "three": "^0.186.1"
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
