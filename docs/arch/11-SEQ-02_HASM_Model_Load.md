@@ -257,6 +257,11 @@ sequenceDiagram
                 Rust-->>Bridge: Return Ok(LockStatus { is_locked: true, holder_pid: 5678, is_stale_recovered: false, is_read_only: true })
                 Bridge-->>React: Resolve Promise
                 React->>React: Set State: { isReadOnly: true, warning: "Opened in Read-Only Mode" }
+            else OS process inspection fails
+                Rust-->>Bridge: Return Err(process inspection error)
+                Bridge-->>React: Reject Promise
+                React->>Router: navigate('/error-model')
+                Note over Rust,FS: Preserve the existing lock file; do not assume the holder is stale
             end
         else Lock file absent
             Rust->>FS: Create .hasm/lock with current PID

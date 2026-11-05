@@ -86,6 +86,7 @@ pub enum ModelLoadingError {
 * **[REQ-02-FUNC-107] Absent Lock File Creation:** If `.hasm/lock` does not exist, Rust MUST create `.hasm/lock` containing the current PID and return `is_locked = false, is_read_only = false`.
 * **[REQ-02-FUNC-108] Window Close Listener Attachment:** React MUST attach a listener for Tauri's `tauri://close-requested` event.
 * **[REQ-02-FUNC-109] Window Close Lock Release Execution:** When `tauri://close-requested` fires, if `isReadOnly == false`, the application MUST invoke `release_workspace_lock` to delete `.hasm/lock` within **1,000ms** before terminating the process.
+* **[REQ-02-FUNC-110] Process Inspection Failure Safety:** If Rust cannot initialize OS process inspection while checking an existing lock holder, `check_workspace_lock` MUST return a descriptive error without deleting or rewriting the existing lock file. It MUST NOT treat the holder as stale when inspection fails.
 
 ### Chapter 2: Database Metadata Loading (`load_hasm_model_db`)
 

@@ -48,14 +48,21 @@ fn check_workspace_lock_blocking(path: String) -> Result<LockStatus, String> {
         info!("[SEQ-MD-02][LOCK] retaining workspace lock owned by this process");
         return Ok(unlocked_status(false));
     }
-    if holder_pid.is_some_and(process_is_active) {
-        warn!("[SEQ-MD-02][LOCK] workspace is active in another process");
-        return Ok(LockStatus {
-            is_locked: true,
-            holder_pid,
-            is_stale_recovered: false,
-            is_read_only: true,
-        });
+    if let Some(pid) = holder_pid {
+        let is_active = process_is_active(pid).map_err(|error| {
+            let message = format!("Failed to inspect workspace lock holder {pid}: {error}");
+            log::error!("[SEQ-MD-02][LOCK] {message}");
+            message
+        })?;
+        if is_active {
+            warn!("[SEQ-MD-02][LOCK] workspace is active in another process");
+            return Ok(LockStatus {
+                is_locked: true,
+                holder_pid,
+                is_stale_recovered: false,
+                is_read_only: true,
+            });
+        }
     }
 
     fs::remove_file(&lock_path).map_err(|error| error.to_string())?;
@@ -191,16 +198,16 @@ fn unlocked_status(is_stale_recovered: bool) -> LockStatus {
     LockStatus { is_locked: false, holder_pid: Some(std::process::id()), is_stale_recovered, is_read_only: false }
 }
 
-fn process_is_active(pid: u32) -> bool {
+fn process_is_active(pid: u32) -> Result<bool, String> {
     // Refresh only the one PID that holds the lock; a full `System::new_all()` snapshot
     // enumerates every process on the machine on each workspace open.
-    let mut system = System::new();
+    let mut system = System::new().map_err(|error| error.to_string())?;
     system.refresh_processes_specifics(
         ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
         true,
         ProcessRefreshKind::nothing(),
     );
-    system.process(Pid::from_u32(pid)).is_some()
+    Ok(system.process(Pid::from_u32(pid)).is_some())
 }
 
 fn emit_progress<R: Runtime>(app: &AppHandle<R>, step: &str, current: usize, total: usize, message: &str) -> Result<(), String> {
@@ -329,7 +336,7 @@ mod tests {
         let root = fixture_workspace();
         let root_string = root.to_string_lossy().to_string();
         check_workspace_lock_blocking(root_string.clone()).unwrap();
-        let mut system = System::new();
+        let mut system = System::new().expect("process system should initialize");
         let current = Pid::from_u32(std::process::id());
         system.refresh_processes_specifics(
             ProcessesToUpdate::Some(&[current]), true, ProcessRefreshKind::nothing(),
