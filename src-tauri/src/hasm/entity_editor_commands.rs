@@ -59,11 +59,11 @@ fn detail_value(root: &str, entity_type: &str, id: &str) -> Result<serde_json::V
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hasm::visualizer_commands::create_visualizer_demo_workspace;
+    use crate::hasm::visualizer_commands::create_test_workspace_fixture;
 
     #[test]
     fn loads_and_reloads_every_entity_from_a_populated_workspace() {
-        let demo = create_visualizer_demo_workspace().unwrap();
+        let demo = create_test_workspace_fixture().unwrap();
         let cases = [
             ("PERSON", "11111111-1111-1111-1111-111111111111"),
             ("EXPERIENCE", "22222222-2222-2222-2222-222222222221"),
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn reports_deleted_markdown_without_database_access() {
-        let demo = create_visualizer_demo_workspace().unwrap();
+        let demo = create_test_workspace_fixture().unwrap();
         let entity_id = "33333333-3333-3333-3333-333333333331";
         let loaded = load_entity_detail(demo.path.clone(), "FACT".to_string(), entity_id.to_string()).unwrap();
         fs::remove_file(format!("{}/FACT/{entity_id}/main.md", demo.path)).unwrap();
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn persists_metadata_for_every_entity_type() {
-        let demo = create_visualizer_demo_workspace().unwrap();
+        let demo = create_test_workspace_fixture().unwrap();
         let mut person = service::get_person_detail(&demo.path, "11111111-1111-1111-1111-111111111111").unwrap(); 
         person.person_name = "Ada Updated".to_string(); 
         service::save_person_detail(&demo.path, &person).unwrap(); 
@@ -117,7 +117,7 @@ mod tests {
     // TC-04-RUST-PERF-001
     #[test]
     fn keeps_detail_read_and_save_independent_of_package_size() {
-        let demo = create_visualizer_demo_workspace().unwrap();
+        let demo = create_test_workspace_fixture().unwrap();
         let person_id = "11111111-1111-1111-1111-111111111111";
 
         // Thousands of unrelated folder-only entities must not be pulled into the DB by
@@ -147,7 +147,7 @@ mod tests {
     // TC-04-RUST-PERF-002
     #[test]
     fn resolves_freshness_check_without_opening_the_database() {
-        let demo = create_visualizer_demo_workspace().unwrap();
+        let demo = create_test_workspace_fixture().unwrap();
         let entity_id = "33333333-3333-3333-3333-333333333331";
         let loaded = load_entity_detail(demo.path.clone(), "FACT".to_string(), entity_id.to_string()).unwrap();
 

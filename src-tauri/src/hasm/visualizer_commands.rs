@@ -2,7 +2,7 @@
 
 use crate::hasm::definitions::Experience;
 use crate::hasm::service;
-use crate::hasm::types::{LayoutFilterRequest, Line3dGeometry, ModelDatabase, Node3dGeometry, RenderPayload, VisualizerDemoPayload};
+use crate::hasm::types::{LayoutFilterRequest, Line3dGeometry, ModelDatabase, Node3dGeometry, RenderPayload, TestWorkspaceFixture};
 use log::info;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
@@ -432,13 +432,13 @@ mod tests {
     }
 
     #[test]
-    fn creates_a_populated_development_demo_package() {
-        let demo = create_visualizer_demo_workspace().unwrap();
-        assert_eq!(demo.model.experiences.len(), 3);
-        assert_eq!(demo.model.facts.len(), 5);
-        assert!(PathBuf::from(&demo.path).join("hasm.db").is_file());
-        assert!(PathBuf::from(&demo.path).join("FACT/33333333-3333-3333-3333-333333333335/main.md").is_file());
-        fs::remove_dir_all(demo.path).unwrap();
+    fn creates_a_populated_test_workspace_fixture() {
+        let fixture = create_test_workspace_fixture().unwrap();
+        assert_eq!(fixture.model.experiences.len(), 3);
+        assert_eq!(fixture.model.facts.len(), 5);
+        assert!(PathBuf::from(&fixture.path).join("hasm.db").is_file());
+        assert!(PathBuf::from(&fixture.path).join("FACT/33333333-3333-3333-3333-333333333335/main.md").is_file());
+        fs::remove_dir_all(fixture.path).unwrap();
     }
 
     #[test]
@@ -471,15 +471,14 @@ mod tests {
     }
 }
 
-#[tauri::command]
-pub fn create_visualizer_demo_workspace() -> Result<VisualizerDemoPayload, String> {
+pub fn create_test_workspace_fixture() -> Result<TestWorkspaceFixture, String> {
     let root = {
         let temp_dir = std::env::temp_dir();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|error| error.to_string())?
             .as_nanos();
-        let base_name = format!("hasm-visualizer-demo-{timestamp}");
+        let base_name = format!("hasm-test-workspace-{timestamp}");
         let mut candidate = temp_dir.join(&base_name);
         let mut suffix = 0u32;
         loop {
@@ -505,12 +504,12 @@ pub fn create_visualizer_demo_workspace() -> Result<VisualizerDemoPayload, Strin
         ("33333333-3333-3333-3333-333333333335", "Publication", "2025-01-15", writing_experience_id),
     ];
 
-    write_demo_entity(&root, "PERSON", person_id, "Ada", "A person anchoring the development graph.")?;
-    write_demo_entity(&root, "EXPERIENCE", root_experience_id, "Life stream", "Root timeline branch.")?;
-    write_demo_entity(&root, "EXPERIENCE", research_experience_id, "Research", "Research branches from the life stream.")?;
-    write_demo_entity(&root, "EXPERIENCE", writing_experience_id, "Writing", "Writing merges research work into publication.")?;
-    for (id, name, occurred_at, _) in facts { write_demo_entity(&root, "FACT", id, name, &format!("Occurred at {occurred_at}."))?; }
-    write_demo_entity(&root, "LINK", "44444444-4444-4444-4444-444444444444", "Supports", "Relationship metadata.")?;
+    write_test_entity(&root, "PERSON", person_id, "Ada", "A test person.")?;
+    write_test_entity(&root, "EXPERIENCE", root_experience_id, "Life stream", "Root timeline branch.")?;
+    write_test_entity(&root, "EXPERIENCE", research_experience_id, "Research", "Research branches from the life stream.")?;
+    write_test_entity(&root, "EXPERIENCE", writing_experience_id, "Writing", "Writing merges research work into publication.")?;
+    for (id, name, occurred_at, _) in facts { write_test_entity(&root, "FACT", id, name, &format!("Occurred at {occurred_at}."))?; }
+    write_test_entity(&root, "LINK", "44444444-4444-4444-4444-444444444444", "Supports", "Relationship metadata.")?;
 
     let connection = Connection::open(root.join("hasm.db")).map_err(|error| error.to_string())?;
     connection.execute_batch(&format!(
@@ -531,11 +530,11 @@ pub fn create_visualizer_demo_workspace() -> Result<VisualizerDemoPayload, Strin
         ).map_err(|error| error.to_string())?;
     }
     let model = service::read_model_database(&root.to_string_lossy())?;
-    info!("[SEQ-MD-03][DEMO] populated visualizer workspace created");
-    Ok(VisualizerDemoPayload { path: root.to_string_lossy().to_string(), model })
+    info!("[SEQ-MD-03][TEST] populated workspace fixture created");
+    Ok(TestWorkspaceFixture { path: root.to_string_lossy().to_string(), model })
 }
 
-fn write_demo_entity(root: &PathBuf, entity_type: &str, id: &str, title: &str, body: &str) -> Result<(), String> {
+fn write_test_entity(root: &PathBuf, entity_type: &str, id: &str, title: &str, body: &str) -> Result<(), String> {
     let directory = root.join(entity_type).join(id);
     fs::create_dir_all(directory.join("assets")).map_err(|error| error.to_string())?;
     fs::write(directory.join("main.md"), format!("# {title}\n\n{body}\n")).map_err(|error| error.to_string())

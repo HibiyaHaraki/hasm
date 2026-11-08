@@ -67,12 +67,12 @@ pub struct AppVersionResponse {
 ### Step 2: Check 1 - Validate External HASM Markdown App
 
 * **[REQ-01-FUNC-201] Markdown App IPC Invocation:** React MUST invoke `validate_hasm_markdown_app` upon completing Step 1.
-* **[REQ-01-FUNC-202] Markdown App OS Verification:** Rust MUST verify that the external HASM Markdown Application executable exists and is callable on the host OS.
+* **[REQ-01-FUNC-202] Markdown App OS Verification:** Rust MUST verify that the HASM Markdown executable exists in packaged resources or the development staging directory (`src-tauri/binaries/`).
 * **[REQ-01-FUNC-203] Markdown App Timeout Limit:** React MUST reject the invocation if `validate_hasm_markdown_app` does not respond within **5,000ms**.
 * **[REQ-01-FUNC-204] Markdown App Error State Update:** On Check 1 error or timeout, React MUST set `isLoading` to `false` and store the error message in state.
 * **[REQ-01-FUNC-205] Markdown App Error Routing:** On Check 1 error or timeout, React Router MUST navigate to `/error-app`.
 * **[REQ-01-FUNC-206] Markdown App Success Progress:** On Check 1 success, React MUST update `loadState` to `1`.
-* **[REQ-01-FUNC-207] Development Validation Override:** During debug builds only, the Rust source constant `SKIP_MARKDOWN_APP_VALIDATION_IN_DEVELOPMENT` MAY bypass the executable existence check. Release and distribution builds MUST ignore this flag.
+* **[REQ-01-FUNC-207] Consistent Markdown App Validation:** Rust MUST enforce the executable existence check in debug, release, and distribution builds.
 
 ### Step 3: Check 2 - Inspect App Version & CLI Arguments
 

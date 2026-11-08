@@ -17,7 +17,6 @@ vi.mock("../src/features/hasm/api", () => ({
   pickWorkspaceDirectory: vi.fn(),
   validateHasmMarkdownApp: vi.fn(),
   validateAppVersion: vi.fn(),
-  createVisualizerDemoWorkspace: vi.fn(),
   switchWorkspaceCleanly: vi.fn(),
   validateHasmFolderPath: vi.fn(),
   withTimeout: vi.fn((promise) => promise),
@@ -256,12 +255,9 @@ describe("SEQ-01 app launch validation", () => {
     expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
   });
 
-  it("TC-03-DEV-001 creates the populated visualizer demo and opens the graph", async () => {
-    api.createVisualizerDemoWorkspace.mockResolvedValue({ path: "C:/demo.hasm", model: { people: [], experiences: [], facts: [], links: [] } });
+  it("does not offer a test graph action", () => {
     renderSelect();
-    fireEvent.click(screen.getByRole("button", { name: "Test 3D commit graph" }));
-    expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
-    expect(api.createVisualizerDemoWorkspace).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Test 3D commit graph" })).not.toBeInTheDocument();
   });
 
   it("TC-08-E2E-001 creates a workspace and routes to loading-model", async () => {

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
 import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
-import { Button, Col, Container, Form, Row } from "react-bootstrap";
+import { Button, Container, Form } from "react-bootstrap";
 import "./PanelCard.css";
 import "./EntityDetailPage.css";
 import { ExternalLinksView, isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
@@ -328,7 +328,7 @@ function EntityDetailPage() {
           </Form.Group>
         </div>
         <p className="ticket-entity-identity">{entityType}/{entityId}</p>
-        <p className="ticket-reading-hint">{t("Click the summary or external links to edit, or choose Edit details. Save or cancel before editing another field.")}</p>
+        <p className="ticket-reading-hint">{t("Select the summary or an external link to edit it, or use Edit details.")}</p>
         {editing === "summary" ? (
           <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
         ) : (
@@ -337,11 +337,11 @@ function EntityDetailPage() {
         )}
       </header>
       {message ? <p role="status" className="ticket-status">{typeof message === "string" ? t(message) : t(message.key, { label: t(message.label) })}</p> : null}
-      <Row className="g-3 ticket-grid">
-        <Col lg={8}>
+      <div className="ticket-grid">
+        <div className="ticket-main-column">
           <MarkdownPanel markdown={ticket.markdownBody} refresh={refresh} edit={editMarkdown} changed={changed} deleted={deleted} loading={saving || refreshing} t={t} />
-        </Col>
-        <Col lg={4}>
+        </div>
+        <aside className="ticket-sidebar" aria-label={t("Entity information")}>
           <section className="ticket-section" aria-labelledby="ticket-details-heading">
             <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
               <h2 id="ticket-details-heading" className="mb-0">{t("Details")}</h2>
@@ -420,8 +420,8 @@ function EntityDetailPage() {
                 onEdit={(event) => beginEdit("links", event)} />
             )}
           </section>
-        </Col>
-      </Row>
+        </aside>
+      </div>
       <EntityCommitGraph entityType={entityType} entityId={entityId} detail={ticket.detail}
         workspaceState={workspaceState} disabled={graphNavigationDisabled}
         onSelect={openGraphEntity} language={language} />

@@ -106,7 +106,6 @@ pub enum VisualizerError {
 * **[REQ-03-FUNC-107] Watchdog Timeout Trigger:** If 10,000ms elapses without receiving a progress event, React MUST abort waiting, set `renderError = "Layout calculation stalled"`, and navigate to `/error-model`.
 * **[REQ-03-FUNC-108] Three.js Scene Initialization:** Upon resolving `RenderPayload`, React MUST hide the loading progress overlay and instantiate Three.js geometries, lights, and camera positioning.
 * **[REQ-03-FUNC-109] Model Warning Rendering:** If `RenderPayload.warnings` is non-empty (e.g., unreferenced storage folders), React MUST render a warning toast/banner.
-* **[REQ-03-FUNC-110] Development Graph Action:** The Open Workspace page (`/select`) MUST offer a development action that creates a populated temporary HASM package and routes to `/visualizer` with a verified model payload.
 
 ### Chapter 2: Filter & TimeScale Control Interactions
 
