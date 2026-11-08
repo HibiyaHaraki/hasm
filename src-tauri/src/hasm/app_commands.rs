@@ -4,18 +4,14 @@ use crate::hasm::types::{AppValidationError, AppVersionResponse};
 use log::{info, warn};
 use std::env;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 const MARKDOWN_EXECUTABLE: &str = "hasm_markdown.exe";
-const SKIP_MARKDOWN_APP_VALIDATION_IN_DEVELOPMENT: bool = true;
 
 #[tauri::command]
-pub fn validate_hasm_markdown_app(app: AppHandle) -> Result<(), AppValidationError> {
-    if markdown_validation_is_skipped() {
-        warn!("[SEQ-MD-01][MARKDOWN] validation skipped by development flag");
-        return Ok(());
-    }
-
+pub fn validate_hasm_markdown_app<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<(), AppValidationError> {
     let executable = markdown_executable_path(&app)?;
     validate_markdown_executable(&executable)
 }
@@ -53,15 +49,31 @@ pub fn validate_hasm_folder_path(path: String) -> Result<(), AppValidationError>
     ))
 }
 
-fn markdown_executable_path(app: &AppHandle) -> Result<PathBuf, AppValidationError> {
-    let resource_dir = app.path().resource_dir().map_err(|error| {
+fn markdown_executable_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, AppValidationError> {
+    let packaged_executable = app
+        .path()
+        .resource_dir()
+        .map(|resource_dir| resource_dir.join("binaries").join(MARKDOWN_EXECUTABLE));
+    if let Ok(executable) = &packaged_executable {
+        if executable.is_file() {
+            return Ok(executable.clone());
+        }
+    }
+
+    let development_executable = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("binaries")
+        .join(MARKDOWN_EXECUTABLE);
+    if development_executable.is_file() {
+        info!("[SEQ-MD-01][MARKDOWN] staged development Markdown app found");
+        return Ok(development_executable);
+    }
+
+    packaged_executable.map_err(|error| {
         validation_error(
             "ERR_MARKDOWN_APP_INVALID",
             format!("Cannot resolve application resources: {error}"),
         )
-    })?;
-
-    Ok(resource_dir.join("binaries").join(MARKDOWN_EXECUTABLE))
+    })
 }
 
 fn validate_markdown_executable(executable: &Path) -> Result<(), AppValidationError> {
@@ -70,22 +82,11 @@ fn validate_markdown_executable(executable: &Path) -> Result<(), AppValidationEr
         return Ok(());
     }
 
-    warn!("[SEQ-MD-01][MARKDOWN] packaged Markdown app missing");
+    warn!("[SEQ-MD-01][MARKDOWN] HASM Markdown app missing");
     Err(validation_error(
         "ERR_MARKDOWN_APP_INVALID",
-        "The packaged HASM Markdown application is unavailable",
+        "The HASM Markdown application is unavailable",
     ))
-}
-
-fn markdown_validation_is_skipped() -> bool {
-    development_skip_enabled(
-        cfg!(debug_assertions),
-        SKIP_MARKDOWN_APP_VALIDATION_IN_DEVELOPMENT,
-    )
-}
-
-fn development_skip_enabled(is_debug_build: bool, development_flag: bool) -> bool {
-    is_debug_build && development_flag
 }
 
 fn parse_launch_path(args: &[String]) -> Option<String> {
@@ -197,9 +198,15 @@ mod tests {
     }
 
     #[test]
-    fn keeps_markdown_validation_override_debug_only() {
-        assert!(!development_skip_enabled(false, true));
-        assert!(!development_skip_enabled(true, false));
-        assert!(development_skip_enabled(true, true));
+    fn accepts_existing_markdown_executable() {
+        let executable = env::temp_dir().join(format!(
+            "hasm-markdown-validation-{}.exe",
+            std::process::id()
+        ));
+        fs::write(&executable, []).unwrap();
+
+        assert!(validate_markdown_executable(&executable).is_ok());
+
+        fs::remove_file(executable).unwrap();
     }
 }

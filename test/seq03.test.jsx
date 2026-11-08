@@ -9,7 +9,6 @@ import { graphWidthForLaneCount, ROW_HEIGHT_PX, TABLE_HEADER_HEIGHT_PX } from ".
 const { createCommitGraph, selectNode } = vi.hoisted(() => ({ createCommitGraph: vi.fn(() => () => {}), selectNode: vi.fn() }));
 vi.mock("../src/features/hasm/api", () => ({
   computeVisualizerLayout: vi.fn(),
-  createVisualizerDemoWorkspace: vi.fn(),
   createPerson: vi.fn(),
   createExperience: vi.fn(),
   createFact: vi.fn(),

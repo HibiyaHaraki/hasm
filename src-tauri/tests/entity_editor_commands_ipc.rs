@@ -9,7 +9,7 @@ fn visualizer_commands_link_endpoints_through_registered_invoke() {
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .unwrap();
     let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default()).build().unwrap();
-    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    let demo = visualizer_commands::create_test_workspace_fixture().unwrap();
     let mut model = demo.model;
     let from_id = model.facts[0].fact_id;
     let to_id = model.facts[1].fact_id;
@@ -79,7 +79,7 @@ fn model_commands_entity_stage_progress_through_registered_invoke() {
     app.listen("model-verify-progress", move |_| {
         verify_threads.lock().unwrap().push(std::thread::current().id());
     });
-    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    let demo = visualizer_commands::create_test_workspace_fixture().unwrap();
     let empty = std::env::temp_dir().join(format!("hasm-empty-progress-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir(&empty).unwrap();
     for entity_type in ["PERSON", "EXPERIENCE", "FACT", "LINK"] {
@@ -167,7 +167,7 @@ fn entity_editor_commands_external_links_round_trip_through_registered_tauri_inv
             invoke_key: tauri::test::INVOKE_KEY.into(),
         }).map(|response| response.deserialize::<Value>().unwrap())
     };
-    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    let demo = visualizer_commands::create_test_workspace_fixture().unwrap();
     let urls = json!(["https://x.com/ada/status/123", "https://www.google.com/maps/place/Tokyo", "http://example.org/?q=one%20two#section"]);
     for (entity_type, id) in [
         ("PERSON", "11111111-1111-1111-1111-111111111111"),
@@ -297,7 +297,7 @@ fn entity_editor_commands_navigation_robustness() {
             invoke_key: tauri::test::INVOKE_KEY.into(),
         }).unwrap_or_else(|error| panic!("{command}: {error}")).deserialize::<Value>().unwrap()
     };
-    let demo = visualizer_commands::create_visualizer_demo_workspace().unwrap();
+    let demo = visualizer_commands::create_test_workspace_fixture().unwrap();
     for cycle in 0..3 {
         for (entity_type, id, name_key) in [
             ("PERSON", "11111111-1111-1111-1111-111111111111", "personName"),

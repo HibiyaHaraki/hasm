@@ -100,7 +100,7 @@ pub struct RenderPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VisualizerDemoPayload {
+pub struct TestWorkspaceFixture {
     pub path: String,
     pub model: ModelDatabase,
 }

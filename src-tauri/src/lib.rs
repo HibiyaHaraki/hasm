@@ -44,7 +44,6 @@ pub fn run() {
             hasm::entity_creation_commands::create_fact,
             hasm::entity_creation_commands::create_link,
             hasm::visualizer_commands::compute_visualizer_layout,
-            hasm::visualizer_commands::create_visualizer_demo_workspace,
             hasm::entity_editor_commands::load_entity_detail,
             hasm::entity_editor_commands::check_entity_mtime,
             hasm::entity_editor_commands::reload_entity_markdown,

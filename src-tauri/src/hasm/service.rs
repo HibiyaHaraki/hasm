@@ -1454,7 +1454,7 @@ mod external_link_tests {
 
     #[test]
     fn external_links_survive_full_model_read_and_save() {
-        let demo = crate::hasm::visualizer_commands::create_visualizer_demo_workspace().unwrap();
+        let demo = crate::hasm::visualizer_commands::create_test_workspace_fixture().unwrap();
         let mut model = read_model_database(&demo.path).unwrap();
         let urls = vec!["https://example.org/path?q=value#fragment".to_string(), "https://x.com/test/status/1".to_string()];
         for links in model.people.iter_mut().map(|entity| &mut entity.link)

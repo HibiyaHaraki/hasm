@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   browseWorkspaceDirectory,
   createHasmWorkspace,
-  createVisualizerDemoWorkspace,
   pickWorkspaceDirectory,
   validateHasmFolderPath,
   withTimeout,
@@ -29,7 +28,6 @@ function SelectModelPage() {
   const [inputPath, setInputPath] = useState("");
   const [validation, setValidation] = useState({ status: "idle", message: location.state?.validationError || "" });
   const [workspaceCreateLoading, setWorkspaceCreateLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
   const [browsing, setBrowsing] = useState(false);
   const browsingRef = useRef(false);
   const submittingRef = useRef(false);
@@ -104,21 +102,6 @@ function SelectModelPage() {
     }
   }
 
-  async function openVisualizerDemo() {
-    if (demoLoading) return;
-    setDemoLoading(true);
-    try {
-      const demo = await createVisualizerDemoWorkspace();
-      logger.info("[SEQ-MD-03][DEMO] opening populated visualizer workspace");
-      navigate("/visualizer", { state: { path: demo.path, model: demo.model, isVerified: true } });
-    } catch (error) {
-      logger.error("[SEQ-MD-03][DEMO] failed to create visualizer workspace", error);
-      setValidation({ status: "invalid", message: error?.message || "Could not create the visualizer test workspace." });
-    } finally {
-      setDemoLoading(false);
-    }
-  }
-
   async function createNewWorkspace() {
     if (workspaceCreateLoading) return;
     setWorkspaceCreateLoading(true);
@@ -176,15 +159,7 @@ function SelectModelPage() {
         </Form>
         <Button
           variant="outline-secondary"
-          className="btn-hasm-outline demo-visualizer-button"
-          onClick={openVisualizerDemo}
-          disabled={demoLoading}
-        >
-          {demoLoading ? "Creating test graph..." : "Test 3D commit graph"}
-        </Button>
-        <Button
-          variant="outline-secondary"
-          className="btn-hasm-outline demo-visualizer-button"
+          className="btn-hasm-outline workspace-action-button"
           onClick={createNewWorkspace}
           disabled={workspaceCreateLoading}
         >
