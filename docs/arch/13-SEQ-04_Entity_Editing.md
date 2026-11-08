@@ -104,9 +104,13 @@ metadata saves, and re-verification so returning restores the main view settings
 
 Every ticket initially renders readable content, with no form, input, select,
 textarea, Save, or Cancel controls mounted for metadata editing. The header's
-language and text-size selects are always available. The summary is the page heading;
-Markdown is the main reading area and metadata/external links form a quiet
-sidebar on wide screens. Content wraps and stacks on narrow screens.
+language and text-size selects are always available. Application UI chrome uses
+the Gothic/sans-serif font stack; Markdown body typography remains unchanged and
+is owned by the Markdown presentation. The summary is the page heading; Markdown is the main
+reading area and metadata/external links form a compact, independently scrollable
+sidebar on wide screens so both are visible together. The header, section spacing,
+and detail rows are condensed to expose more ticket content on initial display.
+Content wraps and stacks on narrow screens.
 
 Clicking the summary, the explicit **Edit details** button next to the Details
 heading, or an external-link value replaces only that section with `TicketForm`,

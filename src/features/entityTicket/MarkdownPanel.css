@@ -16,10 +16,11 @@
 .markdown-panel .card-header {
   background-color: transparent;
   border-color: var(--theme-border);
+  padding: 8px 10px;
 }
 
 .markdown-preview {
-  min-height: 300px;
+  min-height: 0;
   min-width: 0;
   overflow-wrap: anywhere;
   font-family: "Yu Mincho", "游明朝", Georgia, serif;

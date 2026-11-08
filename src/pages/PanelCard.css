@@ -30,7 +30,7 @@
 .sequence-label {
   margin: 0 0 12px;
   color: var(--theme-secondary);
-  font-family: Georgia, serif;
+  font-family: inherit;
   font-size: 0.78rem;
   letter-spacing: 0.12em;
 }

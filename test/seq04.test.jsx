@@ -34,6 +34,21 @@ describe("SEQ-04 entity ticket", () => {
     renderTicket(type);
     expect(await screen.findByText(`${type}/id-1`)).toBeInTheDocument();
   });
+  it("TC-04-REACT-DISPLAY-004 presents Markdown and entity information together in the responsive ticket layout", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket("PERSON");
+    expect(await screen.findByRole("article", { name: "Markdown preview" })).toBeInTheDocument();
+    const layout = document.querySelector(".ticket-grid");
+    expect(layout.querySelector(".ticket-main-column")).toContainElement(
+      screen.getByRole("article", { name: "Markdown preview" }),
+    );
+    expect(layout.querySelector(".ticket-sidebar")).toContainElement(
+      screen.getByRole("region", { name: "Details" }),
+    );
+    expect(layout.querySelector(".ticket-sidebar")).toContainElement(
+      screen.getByRole("region", { name: "External links" }),
+    );
+  });
   it.each([
     ["2026-10-29", new Intl.DateTimeFormat("en-US", {
       year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
