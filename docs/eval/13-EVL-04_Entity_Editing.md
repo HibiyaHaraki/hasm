@@ -8,6 +8,35 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Shared entity information preview
+
+`test/entity-info-preview.test.jsx` runs under `npm run test:eval-04`, using the
+real JavaScript IPC wrapper with only the native transport mocked:
+
+| Test ID | Test name / evidence |
+| --- | --- |
+| `TC-04-PREVIEW-001` (all four types) | Hover shows a Bootstrap card with identity, typed metadata, readable relationship names and description; exact `load_entity_detail` invoke and payload asserted. |
+| `TC-04-PREVIEW-002` | Keyboard focus opens, Escape dismisses, existing `aria-describedby` restored. |
+| `TC-04-PREVIEW-003` | Transient hover cancels before IPC; pointer transfer and inner scrolling retain card; leaving dismisses. |
+| `TC-04-PREVIEW-004` | Late responses cannot replace another entity card; navigation dismisses. |
+| `TC-04-PREVIEW-005` | Backend errors and stalled reads show explicit errors. |
+| `TC-04-PREVIEW-006` | Host graph hover bridge opens card, coordinates fit viewport, leave dismisses, external URLs are ignored. |
+| `TC-04-PREVIEW-007` | Markdown/HTML displayed as inert text and excerpt limited to 400 characters plus ellipsis. |
+| `TC-04-PREVIEW-008` | Outer scroll/resize dismiss and late unmounted responses are ignored. |
+| `TC-08-PREVIEW-001` (FACT and EXPERIENCE) | Real creation dropdown choices show the shared card through exact typed detail invokes before selection; modifier-free toggling and Escape remain usable. |
+| `TC-08-PREVIEW-002` (Origin and Target) | Real LINK search results show focus previews without selecting; replacing results dismisses the card; selecting a result closes the preview. |
+| `TC-08-PREVIEW-003` | Retained LINK selections preview correctly; closing a menu dismisses a pending read and ignores its eventual response. |
+| `TC-03-VIEW-PREVIEW-001` (`test/visualizer-view.test.jsx`) | Actual main visualizer EXPERIENCE badge opens the shared card through the real JS invoke wrapper; clicking still opens its typed ticket and dismisses the card, without submodule edits. |
+
+Desktop acceptance: hover/focus typed links in ticket Details, related LINK
+buttons, ticket graph lists/FACT titles/EXPERIENCE badges, and the main visualizer's
+EXPERIENCE badges. Inspect metadata and excerpts, theme contrast, narrow-screen
+bounds and keyboard dismissal. Confirm ordinary navigation and draft guards
+remain intact. Also hover/focus creation-page EXPERIENCE choices and LINK search
+results, including retained selections; test keyboard selection, clearing, and
+preview dismissal when menus close or results change. The main canvas's existing
+submodule tooltip remains outside this shared-card implementation.
+
 ### Entity Extended Commit Graph
 
 Shared badge behavior and main-view return/re-verification are covered by

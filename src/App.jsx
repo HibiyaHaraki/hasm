@@ -22,6 +22,7 @@ import ErrorModelPage from "./pages/ErrorModelPage";
 import LoadingModelPage from "./pages/LoadingModelPage";
 import SelectModelPage from "./pages/SelectModelPage";
 import VisualizerPage from "./pages/VisualizerPage";
+import EntityInfoPreview from "./features/entityTicket/EntityInfoPreview";
 import { releaseWorkspaceLock, subscribeToTauriEvent, withTimeout } from "./features/hasm/api";
 import { createLogger } from "./hasm_logger/src/react/logger.js";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -67,6 +68,7 @@ function App() {
         <ThemeProvider value={{ activePatternId, setActivePatternId }}>
           <CloseLockListener />
           <GlobalNavbar />
+          <EntityInfoPreview />
           <Routes>
             <Route path="/" element={<AppBootGatePage />} />
             <Route path="/select" element={<SelectModelPage />} />

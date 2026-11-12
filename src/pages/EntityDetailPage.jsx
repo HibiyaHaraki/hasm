@@ -381,6 +381,7 @@ function EntityDetailPage() {
                       <li key={id}>
                         {relationship ? (
                           <Button className="ticket-content-trigger" disabled={Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false}
+                            data-entity-type="LINK" data-entity-id={id}
                             aria-label={t("Open {type}: {title}", { type: "LINK", title })}
                             onClick={() => navigate(`/entity-detail/LINK/${id}`, { state: workspaceState })}>
                             <span className="ticket-relationship-title">{title}</span>

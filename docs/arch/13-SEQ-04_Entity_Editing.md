@@ -10,6 +10,59 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### Shared entity information hover card
+
+`EntityInfoPreview` is mounted once inside the router and themed app shell.
+It delegates pointer/focus events for same-origin typed
+`/entity-detail/{TYPE}/{UUID}` links on every route, including EXPERIENCE badge
+links in the main visualizer. Host-owned related-LINK buttons expose typed data
+attributes; `EntityCommitGraph` forwards its existing SVG hover callback through
+`previewGraphEntity`. Neither mechanism changes click/navigation guards.
+
+After a 200ms dwell, the component displays a theme-aware Bootstrap Card, using
+the route model for initial identity and the existing `load_entity_detail`
+invoke for fresh metadata/Markdown. It shows the type/UUID, title, type-specific
+dates or relationship names, and a text-only Markdown excerpt capped at 400
+characters (identity FrontMatter omitted). It does not interpret HTML, open the
+editor, save metadata, scan folders, or reload the workspace. Native failures and
+the 3-second read timeout are visible and sequence-logged. No cross-hover cache
+is used, so edits are not hidden by cached descriptions. Abandoned-request
+results are ignored when the entity, workspace, route, or mounted layer changes.
+
+Keyboard focus uses the same preview with `aria-describedby`; Escape dismisses
+it and restores the trigger's previous description relationship. A 150ms leave
+grace lets the pointer enter/select/scroll the card. Route changes, outer scroll,
+resize and unmount dismiss it. The fixed card stays within viewport bounds,
+limits its height, wraps long text, and inherits active HASM theme variables.
+
+**Submodule boundary:** `src/hasm_visualizer` is unchanged. Its main 2D/3D canvas
+hover remains the existing submodule tooltip because there is no public hover
+callback/render slot. Only its actual entity hyperlinks use the shared card.
+Creation-page EXPERIENCE and LINK choices use the host-owned Bootstrap
+`EntityPicker` dropdown instead of native options. Each choice exposes typed
+data attributes for this same hover/focus card. Closing a picker, replacing its
+results, or unmounting it immediately dismisses the card and abandons pending reads.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Link as Entity link / host graph
+    participant Preview as EntityInfoPreview
+    participant IPC as load_entity_detail
+    User->>Link: Hover or keyboard focus
+    Link->>Preview: Typed entity identity
+    Preview->>Preview: Wait 200ms, cancel transient hovers
+    Preview->>IPC: Read single entity
+    alt Current request succeeds
+        IPC-->>Preview: Metadata and Markdown
+        Preview-->>User: Shared themed information card
+    else Read fails or exceeds 3 seconds
+        Preview-->>User: Explicit preview error
+    end
+    User->>Preview: Escape, leave, outer scroll, or navigate
+    Preview->>Preview: Dismiss and ignore abandoned results
+```
+
 ### Compact entity Extended Commit Graph
 
 Every loaded ticket ends with `EntityCommitGraph`, a 300px-high, horizontally

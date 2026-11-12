@@ -21,6 +21,17 @@ extracts related in-memory metadata, and `EntityCommitGraph.jsx` /
 `features/hasm/api.js` layout invoke and `hasm_visualizer/twoCommitGraph.js` renderer
 without changing submodules. See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
 
+`src/features/entityTicket/EntityInfoPreview.jsx` and its co-located CSS own the
+shared entity hover/focus information card. Mounted once in `App.jsx`, it covers
+typed entity hyperlinks across routes, related-LINK buttons, and host ticket
+graph callbacks through the existing single-entity read invoke. The visualizer
+submodule and its canvas tooltip are not modified; see
+[SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card).
+
+`src/features/entityCreation/components/EntityPicker.jsx` and its co-located CSS
+own accessible Bootstrap single/multi dropdown choices. `ExperienceSelect.jsx`
+and `LinkEntitySelect.jsx` supply typed choices for the shared preview layer;
+picker lifecycle dismisses previews without changing creation IPC contracts.
 
 ```
 

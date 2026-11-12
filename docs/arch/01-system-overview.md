@@ -8,6 +8,12 @@ existing native layout command, and renders through `hasm_visualizer`. Graph
 selection retains the full workspace state and follows ticket navigation guards.
 See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
 
+Typed entity hyperlinks across pages, including visualizer badge links, and the
+host-owned ticket graph share a Bootstrap information hover/focus card. It reads
+one entity without navigating or reloading the workspace. The main visualizer
+canvas retains its submodule-owned tooltip. See
+[shared previews](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card).
+
 ---
 
 ## 1. System Overview Flowchart

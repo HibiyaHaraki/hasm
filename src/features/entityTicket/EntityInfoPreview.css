@@ -1,0 +1,36 @@
+.entity-info-preview.card {
+  position: fixed;
+  z-index: 1080;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(360px, calc(100vh - 24px));
+  overflow: auto;
+  color: var(--theme-text);
+  background-color: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--theme-border) 30%, transparent);
+  overflow-wrap: anywhere;
+  font-family: "Yu Gothic", "游ゴシック", "Meiryo", sans-serif;
+}
+
+.entity-info-preview .card-title {
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.entity-info-preview dt,
+.entity-info-identity {
+  font-size: 0.78rem;
+}
+
+.entity-info-identity {
+  color: var(--theme-muted);
+  margin-bottom: 0.5rem;
+}
+
+.entity-info-preview dd,
+.entity-info-description {
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  margin-bottom: 0.5rem;
+}

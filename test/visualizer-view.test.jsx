@@ -9,6 +9,7 @@ import { buildExperienceColorMaps, positionKey } from "../src/hasm_visualizer/th
 import * as renderer3D from "../src/hasm_visualizer/threeCommitGraph.js";
 import ProtectedRoute from "../src/features/navigation/ProtectedRoute";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
+import EntityInfoPreview from "../src/features/entityTicket/EntityInfoPreview";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn().mockResolvedValue(() => {}) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
@@ -47,6 +48,45 @@ function ExperienceTicket() {
     <button onClick={() => navigate("/visualizer", { state })}>Return</button>
   </>;
 }
+it("TC-03-VIEW-PREVIEW-001 real visualizer badge shows the common card without modifying the submodule", async () => {
+  const personId = "11111111-1111-1111-1111-111111111111";
+  const experienceId = "22222222-2222-2222-2222-222222222222";
+  const factId = "33333333-3333-3333-3333-333333333333";
+  const previewModel = {
+    people: [{ personId, personName: "Ada" }],
+    experiences: [{ experienceId, experienceName: "Life", personId, parentExperienceIds: [] }],
+    facts: [{ factId, factName: "Birth", experienceIds: [experienceId], personIds: [personId], occurredAt: "1815-12-10" }],
+    links: [],
+  };
+  bridge.listen.mockResolvedValue(() => {});
+  bridge.invoke.mockImplementation(async (command, args) => {
+    if (command === "compute_visualizer_layout") {
+      const payload = computeVisualizerLayoutJS(args.model, args.filter);
+      payload.nodes3d.forEach((node) => { node.label = node.entityType === "FACT" ? "Birth" : "Life"; });
+      return payload;
+    }
+    if (command === "load_entity_detail") return {
+      name: "Life", detail: previewModel.experiences[0], markdownBody: "A life timeline.",
+    };
+    throw new Error(`Unexpected invoke: ${command}`);
+  });
+  render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state: { path: "fixture.hasm", model: previewModel, isVerified: true } }]}>
+    <EntityInfoPreview />
+    <Routes><Route path="/visualizer" element={<VisualizerPage />} /><Route path="/entity-detail/:type/:id" element={<ExperienceTicket />} /></Routes>
+  </MemoryRouter>);
+  const badge = await screen.findByRole("link", { name: "Life" });
+  fireEvent.pointerOver(badge);
+  const card = await screen.findByRole("tooltip");
+  expect(card).toHaveTextContent(`EXPERIENCE/${experienceId}`);
+  expect(card).toHaveTextContent("A life timeline.");
+  expect(card).toHaveTextContent("Ada");
+  expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", {
+    modelRoot: "fixture.hasm", entityType: "EXPERIENCE", entityId: experienceId,
+  });
+  fireEvent.click(badge);
+  expect(await screen.findByText(`/entity-detail/EXPERIENCE/${experienceId}`)).toBeInTheDocument();
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+});
 it("TC-03-VIEW-006 opens the table EXPERIENCE badge rather than its FACT and retains view state", async () => {
   bridge.invoke.mockImplementation(async (_, args) => {
     const payload = computeVisualizerLayoutJS(args.model, args.filter);

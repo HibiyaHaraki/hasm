@@ -81,6 +81,21 @@ LINK search coverage for `REQ-08-019` in `test/seq08.test.jsx`:
 | `TC-08-REACT-SEARCH-002` | No-result notice, no automatic creation/selection, clearing a query restores all options, selected endpoints remain explicitly visible outside results, form switching preserves search/selection, placeholder clears endpoint. |
 | `TC-08-REACT-SEARCH-003` | Duplicate names distinguished by UUID and unnamed entities searchable/selectable by UUID. |
 
+Creation choice previews in `test/entity-info-preview.test.jsx` run under
+`npm run test:eval-04`, mounting the real creation page and shared preview layer
+with only native transport mocked:
+
+| Test ID | Required evidence |
+| --- | --- |
+| `TC-08-PREVIEW-001` (FACT and EXPERIENCE) | Hovering EXPERIENCE choices invokes `load_entity_detail` with exact workspace/type/UUID before selection; the shared card shows metadata and remains clickable/selectable without closing the list; clicking choices toggles selection while the list remains open; Escape dismisses the card. |
+| `TC-08-PREVIEW-002` (Origin and Target) | Editing a LINK query opens results; focusing a result previews its entity without selection; removing results dismisses the card; choosing a result selects it and dismisses the card. |
+| `TC-08-PREVIEW-003` | A retained current-selection choice previews the correct FACT; closing the menu during an EXPERIENCE read removes the card and ignores its late response without changing the selected endpoint. |
+
+Browser acceptance: check both multi-pickers, modifier-free multiple selection,
+Clear, arrow-key navigation, Enter/Space and Escape; check searched and retained
+LINK results, pointer transfer into the preview, light/dark themes, and narrow
+viewport wrapping without horizontal overflow.
+
 The Markdown CLI case requires `src-tauri/binaries/hasm_markdown.exe`; if absent,
 run `npm run build:markdown` first. Each subprocess has a 10-second watchdog and
 reports stdout/stderr on failure. Paths include spaces to cover native argument

@@ -12,6 +12,7 @@ import { translateTicket } from "./ticketLanguage";
 import "./EntityCommitGraph.css";
 import { ExperienceBadge, experienceAtNode } from "../../hasm_visualizer/ExperienceBadge.jsx";
 import { buildExperienceColorMaps, positionKey } from "../../hasm_visualizer/threeCommitGraph.js";
+import { previewGraphEntity } from "./EntityInfoPreview";
 
 const logger = createLogger("entity-commit-graph");
 const FILTER = { timeScaleMode: "SequentialIndex", zScaleFactor: 1 };
@@ -81,7 +82,8 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
       // SEQ-MD-04: hover adds emphasis but never clears the addressed ticket.
       const renderer = createCommitGraph2D(
         sceneRef.current, layout, getPatternById(activePatternId).colors,
-        (node) => { if (!disabled) onSelect(node); }, (node) => {
+        (node) => { if (!disabled) onSelect(node); }, (node, event) => {
+          previewGraphEntity(node, event, sceneRef.current);
           setHoveredNode(node);
           renderer.setHighlight({
             ...currentNode,
@@ -100,7 +102,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
       renderer.setHighlight(currentNode);
       rendererRef.current = renderer;
       renderer.setScrollTop(factTableRef.current?.scrollTop ?? 0);
-      return () => { rendererRef.current = null; renderer(); };
+      return () => { previewGraphEntity(null); rendererRef.current = null; renderer(); };
     } catch (failure) {
       logger.error("[SEQ-MD-04][GRAPH] rendering failed", failure);
       setRenderError(failure?.message || String(failure));

@@ -246,8 +246,13 @@ UUIDs are sent in the existing `experienceIds` / `parentExperienceIds`
 IPC arrays. An empty model collection displays a disabled
 **No EXPERIENCE available** control. Switching entity types retains selections.
 The backend's array contracts and existing multiple-relationship metadata remain
-unchanged. Users can select multiple entries with Ctrl (Windows) or Command
-(Mac); the labeled Clear button removes all selections without modifier keys.
+unchanged. The shared `EntityPicker` Bootstrap dropdown exposes a labeled listbox
+with selected-state options. Click or Enter/Space toggles each EXPERIENCE without
+modifier keys and keeps the dropdown open; the labeled Clear button removes all
+selections. Hover or keyboard focus on a choice opens the shared entity information
+card through the existing single-entity read invoke (see
+[SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card)).
+Arrow keys move through choices; Escape closes the dropdown and preview.
 
 PERSON, EXPERIENCE, FACT, and LINK creation forms do not accept descriptions.
 They send the existing description request field as an empty string, using the
@@ -333,10 +338,14 @@ display name, entity type, and UUID. Search does not invoke IPC, create an entit
 or automatically choose an endpoint. Empty search displays all available options;
 zero matches displays **No matching entities.** in an accessible live status.
 Option labels include type, name, and UUID to distinguish duplicate names.
+Editing a query opens the matching `EntityPicker` dropdown. Each result supports
+the same hover/focus information card as EXPERIENCE choices; previewing does not
+select, create, or navigate to an entity. Closing the dropdown or replacing
+results dismisses the preview and ignores late read responses.
 
 Changing the search preserves an already selected endpoint. If it no longer
-matches, it is shown explicitly under **Current selection (outside search
-results)**, with a retention notice, rather than silently changing the LINK.
+matches, it is shown as a previewable choice prefixed **Current selection (outside
+search results)**, with a retention notice, rather than silently changing the LINK.
 Selecting the placeholder clears that endpoint. Both search drafts and endpoint
 selections survive switching entity types. Creation still sends only the
 selected typed UUIDs through the existing `create_link` contract; queries remain
