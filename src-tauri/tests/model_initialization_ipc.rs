@@ -15,6 +15,9 @@ impl NewModelFixture {
             .invoke_handler(tauri::generate_handler![
                 entity_creation_commands::create_hasm_workspace,
                 entity_creation_commands::create_person,
+                entity_creation_commands::create_experience,
+                entity_creation_commands::create_fact,
+                entity_creation_commands::create_link,
                 model_commands::load_hasm_model_db,
                 model_commands::verify_hasm_storage,
                 entity_editor_commands::load_entity_detail,
@@ -114,6 +117,82 @@ fn markdown_cli(executable: &Path, mode: &str, directory: &Path) -> Output {
     output
 }
 
+fn assert_markdown_loads(executable: &Path, directory: &Path, description: &str) {
+    let verification = markdown_cli(executable, "verify", directory);
+    let result: Value = serde_json::from_slice(&verification.stdout)
+        .unwrap_or_else(|error| panic!("Invalid verification JSON: {error}\n{}", String::from_utf8_lossy(&verification.stdout)));
+    assert_eq!(result["status"], "Valid", "{result}");
+    assert_eq!(result["targetPath"], directory.to_string_lossy().as_ref());
+    assert_eq!(result["missingAssets"], json!([]));
+    assert_eq!(result["warnings"], json!([]));
+    let preview = markdown_cli(executable, "preview", directory);
+    let loaded = String::from_utf8(preview.stdout).expect("Markdown preview must be UTF-8");
+    assert_eq!(loaded.replace("\r\n", "\n"), format!("{description}\n"),
+        "HASM Markdown must load the complete description unchanged");
+}
+
+// TC-08-IPC-REL-001 / TC-05-CLI-CREATE-001: actual command serde, relationships, and editor loading.
+#[test]
+fn entity_creation_persists_selected_experiences_and_default_markdown() {
+    let executable = Path::new(env!("CARGO_MANIFEST_DIR")).join("binaries").join("hasm_markdown.exe");
+    assert!(executable.is_file(), "Build/stage HASM Markdown with npm run build:markdown before this test");
+    let fixture = NewModelFixture::create();
+    let initial = fixture.load();
+    let parent_id = &initial["experiences"][0]["experienceId"];
+    let second_parent = fixture.invoke("create_experience", json!({
+        "path": fixture.root,
+        "payload": {
+            "experienceName": "Another parent", "experienceDescription": "",
+            "securityLevel": 1, "parentExperienceIds": []
+        }
+    }));
+    let selected_ids = json!([parent_id, second_parent["entityId"]]);
+    let cases = [
+        ("PERSON", "create_person", json!({
+            "personName": "New person", "personDescription": "", "securityLevel": 1, "createLifeExperience": false
+        })),
+        ("EXPERIENCE", "create_experience", json!({
+            "experienceName": "New branch", "experienceDescription": "", "securityLevel": 1, "parentExperienceIds": selected_ids
+        })),
+        ("FACT", "create_fact", json!({
+            "factName": "New event", "factDescription": "", "securityLevel": 1,
+            "startTime": "2026-01-01", "endTime": null, "experienceIds": selected_ids
+        })),
+        ("LINK", "create_link", json!({
+            "linkType": "references", "linkDescription": "", "securityLevel": 1,
+            "originEntityType": "PERSON", "originEntityId": initial["people"][0]["personId"],
+            "targetEntityType": "EXPERIENCE", "targetEntityId": parent_id
+        })),
+    ];
+    for (entity_type, command, payload) in cases {
+        let created = fixture.invoke(command, json!({ "path": fixture.root, "payload": payload }));
+        let detail = fixture.invoke("load_entity_detail", json!({
+            "modelRoot": fixture.root, "entityType": entity_type, "entityId": created["entityId"]
+        }));
+        let directory = fixture.root.join(entity_type).join(created["entityId"].as_str().unwrap());
+        let description = std::fs::read_to_string(directory.join("main.md")).unwrap();
+        assert!(description.ends_with("\n\nWrite notes here.\n"), "{entity_type}: default description missing");
+        assert!(description.contains(&format!("entity_type: {entity_type}\n")));
+        assert!(description.contains(created["entityId"].as_str().unwrap()));
+        assert_eq!(detail["markdownBody"], description);
+        assert!(directory.join("assets").is_dir());
+        assert!(!directory.join("assets.json").exists());
+        assert_markdown_loads(&executable, &directory, &description);
+        let model = fixture.load();
+        if entity_type == "EXPERIENCE" {
+            let experience = model["experiences"].as_array().unwrap().iter()
+                .find(|entity| entity["experienceId"] == created["entityId"]).unwrap();
+            assert_eq!(experience["parentExperienceIds"], selected_ids);
+        }
+        if entity_type == "FACT" {
+            let fact = model["facts"].as_array().unwrap().iter()
+                .find(|entity| entity["factId"] == created["entityId"]).unwrap();
+            assert_eq!(fact["experienceIds"], selected_ids);
+        }
+        fixture.invoke("verify_hasm_storage", json!({ "path": fixture.root, "model": model }));
+    }
+}
+
 // TC-05-CLI-BOOTSTRAP-001: run the real staged editor, not a mocked spawn or host-only reader.
 #[test]
 fn hasm_markdown_loads_every_new_model_description() {
@@ -140,18 +219,7 @@ fn hasm_markdown_loads_every_new_model_description() {
             assert_eq!(detail["markdownBody"], description);
             assert!(!directory.join("assets.json").exists(), "Test the actual asset-free scaffold");
 
-            let verification = markdown_cli(&executable, "verify", &directory);
-            let result: Value = serde_json::from_slice(&verification.stdout)
-                .unwrap_or_else(|error| panic!("Invalid verification JSON for {entity_type}: {error}\n{}", String::from_utf8_lossy(&verification.stdout)));
-            assert_eq!(result["status"], "Valid", "{entity_type}: {result}");
-            assert_eq!(result["targetPath"], directory.to_string_lossy().as_ref());
-            assert_eq!(result["missingAssets"], json!([]));
-            assert_eq!(result["warnings"], json!([]));
-
-            let preview = markdown_cli(&executable, "preview", &directory);
-            let loaded = String::from_utf8(preview.stdout).expect("Markdown preview must be UTF-8");
-            assert_eq!(loaded.replace("\r\n", "\n"), format!("{description}\n"),
-                "{entity_type}: HASM Markdown must load the complete description unchanged");
+            assert_markdown_loads(&executable, &directory, &description);
             assert_eq!(std::fs::read_to_string(directory.join("main.md")).unwrap(), description);
             assert!(!directory.join("assets.json").exists(), "Opening must not mutate the scaffold");
             checked += 1;

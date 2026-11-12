@@ -95,7 +95,7 @@ flowchart TB
     %% ----------------------------------------------------
     subgraph CreationPhase["2. Interactive Entity & Link Creation"]
         VisualizePage --> ClickCreate(["Click Create PERSON / EXP / FACT / LINK"]):::action
-        ClickCreate --> CreateModal["Entity / Link Creation Modal"]:::modal
+        ClickCreate --> CreateModal["Entity Creation Page: EXPERIENCE dropdowns, no description input"]:::page
         
         CreateModal --> SubmitCreate(["Submit Form"]):::action
         SubmitCreate --> ExecCreate[["Tauri: create_person / experience / fact / link (SEQ-08)"]]:::tauri

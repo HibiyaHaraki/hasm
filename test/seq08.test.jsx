@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import EntityCreatePage from "../src/pages/EntityCreatePage";
@@ -47,13 +47,72 @@ describe("SEQ-08 entity creation navigation and forms", () => {
         <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
       </MemoryRouter>);
       fireEvent.click(screen.getByRole("button", { name: type }));
+      expect(screen.queryByLabelText("Description")).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Add link" }));
       fireEvent.change(screen.getByLabelText("Link 1"), { target: { value: "https://example.org/source" } });
       fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
       await vi.waitFor(() => expect(create).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ link: ["https://example.org/source"] })));
+      const descriptionKey = { PERSON: "personDescription", EXPERIENCE: "experienceDescription", FACT: "factDescription", LINK: "linkDescription" }[type];
+      expect(create).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ [descriptionKey]: "" }));
       await screen.findByTestId("location");
       cleanup(); vi.resetAllMocks();
     }
+  });
+  it.each([
+    ["FACT", "Belonging EXPERIENCE", "experienceIds", "createFact"],
+    ["EXPERIENCE", "Parent EXPERIENCE", "parentExperienceIds", "createExperience"],
+  ])("TC-08-REACT-REL-001 %s lists all experiences and submits multiple selected UUIDs", async (type, label, key, command) => {
+    const experiences = [
+      { experienceId: "22222222-2222-2222-2222-222222222221", experienceName: "Shared name" },
+      { experienceId: "22222222-2222-2222-2222-222222222222", experienceName: "Shared name" },
+      { experienceId: "22222222-2222-2222-2222-222222222223", experienceName: "" },
+    ];
+    api[command].mockResolvedValue({});
+    api.loadHasmModelDb.mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model: { ...model, experiences }, path: "C:/fixture.hasm" } }]}>
+      <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    const select = screen.getByRole("listbox", { name: label });
+    expect(select).toHaveAttribute("multiple");
+    expect(within(select).getAllByRole("option")).toHaveLength(3);
+    for (const experience of experiences) {
+      expect(within(select).getByRole("option", { name: `${experience.experienceName || "Untitled EXPERIENCE"} (${experience.experienceId})` }))
+        .toHaveValue(experience.experienceId);
+    }
+    select.options[0].selected = true;
+    select.options[2].selected = true;
+    fireEvent.change(select);
+    fireEvent.click(screen.getByRole("button", { name: "PERSON" }));
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    const selectedIds = [experiences[0].experienceId, experiences[2].experienceId];
+    expect(screen.getByLabelText(label)).toHaveValue(selectedIds);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New entity" } });
+    fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+    await vi.waitFor(() => expect(api[command]).toHaveBeenCalledWith("C:/fixture.hasm",
+      expect.objectContaining({ [key]: selectedIds })));
+    await screen.findByTestId("location");
+  });
+
+  it.each([
+    ["FACT", "Belonging EXPERIENCE", "experienceIds", "createFact"],
+    ["EXPERIENCE", "Parent EXPERIENCE", "parentExperienceIds", "createExperience"],
+  ])("TC-08-REACT-REL-002 %s supports clearing a selection and empty experience lists", async (type, label, key, command) => {
+    api[command].mockRejectedValue(new Error("Creation failed"));
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    fireEvent.change(screen.getByLabelText(label), { target: { value: model.experiences[0].experienceId } });
+    expect(screen.getByLabelText(label)).toHaveValue([model.experiences[0].experienceId]);
+    fireEvent.click(screen.getByRole("button", { name: `Clear ${label}` }));
+    expect(screen.getByLabelText(label)).toHaveValue([]);
+    fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+    await vi.waitFor(() => expect(api[command]).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ [key]: [] })));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Creation failed");
+    cleanup();
+    render(<MemoryRouter initialEntries={[{ state: { model: { ...model, experiences: [] }, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    expect(screen.getByLabelText(label)).toBeDisabled();
+    expect(screen.getByRole("option", { name: "No EXPERIENCE available" })).toHaveValue("");
   });
   it("TC-08-REACT-001 shows Create New Entity button on Visualizer and moves to creation page", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});

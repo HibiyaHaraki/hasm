@@ -11,13 +11,6 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
           required
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="link-description">
-        <Form.Label>Description</Form.Label>
-        <Form.Control
-          value={value.description}
-          onChange={(event) => onChange({ ...value, description: event.target.value })}
-        />
-      </Form.Group>
       <Form.Group className="mb-2" controlId="link-security-level">
         <Form.Label>Security level</Form.Label>
         <Form.Control

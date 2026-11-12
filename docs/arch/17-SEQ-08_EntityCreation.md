@@ -231,6 +231,31 @@ sequenceDiagram
 
 Triggered from a **dedicated Entity Creation page** (`/entity-create`) opened by the **"Create New Entity"** button on the Visualizer (`/visualizer`). Each entity type uses a split frontend component so form design can evolve independently. The backend validates input, writes SQLite records, scaffolds `{ENTITY_TYPE}/{UUID}/main.md`, updates Rust memory, and invalidates verification state (`is_verified = false`).
 
+The FACT **Belonging EXPERIENCE** and EXPERIENCE **Parent EXPERIENCE** controls
+are multi-select lists backed by the complete `model.experiences` collection
+already loaded by `load_hasm_model_db` and passed through visualizer navigation.
+They do not use the visualizer's filtered/visible graph nodes or issue a second
+database load. Each option shows the EXPERIENCE name and UUID so duplicate names
+remain distinguishable; unnamed entries use `Untitled EXPERIENCE`.
+The shared `features/entityCreation/components/ExperienceSelect.jsx` component
+owns accessible Bootstrap labels and selection behavior. No existing-child
+selector is offered: the new EXPERIENCE becomes a child of the selected parent.
+
+Relationship selection remains optional: no selection sends `[]`, and selected
+UUIDs are sent in the existing `experienceIds` / `parentExperienceIds`
+IPC arrays. An empty model collection displays a disabled
+**No EXPERIENCE available** control. Switching entity types retains selections.
+The backend's array contracts and existing multiple-relationship metadata remain
+unchanged. Users can select multiple entries with Ctrl (Windows) or Command
+(Mac); the labeled Clear button removes all selections without modifier keys.
+
+PERSON, EXPERIENCE, FACT, and LINK creation forms do not accept descriptions.
+They send the existing description request field as an empty string, using the
+backend's shared Markdown template to generate YAML FrontMatter (`entity_type`,
+`entity_id`, `name`) and the default body `Write notes here.` plus an `assets/`
+directory. Content is edited later through HASM Markdown, not creation forms.
+Existing non-UI callers retain their description request contracts.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -243,9 +268,10 @@ sequenceDiagram
     participant FS as File System ({UUID}/main.md)
 
     User->>React: Fill Modal Form & Click "Create Entity"
+    Note over User,React: Select zero or more existing EXPERIENCEs; no description input
     React->>React: Set State { isSubmitting: true }
 
-    React->>Bridge: invoke('create_person', payload) // Or create_experience / create_fact
+    React->>Bridge: invoke creation command (selected UUID array; empty description)
     Bridge->>Rust: IPC: create_person(payload)
 
     rect rgb(15, 23, 42)

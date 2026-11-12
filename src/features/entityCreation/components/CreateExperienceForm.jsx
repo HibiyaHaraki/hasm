@@ -1,6 +1,7 @@
 import { Form } from "react-bootstrap";
+import ExperienceSelect from "./ExperienceSelect";
 
-function CreateExperienceForm({ value, onChange }) {
+function CreateExperienceForm({ value, onChange, experiences }) {
   return (
     <>
       <Form.Group className="mb-2" controlId="experience-name">
@@ -9,13 +10,6 @@ function CreateExperienceForm({ value, onChange }) {
           value={value.name}
           onChange={(event) => onChange({ ...value, name: event.target.value })}
           required
-        />
-      </Form.Group>
-      <Form.Group className="mb-2" controlId="experience-description">
-        <Form.Label>Description</Form.Label>
-        <Form.Control
-          value={value.description}
-          onChange={(event) => onChange({ ...value, description: event.target.value })}
         />
       </Form.Group>
       <Form.Group className="mb-2" controlId="experience-security-level">
@@ -28,13 +22,9 @@ function CreateExperienceForm({ value, onChange }) {
           onChange={(event) => onChange({ ...value, securityLevel: event.target.value })}
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="experience-parent-ids">
-        <Form.Label>Parent EXPERIENCE IDs (comma-separated)</Form.Label>
-        <Form.Control
-          value={value.parentExperienceIds}
-          onChange={(event) => onChange({ ...value, parentExperienceIds: event.target.value })}
-        />
-      </Form.Group>
+      <ExperienceSelect controlId="experience-parent-id" label="Parent EXPERIENCE"
+        value={value.parentExperienceIds} experiences={experiences}
+        onChange={(parentExperienceIds) => onChange({ ...value, parentExperienceIds })} />
     </>
   );
 }

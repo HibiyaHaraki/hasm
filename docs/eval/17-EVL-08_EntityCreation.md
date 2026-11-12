@@ -64,6 +64,15 @@ Bootstrap coverage for `REQ-08-015`:
 | `TC-08-IPC-BOOTSTRAP-002` | `new_model_loads_exactly_one_person_experience_and_fact` (`src-tauri/tests/model_initialization_ipc.rs`) | Create a fresh workspace through registered invokes; bootstrap one PERSON, one Life EXPERIENCE, and one birth FACT; assert exact counts, ownership/date associations, storage verification, and unchanged full-model reload. |
 | `TC-05-CLI-BOOTSTRAP-001` | `hasm_markdown_loads_every_new_model_description` (`src-tauri/tests/model_initialization_ipc.rs`) | For all three descriptions from a newly created model, invoke real `load_entity_detail`, run the staged HASM Markdown executable's `verify <entity-folder> --json` and `preview <entity-folder>`, assert valid JSON/empty diagnostics and complete unchanged Markdown output, then verify the model still reloads unchanged. No mock executable, fabricated manifest, or silent skip is allowed. |
 
+Entity creation coverage for `REQ-08-017` / `REQ-08-018`:
+
+| Test ID | Automated target | Required evidence |
+| --- | --- | --- |
+| `TC-08-REACT-REL-001` (FACT and EXPERIENCE) | `test/seq08.test.jsx` | All loaded EXPERIENCE entries appear, including duplicate/empty names; UUIDs distinguish options; fields are multi-select; multiple selections survive tab switches and serialize as complete UUID arrays. |
+| `TC-08-REACT-REL-002` (FACT and EXPERIENCE) | `test/seq08.test.jsx` | Clearing selection sends `[]`; failures remain visible; no EXPERIENCE records produce a disabled explicit empty state. |
+| `TC-08-REACT-LINK-001` | `test/seq08.test.jsx` | All four creation forms omit Description controls and submit empty description fields alongside external URLs. |
+| `TC-08-IPC-REL-001` / `TC-05-CLI-CREATE-001` | `entity_creation_persists_selected_experiences_and_default_markdown` in `src-tauri/tests/model_initialization_ipc.rs` | Real registered commands create all four entity types; reloaded EXPERIENCE parent and FACT membership arrays each retain both selected UUIDs; every generated Markdown has identity FrontMatter and the default body, matches detail IPC output, and loads through the actual editor binary's verify/preview commands. |
+
 The Markdown CLI case requires `src-tauri/binaries/hasm_markdown.exe`; if absent,
 run `npm run build:markdown` first. Each subprocess has a 10-second watchdog and
 reports stdout/stderr on failure. Paths include spaces to cover native argument

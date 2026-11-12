@@ -1,6 +1,7 @@
 import { Form } from "react-bootstrap";
+import ExperienceSelect from "./ExperienceSelect";
 
-function CreateFactForm({ value, onChange }) {
+function CreateFactForm({ value, onChange, experiences }) {
   return (
     <>
       <Form.Group className="mb-2" controlId="fact-name">
@@ -9,13 +10,6 @@ function CreateFactForm({ value, onChange }) {
           value={value.name}
           onChange={(event) => onChange({ ...value, name: event.target.value })}
           required
-        />
-      </Form.Group>
-      <Form.Group className="mb-2" controlId="fact-description">
-        <Form.Label>Description</Form.Label>
-        <Form.Control
-          value={value.description}
-          onChange={(event) => onChange({ ...value, description: event.target.value })}
         />
       </Form.Group>
       <Form.Group className="mb-2" controlId="fact-security-level">
@@ -42,13 +36,9 @@ function CreateFactForm({ value, onChange }) {
           onChange={(event) => onChange({ ...value, endTime: event.target.value })}
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="fact-experience-ids">
-        <Form.Label>EXPERIENCE IDs (comma-separated)</Form.Label>
-        <Form.Control
-          value={value.experienceIds}
-          onChange={(event) => onChange({ ...value, experienceIds: event.target.value })}
-        />
-      </Form.Group>
+      <ExperienceSelect controlId="fact-experience-id" label="Belonging EXPERIENCE"
+        value={value.experienceIds} experiences={experiences}
+        onChange={(experienceIds) => onChange({ ...value, experienceIds })} />
     </>
   );
 }

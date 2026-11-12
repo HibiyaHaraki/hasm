@@ -11,13 +11,6 @@ function CreatePersonForm({ value, onChange }) {
           required
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="person-description">
-        <Form.Label>Description</Form.Label>
-        <Form.Control
-          value={value.description}
-          onChange={(event) => onChange({ ...value, description: event.target.value })}
-        />
-      </Form.Group>
       <Form.Group className="mb-2" controlId="person-security-level">
         <Form.Label>Security level</Form.Label>
         <Form.Control

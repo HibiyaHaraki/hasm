@@ -18,6 +18,7 @@ Automated React and IPC coverage runs through `npm run test:eval-05`; Rust comma
 | `TC-05-RUST-001` to `TC-05-RUST-004` target-path, payload, and missing-resource checks | `src-tauri/src/hasm/external_editor_commands.rs` via `cargo test external_editor_commands` | Rust: EVAL-05 Rust external editor tests |
 | Markdown binary build/staging contract | `npm run build:markdown` and `Test-Path src-tauri/binaries/hasm_markdown.exe` | Frontend: Build frontend |
 | `TC-05-CLI-BOOTSTRAP-001`: real staged binary verifies and loads all PERSON / Life EXPERIENCE / birth FACT descriptions from a newly created model | `cargo test --manifest-path src-tauri/Cargo.toml --test model_initialization_ipc hasm_markdown_loads_every_new_model_description` | Local/integration validation with staged executable |
+| `TC-05-CLI-CREATE-001`: real staged binary verifies/loads default descriptions for all four manually created entity types; registered commands persist selected EXPERIENCE relationships | `cargo test --manifest-path src-tauri/Cargo.toml --test model_initialization_ipc entity_creation_persists_selected_experiences_and_default_markdown` | Local/integration validation with staged executable |
 
 `TC-05-RUST-005` timeout injection, `TC-05-RUST-006` database-handle monitoring, and live detached-process/multi-instance desktop rows are acceptance scenarios; CI intentionally does not launch desktop editor windows.
 
