@@ -56,6 +56,8 @@ function EntityCreatePage() {
     securityLevel: "1",
     origin: "",
     target: "",
+    originSearch: "",
+    targetSearch: "",
   });
 
   const entityOptions = useMemo(() => {

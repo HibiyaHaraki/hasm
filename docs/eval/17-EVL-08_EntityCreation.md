@@ -73,6 +73,14 @@ Entity creation coverage for `REQ-08-017` / `REQ-08-018`:
 | `TC-08-REACT-LINK-001` | `test/seq08.test.jsx` | All four creation forms omit Description controls and submit empty description fields alongside external URLs. |
 | `TC-08-IPC-REL-001` / `TC-05-CLI-CREATE-001` | `entity_creation_persists_selected_experiences_and_default_markdown` in `src-tauri/tests/model_initialization_ipc.rs` | Real registered commands create all four entity types; reloaded EXPERIENCE parent and FACT membership arrays each retain both selected UUIDs; every generated Markdown has identity FrontMatter and the default body, matches detail IPC output, and loads through the actual editor binary's verify/preview commands. |
 
+LINK search coverage for `REQ-08-019` in `test/seq08.test.jsx`:
+
+| Test ID | Required evidence |
+| --- | --- |
+| `TC-08-REACT-SEARCH-001` | Independent Origin/Target filtering, whitespace trimming and case-insensitive name/type search; selecting results submits exact typed UUIDs without UI search state. |
+| `TC-08-REACT-SEARCH-002` | No-result notice, no automatic creation/selection, clearing a query restores all options, selected endpoints remain explicitly visible outside results, form switching preserves search/selection, placeholder clears endpoint. |
+| `TC-08-REACT-SEARCH-003` | Duplicate names distinguished by UUID and unnamed entities searchable/selectable by UUID. |
+
 The Markdown CLI case requires `src-tauri/binaries/hasm_markdown.exe`; if absent,
 run `npm run build:markdown` first. Each subprocess has a 10-second watchdog and
 reports stdout/stderr on failure. Paths include spaces to cover native argument

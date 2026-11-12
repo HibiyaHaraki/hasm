@@ -325,6 +325,23 @@ sequenceDiagram
 
 Triggered when connecting two nodes in 3D space or via the **"Create LINK"** modal. Enforces strict graph constraints (prevents self-loops and orphan edge creations).
 
+On the dedicated creation page, Origin and Target each have an independent
+**Search origin/target entities** input above their selection dropdown.
+`LinkEntitySelect.jsx` filters the full loaded PERSON, EXPERIENCE, and FACT
+options locally using a trimmed, case-insensitive substring match against the
+display name, entity type, and UUID. Search does not invoke IPC, create an entity,
+or automatically choose an endpoint. Empty search displays all available options;
+zero matches displays **No matching entities.** in an accessible live status.
+Option labels include type, name, and UUID to distinguish duplicate names.
+
+Changing the search preserves an already selected endpoint. If it no longer
+matches, it is shown explicitly under **Current selection (outside search
+results)**, with a retention notice, rather than silently changing the LINK.
+Selecting the placeholder clears that endpoint. Both search drafts and endpoint
+selections survive switching entity types. Creation still sends only the
+selected typed UUIDs through the existing `create_link` contract; queries remain
+UI-only state. Backend self-loop and orphan validation is unchanged.
+
 ```mermaid
 sequenceDiagram
     autonumber

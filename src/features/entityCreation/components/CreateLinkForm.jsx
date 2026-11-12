@@ -1,4 +1,5 @@
 import { Form } from "react-bootstrap";
+import LinkEntitySelect from "./LinkEntitySelect";
 
 function CreateLinkForm({ value, onChange, entityOptions }) {
   return (
@@ -21,36 +22,12 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
           onChange={(event) => onChange({ ...value, securityLevel: event.target.value })}
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="link-origin">
-        <Form.Label>Origin</Form.Label>
-        <Form.Select
-          value={value.origin}
-          onChange={(event) => onChange({ ...value, origin: event.target.value })}
-          required
-        >
-          <option value="">Select origin</option>
-          {entityOptions.map((option) => (
-            <option key={`origin-${option.value}`} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Form.Select>
-      </Form.Group>
-      <Form.Group className="mb-2" controlId="link-target">
-        <Form.Label>Target</Form.Label>
-        <Form.Select
-          value={value.target}
-          onChange={(event) => onChange({ ...value, target: event.target.value })}
-          required
-        >
-          <option value="">Select target</option>
-          {entityOptions.map((option) => (
-            <option key={`target-${option.value}`} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Form.Select>
-      </Form.Group>
+      {["origin", "target"].map((endpoint) => (
+        <LinkEntitySelect key={endpoint} endpoint={endpoint} value={value[endpoint]}
+          query={value[`${endpoint}Search`]} entityOptions={entityOptions}
+          onChange={(selected) => onChange({ ...value, [endpoint]: selected })}
+          onSearch={(query) => onChange({ ...value, [`${endpoint}Search`]: query })} />
+      ))}
     </>
   );
 }

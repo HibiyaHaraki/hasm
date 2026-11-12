@@ -39,6 +39,74 @@ afterEach(() => {
 });
 
 describe("SEQ-08 entity creation navigation and forms", () => {
+  it("TC-08-REACT-SEARCH-001 independently searches LINK endpoints and submits selected entities", async () => {
+    api.createLink.mockResolvedValue({});
+    api.loadHasmModelDb.mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model, path: "C:/fixture.hasm" } }]}>
+      <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "  jOhN  " } });
+    const origin = screen.getByLabelText("Origin");
+    const target = screen.getByLabelText("Target");
+    expect(within(origin).getAllByRole("option")).toHaveLength(2);
+    expect(within(target).getAllByRole("option")).toHaveLength(4);
+    fireEvent.change(origin, { target: { value: `PERSON:${model.people[0].personId}` } });
+    fireEvent.change(screen.getByLabelText("Search target entities"), { target: { value: "FACT" } });
+    expect(within(target).getAllByRole("option")).toHaveLength(2);
+    fireEvent.change(target, { target: { value: `FACT:${model.facts[0].factId}` } });
+    fireEvent.click(screen.getByRole("button", { name: "Create LINK" }));
+    await vi.waitFor(() => expect(api.createLink).toHaveBeenCalledWith("C:/fixture.hasm", {
+      link: [], linkType: "references", linkDescription: "", securityLevel: 1,
+      originEntityType: "PERSON", originEntityId: model.people[0].personId,
+      targetEntityType: "FACT", targetEntityId: model.facts[0].factId,
+    }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+  });
+
+  it("TC-08-REACT-SEARCH-002 handles no results, retained selections, clearing, and form switching", () => {
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "no-match" } });
+    expect(within(screen.getByLabelText("Origin")).getAllByRole("option")).toHaveLength(1);
+    expect(screen.getByText("No matching entities.")).toBeInTheDocument();
+    expect(api.createLink).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Origin"), { target: { value: `PERSON:${model.people[0].personId}` } });
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "Root" } });
+    expect(screen.getByLabelText("Origin")).toHaveValue(`PERSON:${model.people[0].personId}`);
+    expect(within(screen.getByLabelText("Origin")).getByRole("group", { name: "Current selection (outside search results)" })).toBeInTheDocument();
+    expect(screen.getByText(/Current selection is retained/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "PERSON" }));
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    expect(screen.getByLabelText("Search origin entities")).toHaveValue("Root");
+    expect(screen.getByLabelText("Origin")).toHaveValue(`PERSON:${model.people[0].personId}`);
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "" } });
+    expect(within(screen.getByLabelText("Origin")).getAllByRole("option")).toHaveLength(4);
+    fireEvent.change(screen.getByLabelText("Origin"), { target: { value: "" } });
+    expect(screen.getByLabelText("Origin")).toHaveValue("");
+  });
+
+  it("TC-08-REACT-SEARCH-003 distinguishes duplicate names and searches unnamed entities by UUID", () => {
+    const people = [
+      model.people[0],
+      { personId: "11111111-1111-1111-1111-111111111112", personName: "John" },
+      { personId: "11111111-1111-1111-1111-111111111113", personName: "" },
+    ];
+    render(<MemoryRouter initialEntries={[{ state: { model: { ...model, people }, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    fireEvent.change(screen.getByLabelText("Search target entities"), { target: { value: "John" } });
+    const target = screen.getByLabelText("Target");
+    expect(within(target).getAllByRole("option")).toHaveLength(3);
+    for (const person of people.slice(0, 2)) {
+      expect(within(target).getByRole("option", { name: `PERSON John (${person.personId})` })).toHaveValue(`PERSON:${person.personId}`);
+    }
+    fireEvent.change(screen.getByLabelText("Search target entities"), { target: { value: people[2].personId } });
+    expect(within(target).getAllByRole("option")).toHaveLength(2);
+    fireEvent.change(target, { target: { value: `PERSON:${people[2].personId}` } });
+    expect(target).toHaveValue(`PERSON:${people[2].personId}`);
+  });
+
   it("TC-08-REACT-LINK-001 includes URL arrays in all four creation payloads", async () => {
     for (const [type, create] of [["PERSON", api.createPerson], ["EXPERIENCE", api.createExperience], ["FACT", api.createFact], ["LINK", api.createLink]]) {
       create.mockResolvedValue({});
