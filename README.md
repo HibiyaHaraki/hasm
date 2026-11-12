@@ -26,24 +26,24 @@ Each entity has a folder containing a human-readable `main.md` file and an `asse
 ### 🧭 Typical workflow
 
 1. 📂 Open an existing model folder or create a new workspace.
-2. 🛡️ Let HASM validate the workspace and load its data.
+2. 🛡️ Let HASM validate the workspace and load its data. For an empty workspace, enter a PERSON name and birth date, review the initialization, and confirm to create the PERSON, its Life EXPERIENCE, and the birth date FACT together.
 3. 🕸️ Explore people, experiences, facts, and links in the visualizer.
-4. ➕ Create entities and relationships, or open an entity to inspect it.
-5. ✍️ Edit its details or Markdown, then save or refresh the view.
+4. ➕ Create entities and relationships, or open an entity to inspect it. Relationship pickers support selecting and previewing related entities.
+5. ✍️ Edit entity details or Markdown, then save or refresh the view.
 
 ## ✨ What the app can do
 
 | Feature | Status | What it means |
 |---|---:|---|
 | 🚀 App and model checks | ✅ | Check the HASM Markdown app and validate a selected model before use. |
-| 📂 Open or create a model | ✅ | Choose an existing workspace or scaffold a new one. |
+| 📂 Open or create a model | ✅ | Choose an existing workspace or scaffold a new one. Empty workspaces guide you through confirming the initial PERSON, Life EXPERIENCE, and birth date FACT. |
 | 🕸️ Explore the model | ✅ | View entities in the 3D visualizer, with layout filters and scope controls. |
-| ➕ Create entities and links | ✅ | Create PERSON, EXPERIENCE, FACT, and LINK records; invalid creation is rejected and failed writes are rolled back. |
-| 📝 View and edit entity details | ✅ | Load entity details and save metadata to the local model database. |
+| ➕ Create entities and links | ✅ | Create PERSON, EXPERIENCE, FACT, and LINK records, including relationships selected with entity pickers; invalid creation is rejected and failed writes are rolled back. |
+| 📝 View and edit entity details | ✅ | Load entity details, save metadata to the local model database, and preview linked entities with hover or keyboard focus. |
 | 🔄 Work with Markdown | ✅ | Open the companion HASM Markdown app, detect external file changes, and refresh the displayed content. |
 | 🛡️ Navigation and recovery | ✅ | Protect model-dependent routes and guide users through model and Markdown error states. |
 
-Automated frontend, IPC-contract, and Rust tests cover the documented evaluation flows. Some full desktop/GUI scenarios remain manual acceptance checks; the visualizer geometry smoke test is opt-in. See [`docs/eval/`](docs/eval/) for coverage details. 🧪
+Automated frontend, IPC-contract, and registered Tauri-invoke integration tests cover the documented evaluation flows, including new-model initialization and entity relationships. Some full desktop/GUI scenarios remain manual acceptance checks; the visualizer geometry smoke test is opt-in. See [`docs/eval/`](docs/eval/) for coverage details. 🧪
 
 ## 🔄 How it works
 
@@ -136,6 +136,7 @@ npm run test:eval-08
 The Rust command tests are run from `src-tauri`:
 
 ```bash
+cargo test --test model_initialization_ipc
 cargo test app_commands
 cargo test splash_commands
 cargo test model_commands
@@ -151,13 +152,16 @@ cargo test entity_creation_commands
 ```text
 src/
 ├── features/hasm/          # Workspace, entity, and Tauri API flows
+├── features/entityCreation/ # Entity creation forms and relationship pickers
+├── features/entityTicket/   # Entity details, graph, and information previews
 ├── hasm_color_pattern/      # Color patterns and theme helpers
 ├── hasm_logger/             # Frontend logging helpers
 ├── hasm_visualizer/          # Reusable 3D visualizer
-└── pages/                   # Application screens
+└── pages/                   # Application screens, including empty-model initialization
 src-tauri/
 ├── src/hasm/                 # Rust commands, model, and services
 ├── src/hasm_logger/          # Rust logging helpers
+├── tests/                    # Registered Tauri IPC integration tests
 └── icons/                    # Tauri app icons (generated from the logo source)
 hasm_logo/                    # Logo assets and generators
 docs/
