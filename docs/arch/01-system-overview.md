@@ -82,6 +82,12 @@ flowchart TB
         ModelCheck -->|NG| ErrorHASMModel[/"HASM Model Error Page (/error-model)"/]:::error
         ModelCheck -->|OK, populated| ModelReady["Workspace ready: Go to visualization"]:::page
         ModelReady -->|User clicks Go to visualization| VisualizePage["3D Visualizer Page (/visualizer)"]:::page
+        ModelCheck -->|OK, empty| InitializeModel["Initialize Model (/initialize-model): PERSON name and birth date"]:::page
+        InitializeModel --> ReviewModel["Confirmation: review PERSON, Life EXPERIENCE and birth date FACT"]:::modal
+        ReviewModel -->|Back to edit; preserve inputs| InitializeModel
+        ReviewModel -->|Confirm| BootstrapLife[["Tauri: create_person with birthDate; atomic PERSON, Life EXPERIENCE and birth date FACT"]]:::tauri
+        BootstrapLife -->|Failure; show error| ReviewModel
+        BootstrapLife -->|Success; reload model| VisualizePage
     end
 
     %% ----------------------------------------------------

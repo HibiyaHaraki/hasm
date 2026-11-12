@@ -173,6 +173,14 @@ Primary unit representing an individual. Every `PERSON` owns one mandatory root 
 * **`person_description`** (*TEXT*): Short overview or summary.
 * **`security_level`** (*INTEGER*): Access control level ($0 \le \text{level} \le 5$).
 
+New-model initialization stores the required birth date in the implemented
+`person.birthday` field (`YYYY-MM-DD`). In the same creation transaction, it
+creates an owned Life EXPERIENCE through `experience.person_id` and a birth date
+FACT with `occurred_at` equal to the exact date, `experience_ids` containing the
+Life EXPERIENCE, and `person_ids` containing the PERSON. These existing
+`main.db` fields implement the bootstrap without a schema change; see
+[SEQ-08](./17-SEQ-08_EntityCreation.md) for confirmation and rollback behavior.
+
 #### EXPERIENCE
 
 Represent subjective contextual groupings of facts (e.g., projects, education periods, career milestones).

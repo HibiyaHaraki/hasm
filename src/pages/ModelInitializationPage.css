@@ -1,0 +1,17 @@
+.model-initialization-confirmation {
+  color: var(--theme-text);
+  background-color: var(--theme-soft);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+
+.model-initialization-confirmation .modal-header,
+.model-initialization-confirmation .modal-footer {
+  border-color: var(--theme-border);
+}
+
+.model-initialization-confirmation dd {
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+}

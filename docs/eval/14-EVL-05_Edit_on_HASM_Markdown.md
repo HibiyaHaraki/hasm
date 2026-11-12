@@ -17,6 +17,7 @@ Automated React and IPC coverage runs through `npm run test:eval-05`; Rust comma
 | SEQ-05 launch IPC argument contract | `test/eval-05-ipc.test.js` via `npm run test:eval-05` | Frontend: EVAL-05 React and IPC tests |
 | `TC-05-RUST-001` to `TC-05-RUST-004` target-path, payload, and missing-resource checks | `src-tauri/src/hasm/external_editor_commands.rs` via `cargo test external_editor_commands` | Rust: EVAL-05 Rust external editor tests |
 | Markdown binary build/staging contract | `npm run build:markdown` and `Test-Path src-tauri/binaries/hasm_markdown.exe` | Frontend: Build frontend |
+| `TC-05-CLI-BOOTSTRAP-001`: real staged binary verifies and loads all PERSON / Life EXPERIENCE / birth FACT descriptions from a newly created model | `cargo test --manifest-path src-tauri/Cargo.toml --test model_initialization_ipc hasm_markdown_loads_every_new_model_description` | Local/integration validation with staged executable |
 
 `TC-05-RUST-005` timeout injection, `TC-05-RUST-006` database-handle monitoring, and live detached-process/multi-instance desktop rows are acceptance scenarios; CI intentionally does not launch desktop editor windows.
 
@@ -25,6 +26,16 @@ mounted the document. Native launch uses the folder contract and requires the
 editor's `main.md`; `assets.json` is optional, so asset-free HASM entity folders
 open with an empty manifest (editor tests `TC-MD-01-RUST-006`/`007`). Standalone
 `.md` input is not supported.
+
+The new-model CLI integration case runs the staged executable's `verify` and
+`preview` commands for each generated entity folder without creating an
+`assets.json`. It checks successful exit status, valid verification JSON with
+no diagnostics, and preview output equal to the full persisted description.
+Host `load_entity_detail` and a subsequent model reload are also checked through
+registered Tauri invokes. This is actual headless binary loading, not proof that
+an interactive editor window mounted/rendered the document. The test fails
+explicitly when the staged executable is missing and bounds each child to
+10 seconds.
 
 ---
 

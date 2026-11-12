@@ -20,6 +20,8 @@ pub struct CreatePersonRequest {
     pub person_description: String,
     pub security_level: i32,
     pub create_life_experience: bool, // If true, auto-generates a root EXPERIENCE stream
+    #[serde(default)]
+    pub birth_date: Option<String>, // YYYY-MM-DD; bootstrap creates the associated birth FACT
 }
 
 // Payload for create_experience command
@@ -168,12 +170,60 @@ sequenceDiagram
 
 ```
 
-After workspace creation, if `load_hasm_model_db` returns zero entities (`PERSON+EXPERIENCE+FACT+LINK == 0`), the frontend routes to `/initialize-model` before `/visualizer`. The initialization page collects the minimum required input (`person_name`) and invokes `create_person` with:
+After workspace creation, if `load_hasm_model_db` returns zero entities (`PERSON+EXPERIENCE+FACT+LINK == 0`), the frontend routes to `/initialize-model` before `/visualizer`. The initialization page requires a PERSON name and birth date. **Review model** opens a theme-aware confirmation dialog showing the trimmed name, date, and generated entity names. **Back to edit** preserves the inputs without creating entities. Only **Confirm and create model** invokes `create_person` with:
 
 - `security_level = 1`
 - `create_life_experience = true`
+- `birth_date = YYYY-MM-DD` (IPC key: `birthDate`)
 
-This guarantees a non-empty model for first visualizer load.
+Rust validates the calendar date (including leap years, years 0001 through 9999)
+before persistence. Supplying a birth date requires `create_life_experience=true`.
+In one SQLite transaction, the command creates:
+
+1. PERSON, storing the date in the existing `birthday` field.
+2. `{personName} Life` EXPERIENCE, owned through `experience.person_id`.
+3. `{personName} Birth date` FACT, storing the date without timezone conversion
+   in `occurred_at`, with `experience_ids=[lifeExperienceId]` and
+   `person_ids=[personId]`.
+
+All three receive Markdown and assets directories. Failure rolls back all three
+rows and removes generated directories, including partially written scaffolds.
+Missing `birthDate` retains ordinary PERSON creation behavior for older callers.
+No new database columns or serialized entity fields are introduced.
+
+The dialog blocks duplicate submissions and editing while creation is pending.
+Failures are displayed inside the dialog and logged with `[SEQ-MD-08]`.
+After a committed creation, a failed model reload offers **Retry opening
+visualizer**, which reloads without creating duplicate entities.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Init as ModelInitializationPage
+    participant Dialog as Confirmation dialog
+    participant IPC as create_person
+    participant Storage as SQLite and entity folders
+    User->>Init: Enter PERSON name and birth date
+    User->>Init: Review model
+    Init->>Dialog: Show name, date, Life EXPERIENCE and birth date FACT
+    alt Back to edit
+        User->>Dialog: Back to edit
+        Dialog-->>Init: Preserve inputs; no creation invoke
+    else Confirm
+        User->>Dialog: Confirm and create model
+        Dialog->>IPC: create_person(path, payload with birthDate)
+        IPC->>IPC: Validate PERSON and calendar date
+        IPC->>Storage: Transaction: PERSON, owned Life EXPERIENCE, linked birth FACT
+        alt Persistence failure
+            IPC->>Storage: Roll back rows and clean entity folders
+            IPC-->>Dialog: Visible error; allow retry or editing
+        else Success
+            IPC-->>Init: PERSON creation payload
+            Init->>Init: Load model; navigate to visualizer
+            Note over Init: A reload retry must not repeat creation
+        end
+    end
+```
 
 ---
 

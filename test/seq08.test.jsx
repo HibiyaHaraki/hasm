@@ -113,7 +113,7 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     expect(await screen.findByText("SelfLoopLink")).toBeInTheDocument();
   });
 
-  it("TC-08-REACT-004 initializes an empty model with minimum required input", async () => {
+  it("TC-08-REACT-004 confirms name and birth date before initializing an empty model", async () => {
     api.createPerson.mockResolvedValue({ entityType: "PERSON", entityId: "new-person" });
     api.loadHasmModelDb.mockResolvedValue({ ...model, people: [{ personId: "new-person", personName: "Bootstrap" }] });
 
@@ -126,12 +126,83 @@ describe("SEQ-08 entity creation navigation and forms", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Bootstrap" } });
-    fireEvent.click(screen.getByRole("button", { name: "Initialize and Open Visualizer" }));
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: " Bootstrap " } });
+    expect(screen.getByRole("button", { name: "Review model" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-02-29" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm new HASM model" });
+    expect(dialog).toHaveTextContent("Bootstrap");
+    expect(dialog).toHaveTextContent("2000-02-29");
+    expect(dialog).toHaveTextContent("Bootstrap Life");
+    expect(dialog).toHaveTextContent("Bootstrap Birth date");
+    expect(api.createPerson).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and create model" }));
 
     await vi.waitFor(() =>
-      expect(api.createPerson).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ personName: "Bootstrap" })),
+      expect(api.createPerson).toHaveBeenCalledWith("C:/fixture.hasm", {
+        personName: "Bootstrap", birthDate: "2000-02-29", personDescription: "",
+        securityLevel: 1, createLifeExperience: true,
+      }),
     );
     expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+  });
+
+  it("TC-08-REACT-005 returns to edit without persisting and confirms revised input", async () => {
+    api.createPerson.mockResolvedValue({});
+    api.loadHasmModelDb.mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ state: { path: "C:/fixture.hasm" } }]}>
+      <ModelInitializationPage />
+    </MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Original" } });
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Back to edit" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(api.createPerson).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Birth date (required)")).toHaveValue("2000-01-01");
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Revised" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Revised Life");
+  });
+
+  it("TC-08-REACT-006 reports creation errors and blocks duplicate submissions", async () => {
+    let rejectCreation;
+    api.createPerson.mockImplementation(() => new Promise((_, reject) => { rejectCreation = reject; }));
+    render(<MemoryRouter initialEntries={[{ state: { path: "C:/fixture.hasm" } }]}>
+      <ModelInitializationPage />
+    </MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Person" } });
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    const confirm = await screen.findByRole("button", { name: "Confirm and create model" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(api.createPerson).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Back to edit" })).toBeDisabled();
+    rejectCreation(new Error("Birth FACT could not be saved"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Birth FACT could not be saved");
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Back to edit" })).toBeEnabled();
+  });
+
+  it("TC-08-REACT-007 retries loading without duplicating initialized entities", async () => {
+    api.createPerson.mockResolvedValue({});
+    api.loadHasmModelDb.mockRejectedValueOnce(new Error("Database temporarily unavailable")).mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ pathname: "/initialize-model", state: { path: "C:/fixture.hasm" } }]}>
+      <Routes>
+        <Route path="/initialize-model" element={<ModelInitializationPage />} />
+        <Route path="/visualizer" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Person" } });
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm and create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Database temporarily unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Retry opening visualizer" }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+    expect(api.createPerson).toHaveBeenCalledTimes(1);
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(2);
   });
 });

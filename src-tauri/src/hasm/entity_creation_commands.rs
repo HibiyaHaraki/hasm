@@ -100,7 +100,12 @@ pub fn create_person(path: String, payload: CreatePersonRequest) -> Result<Entit
     let started = Instant::now();
     let root = workspace_root(&path)?;
     let person_id = Uuid::new_v4();
-    create_person_with_id(&root, payload, person_id, started)
+    let result = create_person_with_id(&root, payload, person_id, started);
+    match &result {
+        Ok(_) => info!("[SEQ-MD-08][PERSON] person and requested life entities created"),
+        Err(error) => warn!("[SEQ-MD-08][PERSON] creation failed: {error}"),
+    }
+    result
 }
 
 #[tauri::command]
@@ -216,12 +221,18 @@ fn create_person_with_id(
     person_id: Uuid,
     started: Instant,
 ) -> Result<EntityCreationPayload, String> {
+    if let Some(date) = payload.birth_date.as_deref() {
+        validate_birth_date(date)?;
+        if !payload.create_life_experience {
+            return Err("ERR_ENTITY_CREATE_FAILED: Birth date requires a Life EXPERIENCE".to_string());
+        }
+    }
     let person = Person {
         link: payload.link.clone(),
         person_id,
         person_name: payload.person_name.clone(),
         person_description_path: Person::default_markdown_path(&person_id),
-        birthday: String::new(),
+        birthday: payload.birth_date.clone().unwrap_or_default(),
         die: String::new(),
         link_ids: Vec::new(),
         markdown: markdown_template("PERSON", &person_id, &payload.person_name, &payload.person_description),
@@ -237,30 +248,57 @@ fn create_person_with_id(
     let mut created_dirs = Vec::new();
     if let Err(error) = (|| -> Result<(), String> {
         insert_person(&transaction, &person)?;
-        scaffold_entity_files(root, "PERSON", &person_id, &person.markdown)?;
         created_dirs.push(root.join("PERSON").join(person_id.to_string()));
+        scaffold_entity_files(root, "PERSON", &person_id, &person.markdown)?;
 
         if payload.create_life_experience {
             let root_experience_id = Uuid::new_v4();
+            let experience_name = if payload.birth_date.is_some() {
+                format!("{} Life", payload.person_name.trim())
+            } else {
+                format!("{} Root Experience", payload.person_name.trim())
+            };
             let root_experience = Experience {
                 link: Vec::new(),
                 experience_id: root_experience_id,
                 person_id,
-                experience_name: format!("{} Root Experience", payload.person_name.trim()),
+                experience_name: experience_name.clone(),
                 experience_description_path: Experience::default_markdown_path(&root_experience_id),
                 parent_experience_ids: Vec::new(),
                 link_ids: Vec::new(),
                 markdown: markdown_template(
                     "EXPERIENCE",
                     &root_experience_id,
-                    "Root Experience",
+                    if payload.birth_date.is_some() { &experience_name } else { "Root Experience" },
                     "Auto-generated root stream.",
                 ),
                 markdown_path: String::new(),
             };
             insert_experience(&transaction, &root_experience)?;
-            scaffold_entity_files(root, "EXPERIENCE", &root_experience_id, &root_experience.markdown)?;
             created_dirs.push(root.join("EXPERIENCE").join(root_experience_id.to_string()));
+            scaffold_entity_files(root, "EXPERIENCE", &root_experience_id, &root_experience.markdown)?;
+
+            // SEQ-MD-08: bootstrap the birth event in the same transaction as its owner and life stream.
+            if let Some(date) = payload.birth_date.as_deref() {
+                let fact_id = Uuid::new_v4();
+                let fact_name = format!("{} Birth date", payload.person_name.trim());
+                let fact = Fact {
+                    link: Vec::new(),
+                    fact_id,
+                    fact_name: fact_name.clone(),
+                    occurred_at: date.to_string(),
+                    fact_description_path: Fact::default_markdown_path(&fact_id),
+                    experience_ids: vec![root_experience_id],
+                    person_ids: vec![person_id],
+                    link_ids: Vec::new(),
+                    markdown: markdown_template("FACT", &fact_id, &fact_name, date),
+                    markdown_path: String::new(),
+                };
+                fact.verify(Some(date), None, payload.security_level)?;
+                insert_fact(&transaction, &fact)?;
+                created_dirs.push(root.join("FACT").join(fact_id.to_string()));
+                scaffold_entity_files(root, "FACT", &fact_id, &fact.markdown)?;
+            }
         }
 
         ensure_within(started, ENTITY_TIMEOUT, "ERR_ENTITY_CREATE_TIMEOUT")?;
@@ -270,9 +308,10 @@ fn create_person_with_id(
         return Err(error);
     }
 
-    transaction
-        .commit()
-        .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
+    if let Err(error) = transaction.commit() {
+        cleanup_entity_directories(&created_dirs);
+        return Err(format!("ERR_ENTITY_CREATE_FAILED: {error}"));
+    }
 
     Ok(EntityCreationPayload {
         entity_type: "PERSON".to_string(),
@@ -284,6 +323,30 @@ fn create_person_with_id(
             .to_string(),
         created_at_ms: now_ms(),
     })
+}
+
+fn validate_birth_date(date: &str) -> Result<(), String> {
+    let invalid = || "ERR_INVALID_BIRTH_DATE: Enter a valid birth date (YYYY-MM-DD)".to_string();
+    let bytes = date.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-'
+        || !bytes.iter().enumerate().all(|(index, value)| index == 4 || index == 7 || value.is_ascii_digit())
+    {
+        return Err(invalid());
+    }
+    let year: u32 = date[..4].parse().map_err(|_| invalid())?;
+    let month: u32 = date[5..7].parse().map_err(|_| invalid())?;
+    let day: u32 = date[8..].parse().map_err(|_| invalid())?;
+    let days = match month {
+        4 | 6 | 9 | 11 => 30,
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        _ => return Err(invalid()),
+    };
+    if year == 0 || day == 0 || day > days {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn create_fact_with_id(
@@ -370,9 +433,19 @@ fn ensure_schema(connection: &Connection) -> Result<(), String> {
 }
 
 fn rollback_and_cleanup(transaction: Transaction<'_>, created_dirs: &[PathBuf]) {
-    let _ = transaction.rollback();
+    if let Err(error) = transaction.rollback() {
+        warn!("[SEQ-MD-08][ROLLBACK] database rollback failed: {error}");
+    }
+    cleanup_entity_directories(created_dirs);
+}
+
+fn cleanup_entity_directories(created_dirs: &[PathBuf]) {
     for path in created_dirs.iter().rev() {
-        let _ = fs::remove_dir_all(path);
+        if let Err(error) = fs::remove_dir_all(path) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                warn!("[SEQ-MD-08][ROLLBACK] entity directory cleanup failed: {error}");
+            }
+        }
     }
 }
 
@@ -381,11 +454,12 @@ fn insert_person(transaction: &Transaction<'_>, person: &Person) -> Result<(), S
     transaction
         .execute(
             "INSERT INTO person (person_id, person_name, person_description_path, birthday, die, link_ids, link)
-             VALUES (?1, ?2, ?3, '', '', '[]', ?4)",
+             VALUES (?1, ?2, ?3, ?4, '', '[]', ?5)",
             params![
                 person.person_id.to_string(),
                 person.person_name,
                 person.person_description_path,
+                person.birthday,
                 serde_json::to_string(&person.link).map_err(|error| error.to_string())?,
             ],
         )
@@ -417,13 +491,14 @@ fn insert_fact(transaction: &Transaction<'_>, fact: &Fact) -> Result<(), String>
     transaction
         .execute(
             "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link)
-             VALUES (?1, ?2, ?3, ?4, ?5, '[]', '[]', ?6)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, '[]', ?7)",
             params![
                 fact.fact_id.to_string(),
                 fact.fact_name,
                 fact.occurred_at,
                 fact.fact_description_path,
                 serde_json::to_string(&fact.experience_ids).map_err(|error| error.to_string())?,
+                serde_json::to_string(&fact.person_ids).map_err(|error| error.to_string())?,
                 serde_json::to_string(&fact.link).map_err(|error| error.to_string())?,
             ],
         )
@@ -614,6 +689,7 @@ mod tests {
         let person = create_person(
             root.to_string_lossy().to_string(),
             CreatePersonRequest { link: urls.clone(),
+                birth_date: None,
                 person_name: "John Doe".to_string(),
                 person_description: "Person description".to_string(),
                 security_level: 1,
@@ -692,6 +768,7 @@ mod tests {
         let empty_name_error = create_person(
             root.to_string_lossy().to_string(),
             CreatePersonRequest { link: Vec::new(),
+                birth_date: None,
                 person_name: "   ".to_string(),
                 person_description: String::new(),
                 security_level: 1,
@@ -718,6 +795,7 @@ mod tests {
         let person = create_person(
             root.to_string_lossy().to_string(),
             CreatePersonRequest { link: Vec::new(),
+                birth_date: None,
                 person_name: "Owner".to_string(),
                 person_description: String::new(),
                 security_level: 1,

@@ -12,7 +12,7 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 | **`TC-EVL-08-E2E-002`** | `REQ-08-010` `REQ-08-020` `REQ-08-021` | Positive (PERSON Entity Creation) | Create New PERSON with Root Experience | 1. In `/visualizer`, click "Create PERSON". 2. Fill name ("John Doe"), security level (`1`), and check "Create Root Stream". 3. Submit. | 1. UUID directory `PERSON/{UUID}/` and `assets/` are created. 2. `main.md` with YAML FrontMatter is generated. 3. Record inserted into `hasm.db`. 4. 3D visualizer re-layouts and displays new PERSON node. |
 | **`TC-EVL-08-E2E-003`** | `REQ-08-013` `REQ-08-021` | Positive (Interactive LINK Binding) | Create Valid LINK Between Two Existing Nodes | 1. Select Node A (Fact) and Node B (Experience). 2. Click "Create LINK". 3. Select type ("references") and submit. | 1. `LINK/{UUID}/main.md` created. 2. Record inserted into `LINK` table in `hasm.db`. 3. 3D visualizer computes layout and renders 3D spline connecting Node A and Node B. |
 | **`TC-EVL-08-E2E-004`** | `REQ-08-013` | Negative (Self-Loop LINK Prevention) | Attempt LINK Creation with Identical Origin and Target | 1. Open "Create LINK" modal. 2. Select Node A as Origin AND Target. 3. Submit form. | 1. Backend rejects creation (`SelfLoopLink`). 2. Form displays error ("Cannot create a link pointing to the same entity"). 3. No SQLite record or folder generated. |
-| **`TC-EVL-08-E2E-005`** | `REQ-08-015` | Positive (Minimum Bootstrap) | Load a newly created empty workspace | 1. Create a new HASM workspace. 2. Continue to `/loading-model`. 3. Confirm model has no entities. 4. Submit `/initialize-model` with PERSON name only. | 1. App routes to `/initialize-model` before `/visualizer`. 2. `create_person` runs with bootstrap defaults (`security_level=1`, `create_life_experience=true`). 3. App navigates to `/visualizer` with non-empty model. |
+| **`TC-EVL-08-E2E-005`** | `REQ-08-015` | Positive (Confirmed Life Bootstrap) | Load a newly created empty workspace | 1. Create a workspace and continue through `/loading-model`. 2. Enter a PERSON name and birth date on `/initialize-model`. 3. Review the confirmation dialog. 4. Confirm creation. | 1. No entity is created before confirmation. 2. PERSON birthday, owned Life EXPERIENCE, and birth date FACT are persisted atomically with Markdown/assets. 3. FACT references both PERSON and EXPERIENCE and retains the exact date. 4. Visualizer opens with the initialized model. |
 
 ---
 
@@ -51,6 +51,28 @@ native Tauri creation dispatch, serde, unsafe-URL rejection, and persistence.
 
 The following test cases are now mapped to runnable suites and verified through real HASM workspace fixtures.
 
+Bootstrap coverage for `REQ-08-015`:
+
+| Test ID | Test name / target | Required evidence |
+| --- | --- | --- |
+| `TC-08-REACT-004` | Confirmation before initialization (`test/seq08.test.jsx`) | Both fields required; dialog shows all generated names/date; no creation before confirmation; correct payload and visualizer navigation. |
+| `TC-08-REACT-005` | Return to edit | Inputs preserved; revised input appears in review; no persistence. |
+| `TC-08-REACT-006` | Creation failure and duplicate submission | Single invoke while pending; editing blocked; explicit backend error displayed. |
+| `TC-08-REACT-007` | Reload retry | Reload failure displayed; retry opens visualizer without another create invoke. |
+| `TC-08-IPC-BIRTH-001` | JS birth-date invoke (`test/eval-08-ipc.test.js`) | `birthDate` and life-creation defaults reach the native command name unchanged. |
+| `TC-08-IPC-BOOTSTRAP-001` | `initializes_birth_entities_through_registered_invokes` (`src-tauri/tests/model_initialization_ipc.rs`) | Real registered Tauri dispatch, invalid dates/leap years, Life requirement, injected birth-insert failure with full rollback, SQLite reload, PERSON/EXPERIENCE/FACT associations, Markdown/assets, storage verification, visualizer layout, and legacy callers omitting birthDate. |
+| `TC-08-IPC-BOOTSTRAP-002` | `new_model_loads_exactly_one_person_experience_and_fact` (`src-tauri/tests/model_initialization_ipc.rs`) | Create a fresh workspace through registered invokes; bootstrap one PERSON, one Life EXPERIENCE, and one birth FACT; assert exact counts, ownership/date associations, storage verification, and unchanged full-model reload. |
+| `TC-05-CLI-BOOTSTRAP-001` | `hasm_markdown_loads_every_new_model_description` (`src-tauri/tests/model_initialization_ipc.rs`) | For all three descriptions from a newly created model, invoke real `load_entity_detail`, run the staged HASM Markdown executable's `verify <entity-folder> --json` and `preview <entity-folder>`, assert valid JSON/empty diagnostics and complete unchanged Markdown output, then verify the model still reloads unchanged. No mock executable, fabricated manifest, or silent skip is allowed. |
+
+The Markdown CLI case requires `src-tauri/binaries/hasm_markdown.exe`; if absent,
+run `npm run build:markdown` first. Each subprocess has a 10-second watchdog and
+reports stdout/stderr on failure. Paths include spaces to cover native argument
+passing. These checks exercise the actual editor binary's headless verification
+and description-loading commands, not interactive GUI rendering or
+`open_folder_workspace` mounting. Interactive editor-window acceptance remains
+covered by the manual desktop scenarios in
+[EVAL-05](./14-EVL-05_Edit_on_HASM_Markdown.md).
+
 | EVL Test ID | Automated Test Target | Status |
 | --- | --- | --- |
 | `TC-EVL-08-E2E-001` | `test/seq01.test.jsx` (`TC-08-E2E-001`) | Automated |
@@ -69,3 +91,4 @@ Run commands:
 
 - `npm run test:eval-08`
 - `cargo test entity_creation_commands` (from `src-tauri`)
+- `cargo test --manifest-path src-tauri/Cargo.toml --test model_initialization_ipc --test entity_editor_commands_ipc` (from the repository root; exercises registered native invokes, not only direct Rust calls)

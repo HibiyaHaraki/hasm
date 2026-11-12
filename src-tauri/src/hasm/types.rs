@@ -177,6 +177,8 @@ pub struct CreatePersonRequest {
     pub person_description: String,
     pub security_level: i32,
     pub create_life_experience: bool,
+    #[serde(default)]
+    pub birth_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
