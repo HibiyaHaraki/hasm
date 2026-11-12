@@ -1,23 +1,27 @@
 import { useMemo } from "react";
 import { Button } from "react-bootstrap";
-import EntityPicker from "./EntityPicker";
+import { ExperienceMultiSelect } from "../../../hasm_visualizer/ExperienceMultiSelect";
+import { dismissEntityPreview } from "../../entityTicket/EntityInfoPreview";
+import { translateTicket } from "../../entityTicket/ticketLanguage";
 
-function ExperienceSelect({ controlId, label, value, onChange, experiences }) {
+function ExperienceSelect({ controlId, label, value, onChange, experiences, disabled = false, t = translateTicket }) {
   const options = useMemo(() => experiences.map((experience) => ({
-    value: experience.experienceId, id: experience.experienceId, type: "EXPERIENCE",
-    label: `${experience.experienceName || "Untitled EXPERIENCE"} (${experience.experienceId})`,
-  })), [experiences]);
+    id: experience.experienceId,
+    label: experience.experienceName?.trim() || t("Untitled EXPERIENCE"),
+  })), [experiences, t]);
   return (
     <>
-      <EntityPicker controlId={controlId} label={label} options={options} value={value} onChange={onChange}
-        multiple describedBy={`${controlId}-help`} disabled={experiences.length === 0}
-        placeholder={experiences.length ? "Select experiences" : "No EXPERIENCE available"} />
+      <ExperienceMultiSelect id={controlId} label={label} options={options} value={value} onChange={onChange}
+        disabled={disabled} entityPreview onDismiss={dismissEntityPreview}
+        emptyLabel={t("No EXPERIENCE available")} noMatchesLabel={t("No matching experiences.")}
+        unavailableLabel={t("Unavailable EXPERIENCE")}
+        removeLabel={(title) => t("Remove {title}", { title })} />
       <p id={`${controlId}-help`} className="selection-copy mb-1">
-        Click or press Enter/Space to toggle each experience. Hover or focus a choice for entity information.
+        {t("Search experiences, then select or remove them. Hover or focus a choice for entity information.")}
       </p>
       <Button type="button" variant="outline-secondary" className="btn-hasm-outline"
-        disabled={value.length === 0} onClick={() => onChange([])}>
-        Clear {label}
+        disabled={disabled || value.length === 0} onClick={() => onChange([])}>
+        {t("Clear {label}", { label })}
       </Button>
     </>
   );

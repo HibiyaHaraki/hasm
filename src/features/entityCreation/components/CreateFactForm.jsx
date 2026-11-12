@@ -1,5 +1,6 @@
 import { Form } from "react-bootstrap";
 import ExperienceSelect from "./ExperienceSelect";
+import DateInput from "../../../components/DateInput";
 
 function CreateFactForm({ value, onChange, experiences }) {
   return (
@@ -23,18 +24,14 @@ function CreateFactForm({ value, onChange, experiences }) {
         />
       </Form.Group>
       <Form.Group className="mb-2" controlId="fact-start-time">
-        <Form.Label>Start time (ISO8601)</Form.Label>
-        <Form.Control
-          value={value.startTime}
-          onChange={(event) => onChange({ ...value, startTime: event.target.value })}
-        />
+        <Form.Label>Start date</Form.Label>
+        <DateInput id="fact-start-time" value={value.startTime}
+          onChange={(startTime) => onChange({ ...value, startTime })} />
       </Form.Group>
       <Form.Group className="mb-2" controlId="fact-end-time">
-        <Form.Label>End time (ISO8601)</Form.Label>
-        <Form.Control
-          value={value.endTime}
-          onChange={(event) => onChange({ ...value, endTime: event.target.value })}
-        />
+        <Form.Label>End date</Form.Label>
+        <DateInput id="fact-end-time" value={value.endTime}
+          onChange={(endTime) => onChange({ ...value, endTime })} />
       </Form.Group>
       <ExperienceSelect controlId="fact-experience-id" label="Belonging EXPERIENCE"
         value={value.experienceIds} experiences={experiences}

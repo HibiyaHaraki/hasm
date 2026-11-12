@@ -62,6 +62,7 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.resetAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("Shared entity information card", () => {
@@ -73,17 +74,15 @@ describe("Shared entity information card", () => {
       <EntityInfoPreview /><EntityCreatePage />
     </MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: type }));
-    fireEvent.click(screen.getByLabelText(label));
-    const option = screen.getByRole("option", { name: `Life (${experienceId})` });
+    fireEvent.focus(screen.getByLabelText(label));
+    const option = screen.getByRole("option", { name: "Life" });
     await open(option);
     expect(screen.getByRole("tooltip")).toHaveTextContent(`EXPERIENCE/${experienceId}`);
     expect(option).toHaveAttribute("aria-selected", "false");
     expect(invoke).toHaveBeenCalledExactlyOnceWith("load_entity_detail", {
       modelRoot: "C:\\fixture.hasm", entityType: "EXPERIENCE", entityId: experienceId,
     });
-    fireEvent.pointerOver(screen.getByRole("tooltip"));
-    fireEvent.mouseDown(screen.getByRole("tooltip"));
-    fireEvent.click(screen.getByRole("tooltip"));
+
     expect(screen.getByRole("tooltip")).toBeVisible();
     expect(screen.getByRole("listbox")).toBeVisible();
     fireEvent.click(option);
@@ -92,6 +91,20 @@ describe("Shared entity information card", () => {
     fireEvent.click(option);
     expect(option).toHaveAttribute("aria-selected", "false");
     fireEvent.keyDown(option, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("TC-04-PREVIEW-POS-002 keeps the preview stable when the pointer moves", async () => {
+    vi.stubGlobal("innerWidth", 1200);
+    vi.stubGlobal("innerHeight", 800);
+    setup();
+    const link = screen.getByText("Ada reference");
+    fireEvent.pointerOver(link, { clientX: 200, clientY: 200 });
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(screen.getByRole("tooltip")).toHaveStyle({ left: "224px" });
+    fireEvent.pointerMove(link, { clientX: 220, clientY: 200 });
+    expect(screen.getByRole("tooltip")).toHaveStyle({ left: "224px" });
+    fireEvent.click(link);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
@@ -170,7 +183,7 @@ describe("Shared entity information card", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it("TC-04-PREVIEW-003 debounces brief hovers and lets the pointer enter the card", async () => {
+  it("TC-04-PREVIEW-003 debounces brief hovers and dismisses after leaving", async () => {
     setup();
     const link = screen.getByText("Ada reference");
     fireEvent.pointerOver(link);
@@ -178,13 +191,8 @@ describe("Shared entity information card", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
     expect(invoke).not.toHaveBeenCalled();
     await open(link);
-    const card = screen.getByRole("tooltip");
-    fireEvent.pointerOut(link, { relatedTarget: card });
-    fireEvent.pointerOver(card);
-    fireEvent.scroll(card);
-    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
-    expect(screen.getByRole("tooltip")).toBe(card);
-    fireEvent.pointerOut(card);
+    expect(screen.getByRole("tooltip")).toBeVisible();
+    fireEvent.pointerOut(link);
     await act(async () => { await vi.advanceTimersByTimeAsync(150); });
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
@@ -243,6 +251,32 @@ describe("Shared entity information card", () => {
     expect(parseFloat(card.style.top)).toBeLessThan(window.innerHeight);
     act(() => previewGraphEntity(null));
     await act(async () => { await vi.advanceTimersByTimeAsync(150); });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [1200, 800, 200, 200],
+    [1200, 800, 1180, 780],
+    [420, 400, 210, 200],
+  ])("TC-04-PREVIEW-POS-001 avoids the pointer within a %ix%i viewport", async (width, height, x, y) => {
+    vi.stubGlobal("innerWidth", width);
+    vi.stubGlobal("innerHeight", height);
+    setup();
+    const link = screen.getByText("Ada reference");
+    fireEvent.pointerOver(link, { clientX: x, clientY: y });
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    const card = screen.getByRole("tooltip");
+    expect(card).toHaveStyle({ pointerEvents: "none" });
+    const left = parseFloat(card.style.left);
+    const top = parseFloat(card.style.top);
+    const cardWidth = parseFloat(card.style.width);
+    const cardHeight = Math.min(360, height - 24);
+    expect(left).toBeGreaterThanOrEqual(12);
+    expect(top).toBeGreaterThanOrEqual(12);
+    expect(left + cardWidth).toBeLessThanOrEqual(width - 12);
+    expect(top + cardHeight).toBeLessThanOrEqual(height - 12);
+    expect(left >= x + 24 || left + cardWidth <= x - 24 || top >= y + 24 || top + cardHeight <= y - 24).toBe(true);
+    fireEvent.click(link);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 

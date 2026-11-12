@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Card } from "react-bootstrap";
 import { loadEntityDetail, withTimeout } from "../hasm/api";
@@ -9,6 +9,40 @@ import "./EntityInfoPreview.css";
 const logger = createLogger("entity-info-preview");
 const PREVIEW_EVENT = "hasm-entity-preview";
 const ENTITY_PATH = /^\/entity-detail\/(PERSON|EXPERIENCE|FACT|LINK)\/([0-9a-f-]{36})$/i;
+const PREVIEW_MARGIN = 12;
+const POINTER_GAP = 24;
+
+function previewPosition(reference) {
+  const rect = reference.source.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const maxWidth = Math.max(0, viewportWidth - PREVIEW_MARGIN * 2);
+  const maxHeight = Math.max(0, viewportHeight - PREVIEW_MARGIN * 2);
+  let width = Math.min(360, maxWidth);
+  const height = Math.min(360, maxHeight);
+  const clamp = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
+  if (!Number.isFinite(reference.x) || !Number.isFinite(reference.y)) {
+    return { left: clamp(rect.left, PREVIEW_MARGIN, viewportWidth - width - PREVIEW_MARGIN),
+      top: clamp(rect.bottom + POINTER_GAP, PREVIEW_MARGIN, viewportHeight - height - PREVIEW_MARGIN), width };
+  }
+  const x = clamp(reference.x, PREVIEW_MARGIN, viewportWidth - PREVIEW_MARGIN);
+  const y = clamp(reference.y, PREVIEW_MARGIN, viewportHeight - PREVIEW_MARGIN);
+  const right = viewportWidth - PREVIEW_MARGIN - x - POINTER_GAP;
+  const left = x - POINTER_GAP - PREVIEW_MARGIN;
+  const below = viewportHeight - PREVIEW_MARGIN - y - POINTER_GAP;
+  const above = y - POINTER_GAP - PREVIEW_MARGIN;
+  if (right >= width || left >= width) {
+    return { left: right >= width ? x + POINTER_GAP : x - POINTER_GAP - width,
+      top: clamp(y, PREVIEW_MARGIN, viewportHeight - height - PREVIEW_MARGIN), width };
+  }
+  if (below >= height || above >= height) {
+    return { left: clamp(x, PREVIEW_MARGIN, viewportWidth - width - PREVIEW_MARGIN),
+      top: below >= height ? y + POINTER_GAP : y - POINTER_GAP - height, width };
+  }
+  width = Math.max(0, Math.min(width, Math.max(right, left)));
+  return { left: right >= left ? x + POINTER_GAP : x - POINTER_GAP - width,
+    top: clamp(y, PREVIEW_MARGIN, viewportHeight - height - PREVIEW_MARGIN), width };
+}
 
 export function dismissEntityPreview() {
   document.dispatchEvent(new CustomEvent(PREVIEW_EVENT, { detail: { dismiss: true } }));
@@ -32,7 +66,7 @@ function referenceAt(target) {
   return match ? { source, type: match[1].toUpperCase(), id: match[2] } : null;
 }
 
-function EntityInfoCard({ preview, index, cardId, cardRef }) {
+function EntityInfoCard({ preview, index, cardId }) {
   const { type, id, loaded, error } = preview;
   const entity = loaded?.detail || index.entities.get(id)?.entity;
   const title = loaded?.name || entityReferenceTitle(index, id, type);
@@ -52,8 +86,8 @@ function EntityInfoCard({ preview, index, cardId, cardRef }) {
     return value || "Not set";
   };
   return (
-    <Card ref={cardRef} id={cardId} role="tooltip" className="entity-info-preview"
-      style={{ left: preview.x, top: preview.y }}>
+    <Card id={cardId} role="tooltip" className="entity-info-preview"
+      style={{ left: preview.position.left, top: preview.position.top, width: preview.position.width, pointerEvents: "none" }}>
       <Card.Body>
         <p className="entity-info-identity">{type}/{id}</p>
         <Card.Title as="h2">{title}</Card.Title>
@@ -73,7 +107,6 @@ export default function EntityInfoPreview() {
   const path = location.state?.path;
   const index = useMemo(() => createEntityReferenceIndex(location.state?.model), [location.state?.model]);
   const cardId = useId();
-  const cardRef = useRef(null);
   const [preview, setPreview] = useState(null);
 
   useEffect(() => {
@@ -99,12 +132,9 @@ export default function EntityInfoPreview() {
       if (!path || !reference) return;
       if (current?.source === reference.source && current?.id === reference.id && current?.type === reference.type) return;
       dismiss();
-      const rect = reference.source.getBoundingClientRect();
-      const width = Math.min(360, Math.max(0, window.innerWidth - 24));
       const next = {
         ...reference,
-        x: Math.max(12, Math.min(reference.x ?? rect.left, window.innerWidth - width - 12)),
-        y: Math.max(12, Math.min((reference.y ?? rect.bottom) + 12, window.innerHeight - Math.min(360, window.innerHeight - 24) - 12)),
+        position: previewPosition(reference),
       };
       current = next;
       openTimer = window.setTimeout(async () => {
@@ -127,23 +157,21 @@ export default function EntityInfoPreview() {
       }, 200);
     };
     const enter = (event) => {
-      if (cardRef.current?.contains(event.target)) {
-        window.clearTimeout(closeTimer);
-        return;
-      }
       const reference = referenceAt(event.target);
+      if (reference && event.type === "pointerover") {
+        reference.x = event.clientX;
+        reference.y = event.clientY;
+      }
       if (reference) show(reference);
     };
     const leave = (event) => {
       const destination = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-      if (current?.source.contains(destination) || cardRef.current?.contains(destination)) return;
-      if (current?.source.contains(event.target) || cardRef.current?.contains(event.target)) scheduleClose();
+      if (current?.source.contains(destination)) return;
+      if (current?.source.contains(event.target)) scheduleClose();
     };
     const graph = (event) => event.detail?.dismiss ? dismiss() : event.detail ? show(event.detail) : scheduleClose();
     const key = (event) => { if (event.key === "Escape") dismiss(); };
-    const scroll = (event) => {
-      if (!(event.target instanceof Node) || !cardRef.current?.contains(event.target)) dismiss();
-    };
+    const scroll = () => dismiss();
     document.addEventListener("pointerover", enter);
     document.addEventListener("pointerout", leave);
     document.addEventListener("focusin", enter);
@@ -166,5 +194,5 @@ export default function EntityInfoPreview() {
     };
   }, [path, location.key, cardId]);
 
-  return preview ? <EntityInfoCard preview={preview} index={index} cardId={cardId} cardRef={cardRef} /> : null;
+  return preview ? <EntityInfoCard preview={preview} index={index} cardId={cardId} /> : null;
 }

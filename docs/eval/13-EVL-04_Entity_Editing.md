@@ -17,12 +17,14 @@ real JavaScript IPC wrapper with only the native transport mocked:
 | --- | --- |
 | `TC-04-PREVIEW-001` (all four types) | Hover shows a Bootstrap card with identity, typed metadata, readable relationship names and description; exact `load_entity_detail` invoke and payload asserted. |
 | `TC-04-PREVIEW-002` | Keyboard focus opens, Escape dismisses, existing `aria-describedby` restored. |
-| `TC-04-PREVIEW-003` | Transient hover cancels before IPC; pointer transfer and inner scrolling retain card; leaving dismisses. |
+| `TC-04-PREVIEW-003` | Transient hover cancels before IPC; leaving dismisses the card. |
 | `TC-04-PREVIEW-004` | Late responses cannot replace another entity card; navigation dismisses. |
 | `TC-04-PREVIEW-005` | Backend errors and stalled reads show explicit errors. |
 | `TC-04-PREVIEW-006` | Host graph hover bridge opens card, coordinates fit viewport, leave dismisses, external URLs are ignored. |
 | `TC-04-PREVIEW-007` | Markdown/HTML displayed as inert text and excerpt limited to 400 characters plus ellipsis. |
 | `TC-04-PREVIEW-008` | Outer scroll/resize dismiss and late unmounted responses are ignored. |
+| `TC-04-PREVIEW-POS-001`, `TC-04-PREVIEW-POS-002` | Pointer-triggered cards stay inside large and narrow viewports, do not intercept pointer events, and do not interrupt source clicks. |
+| `TC-04-IPC-DATE-001`, `TC-04-IPC-DATE-002` | Birthday, death and FACT occurrence use calendar-only controls and update the real save invoke, retaining time/zone suffixes; invalid text is warned and preserved, with Japanese labels. |
 | `TC-08-PREVIEW-001` (FACT and EXPERIENCE) | Real creation dropdown choices show the shared card through exact typed detail invokes before selection; modifier-free toggling and Escape remain usable. |
 | `TC-08-PREVIEW-002` (Origin and Target) | Real LINK search results show focus previews without selecting; replacing results dismisses the card; selecting a result closes the preview. |
 | `TC-08-PREVIEW-003` | Retained LINK selections preview correctly; closing a menu dismisses a pending read and ignores its eventual response. |
@@ -142,6 +144,7 @@ No native command or serialized schema change is required.
 | `TC-04-REACT-INLINE-002` | `REQ-04-RULE-016` | Summary click focuses its only input; blur does not save, Escape discards, focus returns to content, and explicit Save preserves other fields. |
 | `TC-04-REACT-INLINE-003` (all entity types) | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Detail edits produce exact typed payloads, keep summary/Markdown/URLs unchanged, and restore reading mode. |
 | `TC-04-REACT-INLINE-004` | `REQ-04-RULE-016`, `REQ-04-RULE-017` | Bad UUID input never invokes save; a pending save disables Cancel/Refresh and suppresses duplicate submits; failure retains input and Cancel discards it. |
+| `TC-04-IPC-PICKER-001`, `TC-04-IPC-PICKER-002` | `REQ-04-RULE-017` | Real ticket controls select and remove EXPERIENCE titles and send UUID arrays through invoke; unavailable selections survive saving without displaying UUIDs. |
 | `TC-04-REACT-INLINE-005` (all entity types) | `REQ-04-RULE-016` | Explicit Edit details button reveals the typed form, Save and Cancel; Cancel discards input, removes the form and restores button focus without IPC. |
 | `TC-04-REACT-LINK-001` to `006` | `REQ-04-RULE-012`, `REQ-04-RULE-016` | Explicitly enter the link editor before mutating; successful saves/cancels close it, refresh retains drafts, and separate Open actions surface browser failures. |
 | `TC-04-IPC-INLINE-001` in `src-tauri/tests/entity_editor_commands_ipc.rs` | `REQ-04-RULE-017` | All four native generated save handlers deserialize typed detail updates, persist them to SQLite and reload unchanged summary/Markdown. Included in `entity_editor_commands_external_links_round_trip_through_registered_tauri_invokes`. |

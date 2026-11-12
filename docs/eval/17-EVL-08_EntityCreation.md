@@ -68,7 +68,9 @@ Entity creation coverage for `REQ-08-017` / `REQ-08-018`:
 
 | Test ID | Automated target | Required evidence |
 | --- | --- | --- |
-| `TC-08-REACT-REL-001` (FACT and EXPERIENCE) | `test/seq08.test.jsx` | All loaded EXPERIENCE entries appear, including duplicate/empty names; UUIDs distinguish options; fields are multi-select; multiple selections survive tab switches and serialize as complete UUID arrays. |
+| `TC-08-REACT-REL-001` (FACT and EXPERIENCE) | `test/seq08.test.jsx` | All loaded EXPERIENCE entries appear, including duplicate/empty names; title search and keyboard navigation work; badges remove selections without displaying UUIDs; selections survive tab switches and serialize as UUID arrays. |
+| `TC-08-IPC-PICKER-001` (FACT and EXPERIENCE) | `test/experience-picker-ipc.test.jsx` | Real creation controls filter and select multiple titles and invoke the existing creation commands with UUID arrays. |
+| `TC-08-IPC-DATE-001` | `test/date-input-ipc.test.jsx` | Calendar-only FACT start/end controls send selected dates through the real creation invoke. |
 | `TC-08-REACT-REL-002` (FACT and EXPERIENCE) | `test/seq08.test.jsx` | Clearing selection sends `[]`; failures remain visible; no EXPERIENCE records produce a disabled explicit empty state. |
 | `TC-08-REACT-LINK-001` | `test/seq08.test.jsx` | All four creation forms omit Description controls and submit empty description fields alongside external URLs. |
 | `TC-08-IPC-REL-001` / `TC-05-CLI-CREATE-001` | `entity_creation_persists_selected_experiences_and_default_markdown` in `src-tauri/tests/model_initialization_ipc.rs` | Real registered commands create all four entity types; reloaded EXPERIENCE parent and FACT membership arrays each retain both selected UUIDs; every generated Markdown has identity FrontMatter and the default body, matches detail IPC output, and loads through the actual editor binary's verify/preview commands. |
@@ -87,13 +89,13 @@ with only native transport mocked:
 
 | Test ID | Required evidence |
 | --- | --- |
-| `TC-08-PREVIEW-001` (FACT and EXPERIENCE) | Hovering EXPERIENCE choices invokes `load_entity_detail` with exact workspace/type/UUID before selection; the shared card shows metadata and remains clickable/selectable without closing the list; clicking choices toggles selection while the list remains open; Escape dismisses the card. |
+| `TC-08-PREVIEW-001` (FACT and EXPERIENCE) | Hovering EXPERIENCE choices invokes `load_entity_detail` with exact workspace/type/UUID before selection; the shared card shows metadata without intercepting clicks; clicking choices toggles selection while the list remains open; Escape dismisses the card. |
 | `TC-08-PREVIEW-002` (Origin and Target) | Editing a LINK query opens results; focusing a result previews its entity without selection; removing results dismisses the card; choosing a result selects it and dismisses the card. |
 | `TC-08-PREVIEW-003` | A retained current-selection choice previews the correct FACT; closing the menu during an EXPERIENCE read removes the card and ignores its late response without changing the selected endpoint. |
 
 Browser acceptance: check both multi-pickers, modifier-free multiple selection,
 Clear, arrow-key navigation, Enter/Space and Escape; check searched and retained
-LINK results, pointer transfer into the preview, light/dark themes, and narrow
+LINK results, click-through previews, light/dark themes, and narrow
 viewport wrapping without horizontal overflow.
 
 The Markdown CLI case requires `src-tauri/binaries/hasm_markdown.exe`; if absent,

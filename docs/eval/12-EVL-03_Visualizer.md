@@ -84,7 +84,7 @@ not a diagnosis of a particular user's workspace corruption.
 | Test ID | Requirement | Expected result |
 | --- | --- | --- |
 | `TC-03-REACT-SCOPE-004` | `REQ-03-FUNC-501` | A single-PERSON model hides PERSON selection but keeps EXPERIENCE selection. |
-| `TC-03-REACT-SCOPE-005` | `REQ-03-FUNC-503` | Plain-click toggles compose with PERSON scope; selecting another EXPERIENCE adds it, and toggling one off removes its FACTs. |
+| `TC-03-REACT-SCOPE-005` | `REQ-03-FUNC-501`, `REQ-03-FUNC-503` | Title search filters eligible EXPERIENCEs; selection and badge removal compose with PERSON scope and update FACTs. |
 | `TC-03-SCOPE-006` | `REQ-03-FUNC-503` | Selecting a child retains ancestors and its descendants but excludes siblings. |
 | `TC-03-SCOPE-007` | `REQ-03-FUNC-503` | Explicit EXPERIENCE scope excludes unrelated FACTs even if their PERSON is selected; PERSON-only scope still retains PERSON-owned FACTs. |
 | `TC-03-REACT-2D-001` | `REQ-03-FUNC-509` | Pane and SVG widths use the same lane geometry and shrink after EXPERIENCE selection. |

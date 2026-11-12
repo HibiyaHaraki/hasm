@@ -354,7 +354,7 @@ function EntityDetailPage() {
             </div>
             {workspaceState?.isVerified === false ? <p>{t("Return to Visualizer to re-verify before opening referenced entities.")}</p> : null}
             {editing === "details" ? (
-              <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
+              <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} experiences={workspaceState?.model?.experiences ?? []} t={t} />
             ) : (
               <dl className="mb-0">
                 {DETAIL_FIELDS[entityType].map((field) => (

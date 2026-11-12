@@ -93,14 +93,14 @@ describe("SEQ-04 entity ticket", () => {
     ["2026-10-29T13:45:00Z", { year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }],
     ["not-a-date", null],
     ["2026-02-30", null],
-  ])("TC-04-REACT-DISPLAY-002 localizes occurrence %s and keeps the raw editor value", async (occurredAt, options) => {
+  ])("TC-04-REACT-DISPLAY-002 localizes occurrence %s and preserves its calendar draft", async (occurredAt, options) => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { occurredAt } });
     renderTicket("FACT");
     fireEvent.change(await screen.findByLabelText("Language"), { target: { value: "ja" } });
     const expected = options ? new Intl.DateTimeFormat("ja-JP", options).format(new Date(occurredAt)) : occurredAt;
     expect(within(screen.getByRole("region", { name: "詳細" })).getByText(expected)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
-    expect(screen.getByLabelText("発生日時")).toHaveValue(occurredAt);
+    expect(screen.getByLabelText("発生日時")).toHaveValue(options ? occurredAt.slice(0, 10) : "");
     fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01" } });
     fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
     expect(screen.getByLabelText("Occurred at")).toHaveValue("2026-11-01");
@@ -196,9 +196,9 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Edit details" }));
     expect(screen.getByRole("form", { name: "Edit details" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
-    const input = screen.getAllByRole("textbox")[0];
+    const input = screen.getByLabelText({ PERSON: "Birthday", EXPERIENCE: "Owner person", FACT: "Occurred at", LINK: "Relationship type" }[type]);
     expect(input).toHaveFocus();
-    fireEvent.change(input, { target: { value: "Discard this" } });
+    fireEvent.change(input, { target: { value: input.type === "date" ? "2024-02-29" : "Discard this" } });
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
@@ -390,7 +390,7 @@ describe("SEQ-04 entity ticket", () => {
   });
   it.each([
     ["PERSON", { personName: "Original", birthday: "", die: "", linkIds: [] }, "Birthday", "1815-12-10", { birthday: "1815-12-10", die: "", linkIds: [] }],
-    ["EXPERIENCE", { experienceName: "Original", personId: "11111111-1111-1111-1111-111111111111", parentExperienceIds: [], linkIds: [] }, "Parent experiences", "22222222-2222-2222-2222-222222222222", { personId: "11111111-1111-1111-1111-111111111111", parentExperienceIds: ["22222222-2222-2222-2222-222222222222"], linkIds: [] }],
+    ["EXPERIENCE", { experienceName: "Original", personId: "11111111-1111-1111-1111-111111111111", parentExperienceIds: [], linkIds: [] }, "Owner person", "22222222-2222-2222-2222-222222222222", { personId: "22222222-2222-2222-2222-222222222222", parentExperienceIds: [], linkIds: [] }],
     ["FACT", { factName: "Original", occurredAt: "", experienceIds: [], personIds: [], linkIds: [] }, "Occurred at", "2026-10-29", { occurredAt: "2026-10-29", experienceIds: [], personIds: [], linkIds: [] }],
     ["LINK", { linkName: "Original", linkType: "references", relatedIds: [] }, "Relationship type", "supports", { linkType: "supports", relatedIds: [] }],
   ])("TC-04-REACT-INLINE-003 edits typed %s details without changing summary, Markdown or external links", async (type, metadata, label, value, patch) => {
@@ -409,7 +409,7 @@ describe("SEQ-04 entity ticket", () => {
       ? new Intl.DateTimeFormat("en-US", {
         year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
       }).format(new Date(`${value}T00:00:00.000Z`))
-      : type === "EXPERIENCE" ? "Unavailable EXPERIENCE" : value;
+      : type === "EXPERIENCE" ? "Unavailable PERSON" : value;
     expect(screen.getByRole("region", { name: "Details" })).toHaveTextContent(displayedValue);
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });

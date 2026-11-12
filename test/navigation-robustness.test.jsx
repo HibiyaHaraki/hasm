@@ -310,11 +310,11 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_entity_detail")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "詳細を編集" }));
-    fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01T10:30:00Z" } });
+    fireEvent.change(screen.getByLabelText("発生日時"), { target: { value: "2026-11-01" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await flush();
     expect(bridge.invoke).toHaveBeenCalledWith("save_fact_detail", {
-      modelRoot: path, detail: { ...fact, occurredAt: "2026-11-01T10:30:00Z" },
+      modelRoot: path, detail: { ...fact, occurredAt: "2026-11-01" },
     });
     expect(within(screen.getByRole("main")).getByText(/メタデータを保存しました。/)).toHaveAttribute("role", "status");
     expect(screen.getByRole("article", { name: "Markdownプレビュー" })).toHaveTextContent("Publication");

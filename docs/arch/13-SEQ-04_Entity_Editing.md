@@ -30,10 +30,14 @@ is used, so edits are not hidden by cached descriptions. Abandoned-request
 results are ignored when the entity, workspace, route, or mounted layer changes.
 
 Keyboard focus uses the same preview with `aria-describedby`; Escape dismisses
-it and restores the trigger's previous description relationship. A 150ms leave
-grace lets the pointer enter/select/scroll the card. Route changes, outer scroll,
-resize and unmount dismiss it. The fixed card stays within viewport bounds,
-limits its height, wraps long text, and inherits active HASM theme variables.
+it and restores the trigger's previous description relationship. Leaving the
+trigger dismisses it after a 150ms grace. Route changes, scroll, resize and
+unmount also dismiss it. Pointer previews are offset from the pointer, choosing
+another side or narrowing the card at viewport edges; keyboard focus anchors to
+the source element. The card does not receive pointer events, so it cannot block
+entity clicks, but its contents are not pointer-selectable or scrollable. The
+fixed card stays within viewport bounds, limits its height, wraps long text, and
+inherits active HASM theme variables.
 
 **Submodule boundary:** `src/hasm_visualizer` is unchanged. Its main 2D/3D canvas
 hover remains the existing submodule tooltip because there is no public hover
@@ -220,14 +224,23 @@ changing the calendar day; timestamps use the user's local time zone. Editing
 and save payloads retain the original date/time representation. Changing a
 display preference neither reloads nor saves a ticket and preserves open drafts.
 
+Birthday, date of death, and FACT occurrence editors use native calendar controls
+only. Selecting a calendar date replaces the date portion while preserving and
+displaying an existing `T` time/offset suffix; it never converts time zones.
+Invalid legacy text is shown as a warning, preserved until a replacement is chosen.
+
 Page-local `--base-font-size` values are 14px, 16px, and 18px. Relative typography
 scales the summary, metadata, Markdown preview, and controls together without
 changing the global navigation or other pages. Wrapping controls, labels, and
 content keep the sidebar and toolbar usable on narrow windows. Changes log
 `[SEQ-MD-04][DISPLAY]` without document or asset contents.
 
-Relationship UUID arrays are edited as comma-separated UUIDs and converted
-back to arrays only on Save; empty arrays remain `[]`. Invalid UUIDs, empty
+EXPERIENCE parent and FACT experience relationships use the shared searchable
+multi-picker; selected titles appear as removable badges. Unresolved existing
+relationships remain removable as `Unavailable EXPERIENCE` without revealing
+their UUID or silently discarding them. Other relationship UUID arrays are
+edited as comma-separated UUIDs; all arrays are sent on Save, with `[]` for
+empty arrays. Invalid UUIDs, empty
 summaries/relationship types, self-links, and unsafe URLs are displayed before
 dispatch. Existing native validation remains authoritative.
 

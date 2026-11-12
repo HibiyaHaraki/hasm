@@ -57,6 +57,13 @@ function selectOptions(select, values) {
   Array.from(select.options).forEach((option) => { option.selected = values.includes(option.value); });
   fireEvent.change(select);
 }
+function chooseExperience(title) {
+  const scopeButton = screen.getByRole("button", { name: /^Scope:/ });
+  if (scopeButton.getAttribute("aria-expanded") !== "true") fireEvent.click(scopeButton);
+  const input = screen.getByLabelText("EXPERIENCE scope");
+  if (input.getAttribute("aria-expanded") !== "true") fireEvent.focus(input);
+  fireEvent.click(screen.getByRole("option", { name: title }));
+}
 
 function LocationProbe() {
   const location = useLocation();
@@ -90,15 +97,15 @@ describe("SEQ-03 visualizer lifecycle", () => {
     const panel = screen.getByRole("region", { name: "Scope selection" });
     expect(panel).toBeVisible();
     expect(scopeButton).toHaveAttribute("aria-controls", panel.id);
-    expect(within(panel).getAllByRole("listbox")).toHaveLength(2);
-    selectOptions(within(panel).getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    expect(within(panel).getAllByRole("listbox")).toHaveLength(1);
+    chooseExperience("Teaching");
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(2));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(scopeButton).toHaveFocus();
     expect(scopeButton).toHaveAttribute("aria-expanded", "false");
     expect(scopeButton).toHaveTextContent("1 selected");
     fireEvent.click(scopeButton);
-    expect(within(screen.getByRole("region", { name: "Scope selection" })).getByLabelText("EXPERIENCE scope")).toHaveValue(["exp-2"]);
+    expect(within(screen.getByRole("region", { name: "Scope selection" })).getByRole("button", { name: "Remove Teaching" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(scopeButton).toHaveFocus();
     fireEvent.click(scopeButton);
@@ -189,7 +196,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
     renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
 
-    selectOptions(screen.getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    chooseExperience("Teaching");
 
     await vi.waitFor(() => {
       const scoped = api.computeVisualizerLayout.mock.calls.at(-1)[0];
@@ -231,12 +238,19 @@ describe("SEQ-03 visualizer lifecycle", () => {
     renderVisualizer({ model: scopedFixture, path: "C:/fixture.hasm", isVerified: true });
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
     selectOptions(screen.getByLabelText("PERSON scope"), ["person-1"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
     const select = screen.getByLabelText("EXPERIENCE scope");
-    fireEvent.mouseDown(select.options[1], { button: 0 });
+    fireEvent.focus(select);
+    expect(within(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).getAllByRole("option")).toHaveLength(2);
+    fireEvent.change(select, { target: { value: "teac" } });
+    expect(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).toHaveTextContent("Teaching");
+    expect(screen.queryByRole("option", { name: "Research" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Teaching" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-2"]));
-    fireEvent.mouseDown(select.options[0], { button: 0 });
+    fireEvent.change(select, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("option", { name: "Research" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts).toHaveLength(2));
-    fireEvent.mouseDown(select.options[1], { button: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Remove Teaching" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-1"]));
   });
 
@@ -257,7 +271,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
       ...payload,
       nodes3d: [{ id: "exp-2", entityType: "EXPERIENCE", x: 0, y: 4, z: 0 }],
     });
-    selectOptions(screen.getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    chooseExperience("Teaching");
     await vi.waitFor(() => expect(graph.style.width).toBe(`${graphWidthForLaneCount(1)}px`));
     await vi.waitFor(() => expect(graph.querySelector("svg")?.getAttribute("width")).toBe(String(graphWidthForLaneCount(1))));
   });

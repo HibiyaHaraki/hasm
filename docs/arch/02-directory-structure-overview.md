@@ -28,10 +28,14 @@ graph callbacks through the existing single-entity read invoke. The visualizer
 submodule and its canvas tooltip are not modified; see
 [SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card).
 
-`src/features/entityCreation/components/EntityPicker.jsx` and its co-located CSS
-own accessible Bootstrap single/multi dropdown choices. `ExperienceSelect.jsx`
-and `LinkEntitySelect.jsx` supply typed choices for the shared preview layer;
-picker lifecycle dismisses previews without changing creation IPC contracts.
+`src/hasm_visualizer/ExperienceMultiSelect.jsx` and its co-located CSS provide
+the standalone searchable EXPERIENCE multi-picker, reused by creation and ticket
+editing through `ExperienceSelect.jsx`. `EntityPicker.jsx` remains the LINK
+endpoint picker. Host EXPERIENCE choices supply typed IDs for the shared preview
+layer; picker lifecycle dismisses previews without changing IPC contracts.
+
+`src/components/DateInput.jsx` provides accessible native calendar-only controls
+while preserving existing serialized time/offset suffixes.
 
 ```
 

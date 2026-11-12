@@ -120,9 +120,10 @@ it("TC-03-VIEW-002 retains scope, time scale and Z scale through graph-ticket-re
     <Routes><Route path="/visualizer" element={<VisualizerPage />} /><Route path="/entity-detail/:type/:id" element={<Ticket />} /></Routes>
   </MemoryRouter>);
   await screen.findByText("Paper");
+  fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
   const scope = screen.getByLabelText("EXPERIENCE scope");
-  scope.options[1].selected = true;
-  fireEvent.change(scope);
+  fireEvent.focus(scope);
+  fireEvent.click(screen.getByRole("option", { name: "Research" }));
   fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "Logarithmic" } });
   fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: "1.7" } });
   await waitFor(() => expect(bridge.invoke).toHaveBeenLastCalledWith("compute_visualizer_layout", {
@@ -136,7 +137,8 @@ it("TC-03-VIEW-002 retains scope, time scale and Z scale through graph-ticket-re
   fireEvent.click(await screen.findByText("Return"));
   expect(await screen.findByLabelText("Time scale")).toHaveValue("Logarithmic");
   expect(screen.getByLabelText("Z scale")).toHaveValue("1.7");
-  expect([...screen.getByLabelText("EXPERIENCE scope").selectedOptions].map((option) => option.value)).toEqual(["child"]);
+  fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
+  expect(screen.getByRole("button", { name: "Remove Research" })).toBeInTheDocument();
 });
 
 it("TC-03-VIEW-004 restores 3D mode and renderer camera state on return", async () => {
@@ -179,7 +181,8 @@ it("TC-03-VIEW-005 retains view settings through save re-verification guard", as
   fireEvent.click(await screen.findByRole("button", { name: "Go to visualization" }));
   expect(await screen.findByLabelText("Time scale")).toHaveValue("Logarithmic");
   expect(screen.getByLabelText("Z scale")).toHaveValue("1.4");
-  expect([...screen.getByLabelText("EXPERIENCE scope").selectedOptions].map((option) => option.value)).toEqual(["child"]);
+  fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
+  expect(screen.getByRole("button", { name: "Remove Research" })).toBeInTheDocument();
 });
 
 it("TC-03-VIEW-003 shows exactly the hovered EXPERIENCE badge and its line color", async () => {

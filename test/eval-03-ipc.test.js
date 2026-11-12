@@ -39,8 +39,10 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
       initialEntries: [{ pathname: "/visualizer", state: { model, path: "fixture.hasm", isVerified: true } }],
     }, React.createElement(VisualizerPage)));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("compute_visualizer_layout", expect.any(Object)));
+    fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
     const select = screen.getByLabelText("EXPERIENCE scope");
-    fireEvent.mouseDown(select.options[1], { button: 0 });
+    fireEvent.focus(select);
+    fireEvent.click(screen.getByRole("option", { name: "Teaching" }));
     fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: "1.7" } });
     await waitFor(() => expect(invoke).toHaveBeenLastCalledWith("compute_visualizer_layout", {
       model: { ...model, experiences: [model.experiences[1]], facts: [model.facts[1]] },

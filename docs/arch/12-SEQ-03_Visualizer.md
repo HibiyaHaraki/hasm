@@ -48,6 +48,12 @@ on remount, without global browser storage or changes to serialized entities.
 Settings snapshots do not change renderer callback identity when a filter changes;
 failed layout changes must keep the previous scene intact.
 
+The EXPERIENCE scope uses the standalone `ExperienceMultiSelect`: an empty
+search displays every EXPERIENCE allowed by the PERSON scope; a trimmed,
+case-insensitive title query filters the list. Selected titles remain visible
+as removable badges while searches change. Scope IDs and layout IPC remain
+unchanged. Escape first closes the search list, then closes the scope panel.
+
 SequentialIndex rendering deduplicates FACT projections by UUID and XY EXPERIENCE
 position before creating SVG circles, preferring direct markers. Distinct branch
 placements and ancestor reflections remain intentional. Unique title rows prefer

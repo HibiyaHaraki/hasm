@@ -235,8 +235,9 @@ The FACT **Belonging EXPERIENCE** and EXPERIENCE **Parent EXPERIENCE** controls
 are multi-select lists backed by the complete `model.experiences` collection
 already loaded by `load_hasm_model_db` and passed through visualizer navigation.
 They do not use the visualizer's filtered/visible graph nodes or issue a second
-database load. Each option shows the EXPERIENCE name and UUID so duplicate names
-remain distinguishable; unnamed entries use `Untitled EXPERIENCE`.
+database load. Each option and selected badge shows only the EXPERIENCE title;
+unnamed entries use `Untitled EXPERIENCE`. The model has no separate human-readable
+EXPERIENCE ID, so no identifier is invented or UUID displayed in the picker.
 The shared `features/entityCreation/components/ExperienceSelect.jsx` component
 owns accessible Bootstrap labels and selection behavior. No existing-child
 selector is offered: the new EXPERIENCE becomes a child of the selected parent.
@@ -246,13 +247,20 @@ UUIDs are sent in the existing `experienceIds` / `parentExperienceIds`
 IPC arrays. An empty model collection displays a disabled
 **No EXPERIENCE available** control. Switching entity types retains selections.
 The backend's array contracts and existing multiple-relationship metadata remain
-unchanged. The shared `EntityPicker` Bootstrap dropdown exposes a labeled listbox
-with selected-state options. Click or Enter/Space toggles each EXPERIENCE without
-modifier keys and keeps the dropdown open; the labeled Clear button removes all
-selections. Hover or keyboard focus on a choice opens the shared entity information
+unchanged. The searchable picker exposes a labeled listbox with selected-state
+options. An empty query shows all options; a trimmed, case-insensitive title query
+shows only matching options. Click or Enter/Space toggles each EXPERIENCE without
+modifier keys; selected badges have individual remove buttons and Clear removes all.
+Hover or keyboard focus on a choice opens the shared entity information
 card through the existing single-entity read invoke (see
 [SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card)).
 Arrow keys move through choices; Escape closes the dropdown and preview.
+Enter in the search field toggles the first match rather than submitting the form.
+
+FACT start and end fields use native calendar controls without ISO text inputs.
+Picking a date preserves any existing `T` time/offset suffix;
+the existing `startTime` / `endTime` creation payload remains unchanged. Model
+initialization already uses a native birth-date calendar.
 
 PERSON, EXPERIENCE, FACT, and LINK creation forms do not accept descriptions.
 They send the existing description request field as an empty string, using the

@@ -34,8 +34,12 @@ function LocationProbe() {
 }
 
 function choices(label) {
-  const toggle = screen.getByRole("button", { name: label, exact: true });
-  if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
+  const toggle = label.includes("EXPERIENCE")
+    ? screen.getByRole("combobox", { name: label }) : screen.getByRole("button", { name: label, exact: true });
+  if (toggle.getAttribute("aria-expanded") !== "true") {
+    if (toggle.tagName === "INPUT") fireEvent.focus(toggle);
+    else fireEvent.click(toggle);
+  }
   return screen.getByRole("listbox", { name: label });
 }
 
@@ -158,11 +162,29 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     const select = choices(label);
     expect(select).toHaveAttribute("aria-multiselectable", "true");
     expect(within(select).getAllByRole("option")).toHaveLength(3);
-    for (const experience of experiences) {
-      expect(within(select).getByRole("option", { name: `${experience.experienceName || "Untitled EXPERIENCE"} (${experience.experienceId})` }))
-        .toHaveAttribute("data-entity-id", experience.experienceId);
-    }
+    expect(within(select).getAllByRole("option", { name: "Shared name" })).toHaveLength(2);
+    expect(within(select).getByRole("option", { name: "Untitled EXPERIENCE" })).toBeInTheDocument();
+    expect(select).not.toHaveTextContent(experiences[0].experienceId);
+    const search = screen.getByRole("combobox", { name: label });
+    fireEvent.change(search, { target: { value: "  SHARED  " } });
+    expect(within(select).getAllByRole("option")).toHaveLength(2);
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(within(select).getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(within(select).getAllByRole("option")[0]).toHaveAttribute("aria-selected", "false");
+    fireEvent.change(search, { target: { value: "no match" } });
+    expect(within(select).getByRole("status")).toHaveTextContent("No matching experiences.");
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(api[command]).not.toHaveBeenCalled();
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(within(select).getAllByRole("option")[0]).toHaveFocus();
+    fireEvent.keyDown(within(select).getAllByRole("option")[0], { key: "ArrowDown" });
+    expect(within(select).getAllByRole("option")[1]).toHaveFocus();
     choose(label, experiences[0].experienceId);
+    choose(label, experiences[2].experienceId);
+    expect(screen.getByRole("button", { name: "Remove Untitled EXPERIENCE" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Untitled EXPERIENCE" }));
     choose(label, experiences[2].experienceId);
     fireEvent.click(screen.getByRole("button", { name: "PERSON" }));
     fireEvent.click(screen.getByRole("button", { name: type }));
@@ -194,7 +216,7 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     render(<MemoryRouter initialEntries={[{ state: { model: { ...model, experiences: [] }, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: type }));
     expect(screen.getByLabelText(label)).toBeDisabled();
-    expect(screen.getByLabelText(label)).toHaveTextContent("No EXPERIENCE available");
+    expect(screen.getByLabelText(label)).toHaveAttribute("placeholder", "No EXPERIENCE available");
   });
   it("TC-08-REACT-001 shows Create New Entity button on Visualizer and moves to creation page", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
