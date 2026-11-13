@@ -45,13 +45,34 @@ const REFERENCE_TYPES = {
   linkIds: "LINK",
 };
 
+// [REQ-04-RULE-018] Resolve every distinct owner through the EXPERIENCE ancestor graph.
+export function experienceOwnerIds(index, experience, experienceId) {
+  const owners = new Set();
+  const visited = new Set();
+  const pending = [{ id: experienceId, entity: experience }];
+  while (pending.length) {
+    const { id, entity: current } = pending.pop();
+    if (!current) continue;
+    if (id && visited.has(id)) continue;
+    if (id) visited.add(id);
+    if (current.personId && current.personId !== "00000000-0000-0000-0000-000000000000") owners.add(current.personId);
+    for (const parentId of [...(current.parentExperienceIds ?? [])].reverse()) {
+      const parent = index.entities.get(parentId);
+      if (parent?.type === "EXPERIENCE") pending.push({ id: parentId, entity: parent.entity });
+    }
+  }
+  return [...owners];
+}
+
 // [REQ-04-RULE-018] [REQ-04-RULE-020] Maps a typed detail field to its resolved entity
 // references (id, type, title) used for readable labels and ticket navigation links.
 export function detailEntityReferences(index, field, detail, ticket, t = translateTicket) {
   const { key, list } = field;
   if (!REFERENCE_TYPES[key] && key !== "relatedIds") return null;
   const value = detail[key];
-  const ids = list ? value ?? [] : value ? [value] : [];
+  const ids = key === "personId" && ticket?.entityType === "EXPERIENCE"
+    ? experienceOwnerIds(index, detail, ticket.entityId)
+    : list ? value ?? [] : value ? [value] : [];
   return ids.map((id) => {
     const type = index.entities.get(id)?.type;
     return {

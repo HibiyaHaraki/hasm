@@ -257,6 +257,8 @@ The implemented `main.db` schema (`service::ensure_schema`) creates the followin
 Every connection opened by `service::open_connection` applies `journal_mode = WAL`, `synchronous = NORMAL`, `temp_store = MEMORY`, and `cache_size = -65536` before running any statement, so folder bootstrap inserts do not pay a full fsync per row.
 
 **Experience ownership.** `experience.person_id` carries the nil-UUID owner placeholder for folder-only entities that are bootstrapped before their owning PERSON is known. It therefore declares no SQL foreign key, and `foreign_keys` enforcement is left disabled; ownership validity is enforced in the Rust domain layer.
+Display resolves non-nil owners recursively through all parent EXPERIENCEs without
+writing inherited owners back to the database.
 
 ---
 

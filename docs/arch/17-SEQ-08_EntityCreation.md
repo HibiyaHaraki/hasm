@@ -82,6 +82,11 @@ in the new entity row. The auto-generated PERSON root EXPERIENCE starts with its
 own empty array; PERSON URLs are not copied into it. Workspace scaffolding and
 creation reuse `service::ensure_schema`, including legacy-column migration.
 
+Set `VITE_ENABLE_SECURITY_LEVEL=false` when building the frontend to hide
+security-level inputs on the four creation forms. The default and `true` keep
+them visible. The hidden input still sends the existing default level `1`;
+backend validation, persistence contracts and existing data are unchanged.
+
 | Operation | Timeout Rule | Timeout Value | Timeout Action & Rollback |
 | --- | --- | --- | --- |
 | **Directory Selection & Workspace Scaffolding** (`create_hasm_workspace`) | Fixed Hard Timeout | **3,000 ms** | Delete partially created `.hasm` directory; return `ERR_WORKSPACE_CREATION_FAILED`. |

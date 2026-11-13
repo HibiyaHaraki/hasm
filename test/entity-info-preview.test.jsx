@@ -66,6 +66,22 @@ afterEach(() => {
 });
 
 describe("Shared entity information card", () => {
+  it("TC-04-PREVIEW-OWNER-001 shows inherited owners after the detail invoke", async () => {
+    const childId = "55555555-5555-5555-5555-555555555555";
+    const child = { experienceId: childId, experienceName: "Child",
+      personId: "00000000-0000-0000-0000-000000000000", parentExperienceIds: [experienceId] };
+    const childModel = { ...model, experiences: [...model.experiences, child] };
+    invoke.mockResolvedValue({ name: "Child", detail: child, markdownBody: "" });
+    render(<MemoryRouter initialEntries={[{ state: { path: "C:\\fixture.hasm", model: childModel } }]}>
+      <EntityInfoPreview /><Link to={`/entity-detail/EXPERIENCE/${childId}`}>Child reference</Link>
+    </MemoryRouter>);
+    await open(screen.getByText("Child reference"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("OwnerAda");
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("load_entity_detail", {
+      modelRoot: "C:\\fixture.hasm", entityType: "EXPERIENCE", entityId: childId,
+    });
+  });
+
   it.each([
     ["FACT", "Belonging EXPERIENCE"],
     ["EXPERIENCE", "Parent EXPERIENCE"],

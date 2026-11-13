@@ -332,6 +332,12 @@ EXPERIENCE`, `Unavailable LINK`, or `Unavailable entity`; unnamed records use
 serialized data and the explicit relationship editor, not in reading-mode
 reference labels. No additional workspace/Markdown load is performed.
 
+For EXPERIENCE tickets and shared information cards, owner references are
+derived from the detail record and recursively from every parent branch in
+the route model. Distinct non-nil PERSON IDs appear once in traversal order;
+cycles and missing parents terminate without inventing ownership. This is
+display-only and leaves the existing owner and parent editing payload intact.
+
 Every resolved entity reference in Details is a React Router link to its typed
 ticket route, retaining the workspace/model state. This includes owner, parent,
 people, experiences, graph LINKs, and all LINK endpoint types. Unavailable

@@ -29,6 +29,37 @@ describe("SEQ-04 entity ticket", () => {
       { linkId: "link-unrelated", linkName: "Unrelated relationship", linkType: "references", relatedIds: ["person-ada", "fact-notes"] },
     ],
   };
+  it("TC-04-OWNER-001 shows distinct recursive owners as navigable PERSON references", async () => {
+    const nil = "00000000-0000-0000-0000-000000000000";
+    const model = {
+      people: [{ personId: "ada", personName: "Ada" }, { personId: "grace", personName: "Grace" }],
+      experiences: [
+        { experienceId: "root", personId: "ada", parentExperienceIds: [] },
+        { experienceId: "other", personId: "grace", parentExperienceIds: [] },
+        { experienceId: "parent", personId: nil, parentExperienceIds: ["root", "other"] },
+      ], facts: [], links: [],
+    };
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personId: nil, parentExperienceIds: ["parent", "root"] } });
+    renderTicket("EXPERIENCE", { path: "C:/demo", model, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    expect(region.getAllByRole("link", { name: "Open PERSON: Ada" })).toHaveLength(1);
+    expect(region.getAllByRole("link", { name: "Open PERSON: Grace" })).toHaveLength(1);
+    expect(region.getByRole("link", { name: "Open PERSON: Ada" })).toHaveAttribute("href", "/entity-detail/PERSON/ada");
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+
+  it("TC-04-OWNER-002 handles missing and cyclic parents without a false nil owner", async () => {
+    const nil = "00000000-0000-0000-0000-000000000000";
+    const model = { people: [], facts: [], links: [], experiences: [
+      { experienceId: "parent", personId: nil, parentExperienceIds: ["id-1", "missing"] },
+    ] };
+    api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personId: nil, parentExperienceIds: ["parent"] } });
+    renderTicket("EXPERIENCE", { path: "C:/demo", model, isVerified: true });
+    const region = within(await screen.findByRole("region", { name: "Details" }));
+    expect(region.getByText("Not set")).toBeInTheDocument();
+    expect(region.queryByRole("link", { name: /Open PERSON/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Details" })).not.toHaveTextContent(nil);
+  });
   it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-04-REACT-REF-009 displays the %s identity and UUID in the header", async (type) => {
     api.loadEntityDetail.mockResolvedValue(detail);
     renderTicket(type);

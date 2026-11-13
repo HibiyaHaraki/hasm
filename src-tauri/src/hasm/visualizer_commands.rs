@@ -5,7 +5,7 @@ use crate::hasm::service;
 use crate::hasm::types::{LayoutFilterRequest, Line3dGeometry, ModelDatabase, Node3dGeometry, RenderPayload, TestWorkspaceFixture};
 use log::info;
 use rusqlite::Connection;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Runtime};
@@ -42,12 +42,15 @@ fn calculate_layout(model: &ModelDatabase, filter: &LayoutFilterRequest) -> Rend
     let branch_positions = calculate_branch_positions(model, &experience_by_id);
     let mut experience_fact_zs: HashMap<_, Vec<f32>> = HashMap::new();
     let person_name_by_id: HashMap<_, _> = model.people.iter().map(|person| (person.person_id, person.person_name.clone())).collect();
+    let owner_ids_by_experience = collect_experience_owners(model, &experience_by_id);
     let linked_entity_ids = collect_linked_entity_ids(model);
     let mut direct_fact_positions = HashMap::new();
 
     for experience in &model.experiences {
         let [x, y] = branch_positions.get(&experience.experience_id).copied().unwrap_or([0.0, 0.0]);
-        let person_name = person_name_by_id.get(&experience.person_id).cloned();
+        let names = owner_ids_by_experience[&experience.experience_id]
+            .iter().filter_map(|id| person_name_by_id.get(id).cloned()).collect::<Vec<_>>();
+        let person_name = if names.is_empty() { None } else { Some(names.join(", ")) };
         nodes.push(Node3dGeometry {
             id: experience.experience_id.to_string(),
             entity_type: "EXPERIENCE".to_string(),
@@ -162,6 +165,67 @@ fn collect_linked_entity_ids(model: &ModelDatabase) -> HashMap<uuid::Uuid, Vec<S
 
 fn index_experiences(model: &ModelDatabase) -> HashMap<uuid::Uuid, &Experience> {
     model.experiences.iter().map(|experience| (experience.experience_id, experience)).collect()
+}
+
+fn collect_experience_owners(
+    model: &ModelDatabase,
+    experience_by_id: &HashMap<uuid::Uuid, &Experience>,
+) -> HashMap<uuid::Uuid, Vec<uuid::Uuid>> {
+    let mut remaining = HashMap::new();
+    let mut children: HashMap<uuid::Uuid, Vec<uuid::Uuid>> = HashMap::new();
+    let mut ready = VecDeque::new();
+    for experience in &model.experiences {
+        let mut count = 0;
+        for parent in &experience.parent_experience_ids {
+            if experience_by_id.contains_key(parent) {
+                children.entry(*parent).or_default().push(experience.experience_id);
+                count += 1;
+            }
+        }
+        remaining.insert(experience.experience_id, count);
+        if count == 0 { ready.push_back(experience.experience_id); }
+    }
+    let mut resolved: HashMap<uuid::Uuid, Vec<uuid::Uuid>> = HashMap::new();
+    while let Some(id) = ready.pop_front() {
+        let experience = experience_by_id[&id];
+        let mut owners = Vec::new();
+        let mut seen = HashSet::new();
+        if !experience.person_id.is_nil() && seen.insert(experience.person_id) {
+            owners.push(experience.person_id);
+        }
+        for parent in &experience.parent_experience_ids {
+            if let Some(parent_owners) = resolved.get(parent) {
+                for owner in parent_owners {
+                    if seen.insert(*owner) { owners.push(*owner); }
+                }
+            }
+        }
+        resolved.insert(id, owners);
+        for child in children.get(&id).into_iter().flatten() {
+            let count = remaining.get_mut(child).expect("indexed EXPERIENCE child");
+            *count -= 1;
+            if *count == 0 { ready.push_back(*child); }
+        }
+    }
+    // Cycles cannot be topologically resolved; visit each affected branch once per node.
+    for experience in &model.experiences {
+        if resolved.contains_key(&experience.experience_id) { continue; }
+        let mut pending = vec![experience.experience_id];
+        let mut visited = HashSet::new();
+        let mut seen = HashSet::new();
+        let mut owners = Vec::new();
+        while let Some(id) = pending.pop() {
+            if !visited.insert(id) { continue; }
+            if let Some(ancestor) = experience_by_id.get(&id) {
+                if !ancestor.person_id.is_nil() && seen.insert(ancestor.person_id) {
+                    owners.push(ancestor.person_id);
+                }
+                pending.extend(ancestor.parent_experience_ids.iter().rev().copied());
+            }
+        }
+        resolved.insert(experience.experience_id, owners);
+    }
+    resolved
 }
 
 fn calculate_branch_positions<'a>(

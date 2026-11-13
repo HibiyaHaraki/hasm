@@ -32,6 +32,15 @@ Automated React and IPC coverage for this specification runs through `npm run te
 | `TC-03-RUST-008` to `TC-03-RUST-014` fallback, cycle, LINK-exclusion, person-name, and payload-contract unit tests | `src-tauri/src/hasm/visualizer_commands.rs` via `cargo test visualizer_commands` | Rust: EVAL-03 Rust visualizer tests |
 | `TC-03-RUST-IPC-001`, `TC-03-RUST-IPC-002` registered-invoke rejection and progress-contract streaming | `src-tauri/tests/eval03_visualizer_ipc.rs` via `cargo test --test eval03_visualizer_ipc` | Rust: EVAL-03 Rust visualizer tests |
 
+| Test ID | Requirement | Test Type | Automated target and expected result |
+| --- | --- | --- | --- |
+| `TC-03-IPC-OWNER-001` | `REQ-03-RULE-007` `REQ-03-RULE-010` | Positive (Inherited Owners) | `eval03_inherits_all_experience_owners_through_registered_invoke`: the native invoke returns both distinct ancestor names in the existing `personName` field. |
+| `TC-03-IPC-OWNER-002` | `REQ-03-RULE-007` `REQ-03-RULE-010` | Negative (Missing and Cyclic Parents) | The same native invoke resolves an owner in a cycle and returns null for an ownerless missing-parent branch. |
+| `TC-03-OWNER-SCOPE-001` | `REQ-03-RULE-010` `REQ-03-RULE-015` | Positive (Scoped Owner Context) | `test/seq03.test.jsx` retains ancestor PERSON context in scoped layout without restoring unrelated FACTs. |
+| `TC-03-VIEW-OWNER-001` | `REQ-03-RULE-010` | Positive (2D Tooltip) | `test/visualizer-view.test.jsx` renders owner names from the real JS invoke payload when a 2D trunk is hovered, and omits the line for ownerless branches. |
+| `TC-03-VIEW-OWNER-002` | `REQ-03-RULE-010` | Positive (3D Tooltip) | `test/visualizer-view.test.jsx` shows owner names received by the 3D hover callback. |
+| `TC-03-VIEW-OWNER-003` | `REQ-03-RULE-010` `REQ-03-RULE-016` | Positive (Budgeted Owner Context) | `test/visualizer-view.test.jsx` retains ancestor EXPERIENCEs and their PERSON context while limiting FACT layout input. |
+
 `TC-03-IPC-003` supplies measured element bounds in jsdom and mocks only the native
 transport; it does not mock the host or SVG renderer. `TC-03-IPC-004` separately
 checks the actual native command's serialized response. These tests cover the

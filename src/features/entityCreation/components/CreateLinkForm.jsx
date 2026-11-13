@@ -1,5 +1,6 @@
 import { Form } from "react-bootstrap";
 import LinkEntitySelect from "./LinkEntitySelect";
+import SecurityLevelField from "./SecurityLevelField";
 
 // [REQ-08-013][REQ-08-014][REQ-08-018][REQ-08-019] Dedicated LINK creation form: required
 // link type and independently searchable Origin/Target endpoints serialized as typed UUIDs.
@@ -14,16 +15,8 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
           required
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="link-security-level">
-        <Form.Label>Security level</Form.Label>
-        <Form.Control
-          type="number"
-          min="0"
-          max="5"
-          value={value.securityLevel}
-          onChange={(event) => onChange({ ...value, securityLevel: event.target.value })}
-        />
-      </Form.Group>
+      <SecurityLevelField id="link-security-level" value={value.securityLevel}
+        onChange={(securityLevel) => onChange({ ...value, securityLevel })} />
       {["origin", "target"].map((endpoint) => (
         <LinkEntitySelect key={endpoint} endpoint={endpoint} value={value[endpoint]}
           query={value[`${endpoint}Search`]} entityOptions={entityOptions}

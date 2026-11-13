@@ -11,6 +11,7 @@ import ProtectedRoute from "../src/features/navigation/ProtectedRoute";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
 import EntityInfoPreview from "../src/features/entityTicket/EntityInfoPreview";
 import EntityDetailPage from "../src/pages/EntityDetailPage";
+import HasmVisualizerComponent from "../src/hasm_visualizer/HasmVisualizerComponent.jsx";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn().mockResolvedValue(() => {}) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
@@ -244,6 +245,64 @@ it("TC-03-VIEW-003 shows exactly the hovered EXPERIENCE badge and its line color
   expect(table.querySelector(".HasmVisualizer_FactDot")).toBeNull();
   expect(container.querySelectorAll("circle")).toHaveLength(2);
   expect(within(table).getByText("Paper")).toBeInTheDocument();
+});
+
+it("TC-03-VIEW-OWNER-001 shows inherited names on the real 2D trunk tooltip", async () => {
+  bridge.invoke.mockImplementation(async (command, args) => {
+    expect(command).toBe("compute_visualizer_layout");
+    const payload = computeVisualizerLayoutJS(args.model, args.filter);
+    const child = payload.nodes3d.find((node) => node.entityType === "EXPERIENCE" && node.id === "child");
+    child.personName = "Ada, Grace";
+    return payload;
+  });
+  const { container } = render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state: { path: "fixture.hasm", model, isVerified: true } }]}>
+    <VisualizerPage />
+  </MemoryRouter>);
+  await waitFor(() => expect(container.querySelectorAll("path.HasmVisualizer_GraphHoverable2D").length).toBeGreaterThanOrEqual(2));
+  const trunks = container.querySelectorAll("path.HasmVisualizer_GraphHoverable2D");
+  fireEvent.pointerEnter(trunks[0]);
+  expect(container.querySelector(".HasmVisualizer_Tooltip")).not.toHaveTextContent("Owner:");
+  fireEvent.pointerEnter(trunks[1]);
+  expect(container.querySelector(".HasmVisualizer_Tooltip")).toHaveTextContent("Owner: Ada, Grace");
+  expect(bridge.invoke).toHaveBeenCalledWith("compute_visualizer_layout", expect.objectContaining({ model }));
+});
+
+it("TC-03-VIEW-OWNER-002 shows owner names received from the 3D hover callback", async () => {
+  let hover;
+  vi.spyOn(renderer3D, "createCommitGraph").mockImplementation((_, __, ___, ____, onHover) => {
+    hover = onHover;
+    return () => {};
+  });
+  bridge.invoke.mockImplementation(async (_, args) => computeVisualizerLayoutJS(args.model, args.filter));
+  const { container } = render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state: { path: "fixture.hasm", model, isVerified: true } }]}>
+    <VisualizerPage />
+  </MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", { name: "3D" }));
+  await waitFor(() => expect(hover).toBeTypeOf("function"));
+  act(() => hover({ id: "child", entityType: "EXPERIENCE", label: "Research", personName: "Ada, Grace" }, { clientX: 5, clientY: 5 }));
+  expect(container.querySelector(".HasmVisualizer_Tooltip")).toHaveTextContent("Owner: Ada, Grace");
+});
+
+it("TC-03-VIEW-OWNER-003 preserves ancestor owner context when the 2D FACT budget is applied", async () => {
+  const ownerModel = {
+    people: [{ personId: "ada", personName: "Ada" }, { personId: "other", personName: "Other" }],
+    experiences: [
+      { experienceId: "root", personId: "ada", parentExperienceIds: [] },
+      { experienceId: "child", parentExperienceIds: ["root", "missing"] },
+    ],
+    facts: [
+      { factId: "kept", experienceIds: ["child"], personIds: ["other"] },
+      { factId: "omitted", experienceIds: ["root"] },
+    ],
+    links: [],
+  };
+  const compute = vi.fn(async () => ({ nodes3d: [], lines3d: [], warnings: [] }));
+  render(<HasmVisualizerComponent model={ownerModel} maxRenderedNodes={1} computeLayout={compute} />);
+  await waitFor(() => expect(compute).toHaveBeenCalled());
+  const layoutModel = compute.mock.calls[0][0];
+  expect(layoutModel.experiences.map((item) => item.experienceId)).toEqual(["root", "child"]);
+  expect(layoutModel.people.map((item) => item.personId)).toEqual(["ada", "other"]);
+  expect(layoutModel.facts.map((item) => item.factId)).toEqual(["kept"]);
 });
 
 // Shared fixtures for the 2D hover-highlight tests: two trunks, two linked FACTs, one unlinked FACT.
