@@ -91,7 +91,7 @@ function collectTestCases() {
       let type = "Other";
       if (POSITIVE_RE.test(text)) type = "Positive";
       else if (NEGATIVE_RE.test(text)) type = "Negative";
-      tcs.push({ id: tcMatch[1], file: rel(file), line: i + 1, type, reqs });
+      tcs.push({ id: tcMatch[1], file: rel(file), line: i + 1, type, reqs, evidence: text });
     });
   }
   return tcs;
@@ -257,6 +257,16 @@ function main() {
     for (const r of tc.reqs) {
       if (!reqs.has(r)) failures.push(`[UNKNOWN-REQ] ${tc.file}:${tc.line} ${tc.id} references unknown ${r}`);
     }
+  }
+
+  const jsonIndex = process.argv.indexOf("--json");
+  if (jsonIndex !== -1) {
+    const destination = process.argv[jsonIndex + 1];
+    if (!destination || destination.startsWith("--")) throw new Error("--json requires an output path");
+    fs.writeFileSync(path.resolve(destination), JSON.stringify({
+      requirements: [...reqs].map(([id, where]) => ({ id, ...where })),
+      testCases: tcs, codeItems, failures, warnings,
+    }, null, 2));
   }
 
   if (write) {

@@ -12,34 +12,9 @@ import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitl
 import { translateTicket } from "../features/entityTicket/ticketLanguage";
 import { EntityCommitGraph } from "../features/entityTicket/EntityCommitGraph";
 import { EntityDeleteDialog } from "../features/entityTicket/EntityDeleteDialog";
+import { formatOccurrence } from "../features/entityTicket/formatOccurrence";
 
 const logger = createLogger("entity-detail");
-
-function formatOccurrence(value, language, t) {
-  if (!value) return t("Not set");
-  const locale = language === "ja" ? "ja-JP" : "en-US";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const date = new Date(`${value}T00:00:00.000Z`);
-    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return value;
-    return new Intl.DateTimeFormat(locale, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "UTC",
-    }).format(date);
-  }
-  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return value;
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
-}
 
 // [REQ-04-FUNC-101] [REQ-04-FUNC-102] [REQ-04-FUNC-115] Mounts the entity ticket route,
 // initializes loading state, and renders the ticket view from the loaded payload (SEQ-MD-04).

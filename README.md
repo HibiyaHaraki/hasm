@@ -115,6 +115,17 @@ npm run tauri:build
 
 ## 🧪 Tests
 
+Run all host frontend/IPC and native Rust tests and generate a searchable HTML
+traceability/result report:
+
+```bash
+npm run test:all
+```
+
+Open `test-results/index.html`. Reports and logs are Git-ignored. This command
+requires the existing Node and Rust/Tauri prerequisites; skipped/manual tests
+are not reported as passing. See [report details](docs/traceability.md#one-command-test-and-html-report).
+
 Run the complete sequence-aligned frontend evaluation suite:
 
 ```bash

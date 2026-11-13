@@ -190,6 +190,28 @@ describe("SEQ-03 visualizer lifecycle", () => {
     expect(screen.getByText("3 of 6 entities")).toBeInTheDocument();
   });
 
+  it("TC-03-OWNER-SCOPE-001 retains ancestor owners in scoped layout without restoring unrelated entities", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    const scopedFixture = {
+      ...scopeFixtureModel,
+      experiences: [
+        { experienceId: "root", experienceName: "Root", personId: "person-2", parentExperienceIds: [] },
+        { experienceId: "child", experienceName: "Child", personId: "person-1", parentExperienceIds: ["root"] },
+      ],
+      facts: [{ factId: "fact-child", experienceIds: ["child"], personIds: ["person-1"] }],
+    };
+    renderVisualizer({ model: scopedFixture, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    selectOptions(screen.getByLabelText("PERSON scope"), ["person-1"]);
+    await vi.waitFor(() => {
+      const scoped = api.computeVisualizerLayout.mock.calls.at(-1)[0];
+      expect(scoped.people.map((person) => person.personId)).toEqual(["person-1", "person-2"]);
+      expect(scoped.experiences.map((experience) => experience.experienceId)).toEqual(["root", "child"]);
+      expect(scoped.facts.map((fact) => fact.factId)).toEqual(["fact-child"]);
+    });
+  });
+
   it("TC-03-REACT-SCOPE-002 narrows further to a selected EXPERIENCE within the PERSON scope", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
     api.computeVisualizerLayout.mockResolvedValue(payload);

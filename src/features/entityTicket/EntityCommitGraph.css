@@ -5,7 +5,7 @@
 
 .ticket-graph-viewport {
   max-width: 100%;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid var(--theme-border);
   background: var(--theme-textbackground);
 }
@@ -17,13 +17,15 @@
 
 .ticket-graph-sequential {
   display: flex;
-  min-width: max-content;
+  min-width: 0;
 }
 
 .ticket-graph-fact-table {
   height: 300px;
   overflow-y: auto;
-  flex: 1 0 300px;
+  overflow-x: hidden;
+  flex: 1 1 0;
+  min-width: 0;
   color: var(--theme-text);
   background: var(--theme-textbackground);
 }
@@ -38,7 +40,7 @@
 
 .ticket-graph-fact-table th,
 .ticket-graph-fact-table td {
-  padding: 0 8px;
+  padding: 0 4px;
   border-bottom: 1px solid var(--theme-border);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -54,6 +56,26 @@
 
 .ticket-graph-fact-table td {
   height: var(--ticket-graph-row-height);
+  line-height: 1.2;
+}
+
+.ticket-graph-fact-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ticket-graph-occurrence-column {
+  width: 60%;
+}
+
+.ticket-graph-occurrence {
+  font-size: 0.75rem;
+}
+
+@media (min-width: 600px) {
+  .ticket-graph-occurrence-column {
+    width: 12rem;
+  }
 }
 
 .ticket-graph-fact-table a {

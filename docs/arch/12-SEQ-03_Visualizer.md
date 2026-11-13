@@ -29,6 +29,15 @@ The current coordinate policy is intentionally isolated in `src-tauri/src/hasm/v
 
 The persisted model currently represents child relationships through each child’s `parent_experience_ids`; no duplicated `child_ids` column is required.
 
+The Rust layout derives EXPERIENCE `personName` from distinct direct and
+recursive parent owners, preserving parent traversal order and ignoring nil,
+missing, and cyclic relationships. The host adds only missing owner PERSON
+context for scoped ancestor branches before the existing layout invoke; the
+graph selection and persisted model are not changed. The shared visualizer
+displays the returned names in 2D and 3D EXPERIENCE trunk tooltips.
+When the 2D FACT layout budget is applied, the shared visualizer retains
+ancestor EXPERIENCEs and their owner PERSON context for the retained FACTs.
+
 ### Scene Navigation
 
 The Three.js canvas uses `OrbitControls`: mouse wheel zooms, left-drag orbits the camera, right-drag pans, and touch input supports orbit/pinch navigation. Node raycasting remains active for stationary hover and click selection.

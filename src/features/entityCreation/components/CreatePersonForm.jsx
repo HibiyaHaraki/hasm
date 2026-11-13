@@ -1,4 +1,5 @@
 import { Form } from "react-bootstrap";
+import SecurityLevelField from "./SecurityLevelField";
 
 // [REQ-08-010][REQ-08-014][REQ-08-018] Dedicated PERSON creation form: required name,
 // security level 0-5, optional root EXPERIENCE stream toggle, no description input.
@@ -13,16 +14,8 @@ function CreatePersonForm({ value, onChange }) {
           required
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="person-security-level">
-        <Form.Label>Security level</Form.Label>
-        <Form.Control
-          type="number"
-          min="0"
-          max="5"
-          value={value.securityLevel}
-          onChange={(event) => onChange({ ...value, securityLevel: event.target.value })}
-        />
-      </Form.Group>
+      <SecurityLevelField id="person-security-level" value={value.securityLevel}
+        onChange={(securityLevel) => onChange({ ...value, securityLevel })} />
       <Form.Check
         className="mb-2"
         label="Create Root Stream"

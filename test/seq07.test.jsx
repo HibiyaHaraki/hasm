@@ -13,6 +13,12 @@ import {
   getThemeVariables,
   isValidColorPattern,
 } from "../src/hasm_color_pattern/src/index.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const navbarCss = readFileSync(resolve("src", "features", "navigation", "GlobalNavbar.css"), "utf8");
+const bootstrapCss = readFileSync(resolve("node_modules", "bootstrap", "dist", "css", "bootstrap.min.css"), "utf8");
+const appCss = readFileSync(resolve("src", "App.css"), "utf8");
 
 const api = vi.hoisted(() => ({
   switchWorkspaceCleanly: vi.fn(),
@@ -158,6 +164,64 @@ describe("SEQ-07 global navigation and status", () => {
 
     fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "ocean" } });
     expect(setActivePatternId).toHaveBeenCalledWith("ocean");
+  });
+
+  it("TC-07-NAV-CONTRAST-001 keeps actual menu text readable against its surfaces in every palette", () => {
+    const styles = [navbarCss, bootstrapCss, appCss].map(() => {
+      const style = document.createElement("style");
+      document.head.appendChild(style);
+      return style;
+    });
+    try {
+      render(<MemoryRouter initialEntries={["/select"]}>
+        <ThemeProvider value={{ activePatternId: "classic", setActivePatternId: vi.fn() }}>
+          <GlobalNavbar />
+        </ThemeProvider>
+      </MemoryRouter>);
+      const rgb = (color) => {
+        const values = color.match(/[\d.]+/g)?.map(Number);
+        expect(values?.length, `Unresolved CSS color: ${color}`).toBeGreaterThanOrEqual(3);
+        return values.slice(0, 3);
+      };
+      const composite = (color, background) => {
+        const values = color.match(/[\d.]+/g)?.map(Number);
+        expect(values?.length, `Unresolved CSS color: ${color}`).toBeGreaterThanOrEqual(3);
+        const alpha = values[3] ?? 1;
+        const under = rgb(background);
+        return `rgb(${values.slice(0, 3).map((value, index) => Math.round(value * alpha + under[index] * (1 - alpha))).join(", ")})`;
+      };
+      const luminance = (color) => {
+        const [r, g, b] = rgb(color).map((value) => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const contrast = (foreground, background) => {
+        const values = [luminance(foreground), luminance(background)];
+        return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
+      };
+      for (const pattern of COLOR_PATTERNS) {
+        const variables = getThemeVariables(pattern.id);
+        [navbarCss, bootstrapCss, appCss].forEach((css, index) => {
+          styles[index].textContent = css.replace(/var\((--theme-[\w-]+)\)/g, (original, name) => variables[name] ?? original);
+        });
+        const navbar = screen.getByRole("navigation");
+        const background = getComputedStyle(navbar).backgroundColor;
+        const backgroundAlpha = background.match(/[\d.]+/g)?.map(Number)[3] ?? 1;
+        expect(backgroundAlpha, `${pattern.id} navbar background opacity`).toBe(1);
+        for (const selector of [".global-navbar-brand", ".status-chip", ".theme-inline-label", ".global-navbar-theme-select", ".btn-hasm-outline"]) {
+          for (const element of navbar.querySelectorAll(selector)) {
+            const elementStyle = getComputedStyle(element);
+            const surface = composite(elementStyle.backgroundColor, background);
+            const foreground = composite(elementStyle.color, surface);
+            expect(contrast(foreground, surface), `${pattern.id} ${selector}`).toBeGreaterThanOrEqual(4.5);
+          }
+        }
+      }
+    } finally {
+      styles.forEach((style) => style.remove());
+    }
   });
 
   it("TC-07-REACT-007 rejects direct protected access without a workspace and carries the warning payload", async () => {

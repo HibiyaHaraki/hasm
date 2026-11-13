@@ -108,7 +108,12 @@ function VisualizerPage() {
     setRenderState((current) => ({ ...current, loading: true, progress: 0, message: "Calculating 3D layout...", notice: "" }));
     resetWatchdog();
     try {
-      const payload = await computeVisualizerLayout(scopedModel, filter);
+      // SEQ-MD-03: scope keeps ancestor branches but can omit their PERSON context.
+      const ownerIds = new Set((scopedModel.experiences ?? []).map((experience) => experience.personId));
+      const scopedPeople = new Set((scopedModel.people ?? []).map((person) => person.personId));
+      const owners = (model?.people ?? []).filter((person) => ownerIds.has(person.personId) && !scopedPeople.has(person.personId));
+      const layoutModel = owners.length ? { ...scopedModel, people: [...(scopedModel.people ?? []), ...owners] } : scopedModel;
+      const payload = await computeVisualizerLayout(layoutModel, filter);
       if (!activeRef.current || requestRef.current !== request) return null;
       requestRef.current = null;
       window.clearTimeout(watchdogRef.current);
@@ -125,7 +130,7 @@ function VisualizerPage() {
       fail(error, isFilterUpdate);
       throw error;
     }
-  }, [fail, resetWatchdog]);
+  }, [fail, model, resetWatchdog]);
 
   const openEntityTicket = useCallback((node, visualizerView) => {
     navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: { ...state, model, visualizerView, isVerified: state?.isVerified !== false } });

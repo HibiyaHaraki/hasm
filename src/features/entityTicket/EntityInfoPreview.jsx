@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Card } from "react-bootstrap";
 import { loadEntityDetail, withTimeout } from "../hasm/api";
 import { createLogger } from "../../hasm_logger/src/react/logger.js";
-import { createEntityReferenceIndex, entityReferenceTitle } from "./EntityReferences";
+import { createEntityReferenceIndex, entityReferenceTitle, experienceOwnerIds } from "./EntityReferences";
 import "./EntityInfoPreview.css";
 
 const logger = createLogger("entity-info-preview");
@@ -82,7 +82,8 @@ function EntityInfoCard({ preview, index, cardId }) {
     LINK: [["Relationship type", "linkType"], ["Related entities", "relatedIds"]],
   }[type] || [];
   const valueFor = (key) => {
-    const value = entity?.[key];
+    const value = type === "EXPERIENCE" && key === "personId"
+      ? experienceOwnerIds(index, entity, id) : entity?.[key];
     if (key.endsWith("Id") || key.endsWith("Ids")) {
       const ids = Array.isArray(value) ? value : value ? [value] : [];
       return ids.length ? ids.map((reference) => entityReferenceTitle(index, reference)).join(", ") : "None";

@@ -85,6 +85,13 @@ row centers against SVG marker centers before/after scrolling at wide/narrow
 widths and verifies the matching title's computed font weight.
 `TC-04-GRAPH-SEQUENTIAL-003` verifies FACT title navigation through the real
 detail invoke with workspace context and moves bold emphasis to the destination.
+`TC-04-GRAPH-SEQUENTIAL-005` checks separate title/occurrence columns, compact
+localized timestamps, full accessible/tooltip values, date-only, missing and
+invalid occurrence values. `TC-04-GRAPH-SEQUENTIAL-006` checks that resizing
+narrows all lanes without another layout invoke. Browser acceptance checks the
+page and graph for horizontal overflow, single-line columns and visible timestamps, row alignment
+before and after vertical scrolling, visible LINK geometry, and the absence of
+shell ruling on the ticket while another route retains its original background.
 
 `TC-04-GRAPH-EMPHASIS-001` (FACT, EXPERIENCE, LINK, PERSON) verifies
 `REQ-04-RULE-024` with the real SVG renderer: current markers/timelines/LINK
@@ -99,6 +106,8 @@ disables navigation. No additional layout invoke is permitted.
 | `TC-04-GRAPH-SEQUENTIAL-002` (PERSON, EXPERIENCE, LINK) | `REQ-04-RULE-025` | Negative (No False Bold) | Tickets whose addressed entity is not a FACT never bold any FACT title and expose no `aria-current` row. |
 | `TC-04-GRAPH-SEQUENTIAL-003` | `REQ-04-RULE-025` | Positive (Title Navigation) | FACT title navigation uses the real detail invoke with workspace context and moves bold emphasis to the destination, with no whole-model reload. |
 | `TC-04-GRAPH-SEQUENTIAL-004` | `REQ-04-RULE-023` `REQ-04-RULE-025` | Positive (Badge Navigation) | The table EXPERIENCE badge opens its specific EXPERIENCE through the real detail IPC wrapper. |
+| `TC-04-GRAPH-SEQUENTIAL-005` | `REQ-04-RULE-025` | Positive (Occurrence Values) | FACT rows have separate title and occurrence columns, compact localized date and time, full accessible/tooltip values, preserved date-only days, and missing or invalid values. |
+| `TC-04-GRAPH-SEQUENTIAL-006` | `REQ-04-RULE-025` | Positive (Responsive Lanes) | Resizing narrows lanes to the available panel width without a new layout invoke. |
 | `TC-04-GRAPH-EMPHASIS-001` (all four types) | `REQ-04-RULE-024` | Positive (Persistent Emphasis) | Current markers/timelines/LINK segments keep highlight colors on load, across hover/pointer-leave and language redraw, with a bold current caption, accessible current list entry, and no additional layout invoke while editing disables navigation. |
 | `TC-04-GRAPH-EMPHASIS-002` | `REQ-04-RULE-024` | Negative (No Invented Emphasis) | A PERSON ticket never paints FACT markers with the current-entity highlight, hover enter/leave triggers no new layout invoke, and the bold caption plus `aria-current` entry still identify the addressed PERSON. |
 
@@ -156,6 +165,9 @@ readable under the active theme; Markdown words and source remain unchanged.
 | `TC-04-REACT-REF-009` (PERSON, EXPERIENCE, FACT, LINK) | `REQ-04-RULE-018` | Positive (Identity Header) | Each entity ticket header displays `{TYPE}/{UUID}` above its human-readable title. |
 | `TC-04-REACT-TIME-001` | `REQ-04-RULE-017` | Positive (Readable Dates) | FACT date-only occurrences render as a readable localized date; timestamps render as a readable local date/time with time-zone abbreviation; invalid values remain visible and stored values are unchanged. |
 | `TC-04-REACT-REF-001` | `REQ-04-RULE-018` | Positive (Readable Titles) | EXPERIENCE owner/parents, FACT people/experiences and LINK endpoints display titles without UUIDs or forms; graph LINK references render as wrapping title bullets. |
+| `TC-04-OWNER-001` | `REQ-04-RULE-018` | Positive (Inherited Owners) | `test/seq04.test.jsx` shows all distinct recursive parent owners as navigable PERSON references without reloading. |
+| `TC-04-OWNER-002` | `REQ-04-RULE-018` | Negative (Missing and Cyclic Parents) | `test/seq04.test.jsx` terminates on cycles and missing parents without displaying a nil owner. |
+| `TC-04-PREVIEW-OWNER-001` | `REQ-04-RULE-018` `REQ-04-RULE-027` | Positive (Inherited Preview Owner) | `test/entity-info-preview.test.jsx` resolves an inherited owner after the real detail invoke. |
 | `TC-04-REACT-REF-010` | `REQ-04-RULE-018`, `REQ-04-RULE-020` | Positive (Grouped Endpoints) | LINK related entities group nested linked titles under one bullet per type, including interleaved repeated types. Types follow first appearance and titles retain within-type order; unavailable endpoints have readable non-interactive labels. |
 | `TC-04-REACT-REF-002` (PERSON, EXPERIENCE, FACT) | `REQ-04-RULE-019` | Positive (Deduplicated LINKs) | Incoming/outgoing endpoint references and explicit graph links are deduplicated, unrelated links excluded, and each title has a collapsed accessible disclosure for type and endpoint sub-bullets; long values wrap and editing disables navigation. |
 | `TC-04-REACT-REF-003` | `REQ-04-RULE-018`, `REQ-04-RULE-019` | Negative (Missing References) | Missing references show unavailable labels without UUID fallbacks or broken navigation. |

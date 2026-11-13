@@ -13,9 +13,45 @@ const model = {
   people: [], facts: [], links: [],
   experiences: ids.map((experienceId, index) => ({ experienceId, experienceName: ["Life", "Research"][index] })),
 };
-afterEach(() => { cleanup(); invoke.mockReset(); });
+afterEach(() => { cleanup(); invoke.mockReset(); vi.unstubAllEnvs(); });
 
 describe("EXPERIENCE picker IPC", () => {
+  it("TC-08-IPC-SEC-003 leaves the level visible when the build flag is unset", () => {
+    vi.stubEnv("VITE_ENABLE_SECURITY_LEVEL", undefined);
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    expect(screen.getByLabelText("Security level")).toHaveValue(1);
+  });
+
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-08-IPC-SEC-001 %s hides the level but sends the default through invoke", async (type) => {
+    vi.stubEnv("VITE_ENABLE_SECURITY_LEVEL", "false");
+    invoke.mockImplementation((name) => Promise.resolve(name === "load_hasm_model_db" ? model : {}));
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model, path: "fixture.hasm" } }]}>
+      <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<div>Done</div>} /></Routes>
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    expect(screen.queryByLabelText("Security level")).not.toBeInTheDocument();
+    if (type !== "LINK") fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New" } });
+    fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(`create_${type.toLowerCase()}`, {
+      path: "fixture.hasm", payload: expect.objectContaining({ securityLevel: 1 }),
+    }));
+  });
+
+  it.each(["PERSON", "EXPERIENCE", "FACT", "LINK"])("TC-08-IPC-SEC-002 %s retains the editable level when enabled", async (type) => {
+    vi.stubEnv("VITE_ENABLE_SECURITY_LEVEL", "true");
+    invoke.mockImplementation((name) => Promise.resolve(name === "load_hasm_model_db" ? model : {}));
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model, path: "fixture.hasm" } }]}>
+      <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<div>Done</div>} /></Routes>
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    fireEvent.change(screen.getByLabelText("Security level"), { target: { value: "3" } });
+    if (type !== "LINK") fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New" } });
+    fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith(`create_${type.toLowerCase()}`, {
+      path: "fixture.hasm", payload: expect.objectContaining({ securityLevel: 3 }),
+    }));
+  });
+
   it.each([
     ["FACT", "Belonging EXPERIENCE", "create_fact", "experienceIds"],
     ["EXPERIENCE", "Parent EXPERIENCE", "create_experience", "parentExperienceIds"],

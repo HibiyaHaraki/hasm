@@ -86,3 +86,53 @@ fn eval03_streams_progress_payload_contract_through_registered_invoke() {
     assert!(!response["lines3d"].as_array().unwrap().is_empty());
     assert!(response["warnings"].as_array().unwrap().is_empty());
 }
+
+// TC-03-IPC-OWNER-001 / TC-03-IPC-OWNER-002: recursive owner names and cycle/missing-parent
+// handling must survive the registered Tauri command and serialized render payload.
+#[test]
+fn eval03_inherits_all_experience_owners_through_registered_invoke() {
+    let (_app, window) = build_app();
+    let mut demo = visualizer_commands::create_test_workspace_fixture().unwrap();
+    let mut second_person = demo.model.people[0].clone();
+    second_person.person_id = uuid::Uuid::new_v4();
+    second_person.person_name = "Grace".into();
+    let ada_id = demo.model.people[0].person_id;
+    let grace_id = second_person.person_id;
+    demo.model.people.push(second_person);
+    let template = demo.model.experiences[0].clone();
+    let root_id = uuid::Uuid::new_v4();
+    let other_id = uuid::Uuid::new_v4();
+    let parent_id = uuid::Uuid::new_v4();
+    let child_id = uuid::Uuid::new_v4();
+    let cycle_a = uuid::Uuid::new_v4();
+    let cycle_b = uuid::Uuid::new_v4();
+    let orphan = uuid::Uuid::new_v4();
+    let make = |id, owner, parents| {
+        let mut experience = template.clone();
+        experience.experience_id = id;
+        experience.person_id = owner;
+        experience.parent_experience_ids = parents;
+        experience
+    };
+    demo.model.experiences = vec![
+        make(root_id, ada_id, vec![]),
+        make(other_id, grace_id, vec![]),
+        make(parent_id, uuid::Uuid::nil(), vec![root_id, other_id]),
+        make(child_id, uuid::Uuid::nil(), vec![parent_id, root_id]),
+        make(cycle_a, uuid::Uuid::nil(), vec![cycle_b, uuid::Uuid::new_v4()]),
+        make(cycle_b, grace_id, vec![cycle_a]),
+        make(orphan, uuid::Uuid::nil(), vec![uuid::Uuid::new_v4()]),
+    ];
+    demo.model.facts.clear();
+    demo.model.links.clear();
+    let response = invoke_layout(&window, json!({
+        "model": demo.model,
+        "filter": { "timeScaleMode": "SequentialIndex", "zScaleFactor": 1.0 },
+    })).unwrap();
+    std::fs::remove_dir_all(demo.path).unwrap();
+    let nodes = response["nodes3d"].as_array().unwrap();
+    let node = |id: uuid::Uuid| nodes.iter().find(|node| node["id"] == id.to_string()).unwrap();
+    assert_eq!(node(child_id)["personName"], "Ada, Grace");
+    assert_eq!(node(cycle_a)["personName"], "Grace");
+    assert!(node(orphan)["personName"].is_null());
+}

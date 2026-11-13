@@ -9,6 +9,7 @@ lerna-debug.log*
 
 # Coverage reports
 coverage/
+test-results/
 *.lcov
 
 node_modules
