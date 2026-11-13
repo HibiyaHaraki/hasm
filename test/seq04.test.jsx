@@ -11,7 +11,7 @@ vi.mock("../src/features/hasm/api", async (importOriginal) => ({ ...await import
 const detail = { name: "Original", markdownBody: "# Detail", loadedMtimeMs: 10, detail: { personName: "Original" } };
 function LocationProbe() { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.state?.model ? ":model" : ""}</output>; }
 function SavedStateProbe() { const location = useLocation(); return <output data-testid="saved-state">{JSON.stringify(location.state)}</output>; }
-function renderTicket(entityType = "PERSON", state = { path: "C:/demo" }) { return render(<MemoryRouter initialEntries={[{ pathname: `/entity-detail/${entityType}/id-1`, state }]}><Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /><Route path="/error-model" element={<LocationProbe />} /><Route path="/error-markdown" element={<LocationProbe />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes></MemoryRouter>); }
+function renderTicket(entityType = "PERSON", state = { path: "C:/demo" }) { return render(<MemoryRouter initialEntries={[{ pathname: `/entity-detail/${entityType}/id-1`, state }]}><Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /><Route path="/error-model" element={<LocationProbe />} /><Route path="/error-markdown" element={<LocationProbe />} /><Route path="/visualizer" element={<LocationProbe />} /><Route path="/select" element={<LocationProbe />} /></Routes></MemoryRouter>); }
 afterEach(() => { cleanup(); vi.resetAllMocks(); });
 beforeEach(() => { api.computeVisualizerLayout.mockResolvedValue({ nodes3d: [], lines3d: [], warnings: [] }); });
 describe("SEQ-04 entity ticket", () => {
@@ -616,5 +616,128 @@ describe("SEQ-04 entity ticket", () => {
     await vi.waitFor(() => expect(api.checkEntityMtime).toHaveBeenCalledTimes(1));
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
     expect(api.reloadEntityMarkdown).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-002 initializes loading state and routes a missing entity to the model error page", async () => {
+    let rejectLoad;
+    api.loadEntityDetail.mockImplementation(() => new Promise((_resolve, reject) => { rejectLoad = reject; }));
+    renderTicket();
+    // [REQ-04-FUNC-102] loading state renders until the detail payload settles.
+    expect(screen.getByText("Loading ticket...")).toBeInTheDocument();
+    rejectLoad(new Error("ERR_ENTITY_NOT_FOUND: id-1"));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-model");
+    expect(screen.queryByRole("article", { name: "Markdown preview" })).not.toBeInTheDocument();
+  });
+  it.each([
+    "ERR_MARKDOWN_FILE_NOT_FOUND: C:/demo/PERSON/id-1/main.md",
+    "ERR_MARKDOWN_TIMEOUT: 8000",
+    "ERR_MARKDOWN_VERIFICATION_FAILED: exit code 2",
+  ])("TC-04-REACT-003 routes load failure %s to the markdown error page", async (message) => {
+    api.loadEntityDetail.mockRejectedValue(new Error(message));
+    renderTicket();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-markdown");
+    expect(screen.queryByRole("article", { name: "Markdown preview" })).not.toBeInTheDocument();
+  });
+  it("TC-04-REACT-004 resets saving state and keeps the draft when domain validation rejects", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.saveEntityDetail.mockRejectedValue(new Error("ERR_ENTITY_VERIFICATION_FAILED: start time must precede end time"));
+    renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Inverted" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("ERR_ENTITY_VERIFICATION_FAILED: start time must precede end time")).toHaveAttribute("role", "status");
+    expect(screen.getByLabelText("Summary")).toHaveValue("Inverted");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+  it.each([
+    "ERR_SAVE_TIMEOUT: 5000",
+    "ERR_DATABASE_SAVE_FAILED: database is locked",
+  ])("TC-04-REACT-005 reports rolled-back persistence failure %s and preserves input", async (message) => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.saveEntityDetail.mockRejectedValue(new Error(message));
+    renderTicket();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Unpersisted" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(message)).toHaveAttribute("role", "status");
+    // [REQ-04-RULE-004] the unpersisted draft survives the rollback for correction.
+    expect(screen.getByLabelText("Summary")).toHaveValue("Unpersisted");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+  it("TC-04-REACT-008 highlights external deletion with the danger refresh style and warning", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.checkEntityMtime.mockResolvedValue({ isModified: false, isDeleted: true, currentMtimeMs: 0 });
+    renderTicket();
+    await screen.findByRole("button", { name: "Edit summary" });
+    window.dispatchEvent(new Event("focus"));
+    expect(await screen.findByText("Markdown file deleted on disk")).toHaveAttribute("role", "status");
+    expect(screen.getByRole("button", { name: "Refresh Markdown" })).toHaveClass("refresh-danger");
+    expect(api.reloadEntityMarkdown).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-010 keeps the rendered body and alert style when refresh verification fails", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.checkEntityMtime.mockResolvedValue({ isModified: true, isDeleted: false, currentMtimeMs: 50 });
+    api.reloadEntityMarkdown.mockRejectedValue(new Error("Verification failed: hasm_markdown exit code 2"));
+    renderTicket();
+    await screen.findByRole("button", { name: "Edit summary" });
+    window.dispatchEvent(new Event("focus"));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Refresh Markdown" })).toHaveClass("refresh-alert"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh Markdown" }));
+    expect(await screen.findByText("Verification failed: hasm_markdown exit code 2")).toHaveAttribute("role", "status");
+    expect(within(screen.getByRole("article", { name: "Markdown preview" })).getByRole("heading", { name: "Detail" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh Markdown" })).toHaveClass("refresh-alert");
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+  });
+  it("TC-04-REACT-011 refreshes externally modified Markdown and resets the alert state", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.checkEntityMtime.mockResolvedValue({ isModified: true, isDeleted: false, currentMtimeMs: 50 });
+    api.reloadEntityMarkdown.mockResolvedValue({ ...detail, markdownBody: "# Fresh body", loadedMtimeMs: 99 });
+    renderTicket();
+    await screen.findByRole("button", { name: "Edit summary" });
+    window.dispatchEvent(new Event("focus"));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Refresh Markdown" })).toHaveClass("refresh-alert"));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh Markdown" }));
+    expect(await screen.findByText("Markdown refreshed.")).toHaveAttribute("role", "status");
+    expect(api.reloadEntityMarkdown).toHaveBeenCalledWith("C:/demo", "PERSON", "id-1");
+    expect(within(screen.getByRole("article", { name: "Markdown preview" })).getByRole("heading", { name: "Fresh body" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh Markdown" })).toHaveClass("btn-hasm-outline");
+    expect(screen.getByRole("button", { name: "Refresh Markdown" })).not.toHaveClass("refresh-danger");
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-012 redirects a ticket mounted without workspace state to selection", async () => {
+    renderTicket("PERSON", null);
+    expect(await screen.findByTestId("location")).toHaveTextContent("/select");
+    expect(api.loadEntityDetail).not.toHaveBeenCalled();
+  });
+  it("TC-04-REACT-DISPLAY-005 keeps display preferences in memory without IPC, storage writes or Markdown changes", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    api.loadEntityDetail.mockResolvedValue(detail);
+    renderTicket();
+    const preview = await screen.findByRole("article", { name: "Markdown preview" });
+    const originalHtml = preview.innerHTML;
+    for (const size of ["small", "large", "medium"]) {
+      fireEvent.change(screen.getByLabelText("Text size"), { target: { value: size } });
+    }
+    fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+    fireEvent.change(screen.getByLabelText("言語"), { target: { value: "en" } });
+    // [REQ-04-RULE-026] chrome preferences never restyle the Markdown body itself.
+    expect(preview.innerHTML).toBe(originalHtml);
+    expect(api.saveEntityDetail).not.toHaveBeenCalled();
+    expect(api.reloadEntityMarkdown).not.toHaveBeenCalled();
+    expect(api.loadEntityDetail).toHaveBeenCalledTimes(1);
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+  it("TC-04-REACT-INLINE-006 blocks editor activation while a refresh is pending", async () => {
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.reloadEntityMarkdown.mockImplementation(() => new Promise(() => {}));
+    renderTicket();
+    await screen.findByRole("button", { name: "Edit summary" });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh Markdown" }));
+    expect(screen.getByRole("button", { name: "Edit summary" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit details" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    expect(document.querySelector("form, input, textarea")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 });

@@ -21,6 +21,28 @@ describe("EVAL-02 Tauri IPC bridge contracts", () => {
     await expect(api.browseWorkspaceDirectory()).resolves.toBeNull();
     await expect(api.browseWorkspaceDirectory()).rejects.toThrow("Native dialog unavailable");
   });
+  it("TC-02-DIALOG-002 leaves workspace commands untouched on picker cancellation or native failure", async () => {
+    invoke.mockClear();
+    dialog.open.mockResolvedValueOnce(null);
+    await expect(api.browseWorkspaceDirectory()).resolves.toBeNull();
+    dialog.open.mockRejectedValueOnce(new Error("Native dialog unavailable"));
+    await expect(api.browseWorkspaceDirectory()).rejects.toThrow("Native dialog unavailable");
+    // A cancelled or failed Browse action must not create, open, or modify a workspace.
+    expect(invoke).not.toHaveBeenCalled();
+  });
+  it("TC-02-IPC-002 resolves the lock check inside the 3,000ms hard boundary and stops stalls at it", async () => {
+    vi.useFakeTimers();
+    try {
+      const lock = { isLocked: false, isReadOnly: false };
+      await expect(api.withTimeout(Promise.resolve(lock), 3000, "Lock check timed out")).resolves.toBe(lock);
+      const stalled = expect(api.withTimeout(new Promise(() => {}), 3000, "Lock check timed out"))
+        .rejects.toThrow("Lock check timed out");
+      await vi.advanceTimersByTimeAsync(3000);
+      await stalled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("TC-02-IPC-001 invokes documented workspace commands", () => {
     const model = { people: [], experiences: [], facts: [], links: [] };
     api.checkWorkspaceLock("C:/workspace");

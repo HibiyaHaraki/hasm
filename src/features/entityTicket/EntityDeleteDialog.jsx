@@ -3,6 +3,8 @@ import { Button, Form, Modal } from "react-bootstrap";
 import { relatedLinkIds } from "./EntityReferences";
 import "./EntityDeleteDialog.css";
 
+// [REQ-04-RULE-028] Explicit deletion confirmation with per-related-LINK delete/retain choices.
+// [REQ-04-RULE-029] Collects replacement EXPERIENCE and child reparenting before deletion.
 export function EntityDeleteDialog({ entityType, entityId, ticket, model, referenceIndex, busy, error, onCancel, onConfirm, t }) {
   const [replacement, setReplacement] = useState("");
   const [parents, setParents] = useState({});

@@ -44,10 +44,14 @@ function previewPosition(reference) {
     top: clamp(y, PREVIEW_MARGIN, viewportHeight - height - PREVIEW_MARGIN), width };
 }
 
+// [REQ-04-RULE-027] Dismisses any visible shared entity information card (used on picker
+// closure, result replacement, and navigation).
 export function dismissEntityPreview() {
   document.dispatchEvent(new CustomEvent(PREVIEW_EVENT, { detail: { dismiss: true } }));
 }
 
+// [REQ-04-RULE-027] Requests the shared information card for a hovered host-owned ticket
+// graph node (or dismisses it when the node is null).
 export function previewGraphEntity(node, event, source) {
   document.dispatchEvent(new CustomEvent(PREVIEW_EVENT, {
     detail: node ? { type: node.entityType, id: node.id, source, x: event?.clientX, y: event?.clientY } : null,
@@ -102,6 +106,9 @@ function EntityInfoCard({ preview, index, cardId }) {
   );
 }
 
+// [REQ-04-RULE-027] Shared entity information preview layer: 200ms hover/focus delay,
+// single-entity read with 3s timeout, stale-response and unmount guards, Escape/leave/
+// scroll/resize dismissal, and a viewport-fitted non-interactive card.
 export default function EntityInfoPreview() {
   const location = useLocation();
   const path = location.state?.path;

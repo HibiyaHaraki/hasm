@@ -1,6 +1,8 @@
 import { Form } from "react-bootstrap";
 import LinkEntitySelect from "./LinkEntitySelect";
 
+// [REQ-08-013][REQ-08-014][REQ-08-018][REQ-08-019] Dedicated LINK creation form: required
+// link type and independently searchable Origin/Target endpoints serialized as typed UUIDs.
 function CreateLinkForm({ value, onChange, entityOptions }) {
   return (
     <>

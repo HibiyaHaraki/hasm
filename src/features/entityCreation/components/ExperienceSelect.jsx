@@ -4,6 +4,10 @@ import { ExperienceMultiSelect } from "../../../hasm_visualizer/ExperienceMultiS
 import { dismissEntityPreview } from "../../entityTicket/EntityInfoPreview";
 import { translateTicket } from "../../entityTicket/ticketLanguage";
 
+// [REQ-04-RULE-017] Shared searchable, removable-badge EXPERIENCE selector used by both
+// entity creation and detail editing, with an explicit Clear action.
+// [REQ-04-RULE-027] Choices participate in the shared entity information preview.
+// [REQ-07-RULE-006] Selected badges rely on readable theme foreground tokens.
 function ExperienceSelect({ controlId, label, value, onChange, experiences, disabled = false, t = translateTicket }) {
   const options = useMemo(() => experiences.map((experience) => ({
     id: experience.experienceId,

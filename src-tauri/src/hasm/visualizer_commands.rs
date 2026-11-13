@@ -10,6 +10,11 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Runtime};
 
+/// [REQ-03-RULE-001][REQ-03-RULE-002][REQ-03-RULE-006][REQ-03-RULE-007][REQ-03-RULE-012]
+/// [REQ-03-FUNC-105][REQ-03-FUNC-303][REQ-03-FUNC-306] Computes the 3D timeline layout
+/// (branch positions, chronological Z coordinates, curved connectors, LINK segments)
+/// while emitting `visualizer-layout-progress` events; empty models reject with
+/// `ERR_NO_ACTIVE_MODEL`.
 #[tauri::command]
 pub fn compute_visualizer_layout<R: Runtime>(
     app: AppHandle<R>,
@@ -458,6 +463,187 @@ mod tests {
         assert!(!payload.lines_3d.iter().any(|line| line.line_type == "PERSON_LIFELINE" || line.line_type == "PERSON_EXPERIENCE_BRANCH"));
     }
 
+    /// TC-03-RUST-008 [REQ-03-RULE-002][REQ-03-RULE-006][REQ-03-FUNC-204] Negative: an
+    /// unknown TimeScaleMode and malformed `occurred_at` strings fall back deterministically
+    /// (Linear step, earliest-time substitution) instead of panicking or reordering FACTs.
+    #[test]
+    fn falls_back_for_unknown_mode_and_malformed_timestamps() {
+        let experience_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
+        let empty_date_id = Uuid::parse_str("33333333-3333-3333-3333-333333333331").unwrap();
+        let valid_date_id = Uuid::parse_str("33333333-3333-3333-3333-333333333332").unwrap();
+        let junk_date_id = Uuid::parse_str("33333333-3333-3333-3333-333333333333").unwrap();
+        let model = ModelDatabase {
+            people: vec![],
+            experiences: vec![experience(experience_id, "Lane", vec![])],
+            facts: vec![
+                fact(empty_date_id, "Empty", "", experience_id),
+                fact(valid_date_id, "Valid", "2026-01-10", experience_id),
+                fact(junk_date_id, "Junk", "junk", experience_id),
+            ],
+            links: vec![],
+        };
+        let bogus = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "Bogus".to_string(), z_scale_factor: 1.0 });
+        let z_of = |payload: &RenderPayload, id: Uuid| payload.nodes_3d.iter().find(|node| node.id == id.to_string()).unwrap().z;
+        for node in &bogus.nodes_3d {
+            assert!(node.z.is_finite());
+        }
+        // Unknown mode falls back to the Linear formula; unparseable timestamps fall back
+        // to the earliest time, so both land on the minimum Linear step (1.0 * 4.0).
+        assert_eq!(z_of(&bogus, empty_date_id), 4.0);
+        assert_eq!(z_of(&bogus, junk_date_id), 4.0);
+        assert!(z_of(&bogus, valid_date_id) > 4.0);
+        // SequentialIndex keeps the deterministic string sort order despite the bad data.
+        let sequential = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        assert_eq!(z_of(&sequential, empty_date_id), 3.0);
+        assert_eq!(z_of(&sequential, valid_date_id), 6.0);
+        assert_eq!(z_of(&sequential, junk_date_id), 9.0);
+    }
+
+    /// TC-03-RUST-009 [REQ-03-RULE-003][REQ-03-RULE-007][REQ-03-FUNC-303] Negative: cyclic
+    /// parent relationships and dangling parent IDs terminate instead of hanging the worker,
+    /// a FACT-less EXPERIENCE renders no trunk, and no connector references a missing parent.
+    #[test]
+    fn survives_cyclic_and_missing_parent_references() {
+        let first_cyclic_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
+        let second_cyclic_id = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+        let orphan_parent_id = Uuid::parse_str("22222222-2222-2222-2222-222222222223").unwrap();
+        let factless_id = Uuid::parse_str("22222222-2222-2222-2222-222222222224").unwrap();
+        let missing_id = Uuid::parse_str("99999999-9999-9999-9999-999999999999").unwrap();
+        let first_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333331").unwrap();
+        let second_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333332").unwrap();
+        let model = ModelDatabase {
+            people: vec![],
+            experiences: vec![
+                experience(first_cyclic_id, "First cyclic", vec![second_cyclic_id]),
+                experience(second_cyclic_id, "Second cyclic", vec![first_cyclic_id]),
+                experience(orphan_parent_id, "Orphan parent", vec![missing_id]),
+                experience(factless_id, "No facts", vec![]),
+            ],
+            facts: vec![
+                fact(first_fact_id, "First", "2026-01-01", first_cyclic_id),
+                fact(second_fact_id, "Second", "2026-01-02", orphan_parent_id),
+            ],
+            links: vec![],
+        };
+        // Completing at all proves the cyclic ancestor walk terminates (non-blocking worker).
+        let payload = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        assert!(!payload.lines_3d.iter().any(|line| line.id == format!("branch-{factless_id}")));
+        assert!(!payload.lines_3d.iter().any(|line| line.id.contains(&missing_id.to_string())));
+        // The cycle reflects the FACT onto both cyclic EXPERIENCEs exactly once each.
+        assert_eq!(payload.nodes_3d.iter().filter(|node| node.id == first_fact_id.to_string()).count(), 2);
+        assert_eq!(payload.nodes_3d.iter().filter(|node| node.id == second_fact_id.to_string()).count(), 1);
+    }
+
+    /// TC-03-RUST-010 [REQ-03-RULE-012][REQ-03-FUNC-306] Negative: LINKs whose related IDs
+    /// are only PERSONs, missing entities, or duplicates emit zero segments, while an
+    /// eligible pair in the same model still renders; unlinked FACTs carry empty metadata.
+    #[test]
+    fn emits_no_link_segments_for_person_missing_or_duplicate_endpoints() {
+        let experience_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
+        let person_id = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+        let missing_id = Uuid::parse_str("99999999-9999-9999-9999-999999999999").unwrap();
+        let first_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333331").unwrap();
+        let second_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333332").unwrap();
+        let unlinked_fact_id = Uuid::parse_str("33333333-3333-3333-3333-333333333333").unwrap();
+        let mut model = ModelDatabase {
+            people: vec![],
+            experiences: vec![experience(experience_id, "Lane", vec![])],
+            facts: vec![
+                fact(first_fact_id, "First", "2026-01-01", experience_id),
+                fact(second_fact_id, "Second", "2026-01-02", experience_id),
+                fact(unlinked_fact_id, "Unlinked", "2026-01-03", experience_id),
+            ],
+            links: vec![
+                link("PERSON only", vec![person_id]),
+                link("Missing only", vec![missing_id, missing_id]),
+                link("Duplicate single", vec![first_fact_id, first_fact_id]),
+                link("PERSON and FACT", vec![person_id, first_fact_id]),
+                link("Eligible pair", vec![first_fact_id, second_fact_id]),
+            ],
+        };
+        for (index, link) in model.links.iter_mut().enumerate() {
+            link.link_id = Uuid::from_u128(index as u128 + 1);
+        }
+        let payload = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        let link_lines = payload.lines_3d.iter().filter(|line| line.line_type == "LINK").collect::<Vec<_>>();
+        assert_eq!(link_lines.len(), 1);
+        assert_eq!(link_lines[0].id, model.links[4].link_id.to_string());
+        let unlinked = payload.nodes_3d.iter().find(|node| node.id == unlinked_fact_id.to_string()).unwrap();
+        assert_eq!(unlinked.linked_entity_ids.as_deref(), Some(&[][..]));
+    }
+
+    /// TC-03-RUST-011 [REQ-03-RULE-010] Negative: an EXPERIENCE owned by an unknown PERSON
+    /// renders without a person name and still produces no PERSON node or lifeline geometry.
+    #[test]
+    fn omits_person_name_for_unknown_owner_without_person_geometry() {
+        let experience_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
+        let model = ModelDatabase {
+            people: vec![],
+            experiences: vec![experience(experience_id, "Lane", vec![])],
+            facts: vec![],
+            links: vec![],
+        };
+        let payload = calculate_layout(&model, &LayoutFilterRequest { time_scale_mode: "SequentialIndex".to_string(), z_scale_factor: 1.0 });
+        let node = payload.nodes_3d.iter().find(|node| node.id == experience_id.to_string()).unwrap();
+        assert_eq!(node.person_name, None);
+        assert!(!payload.nodes_3d.iter().any(|node| node.entity_type == "PERSON"));
+        assert!(payload.lines_3d.is_empty());
+    }
+
+    /// TC-03-RUST-012 [REQ-03-DATA-001][REQ-03-DATA-003][REQ-03-RULE-017] Negative:
+    /// malformed filter and render payload JSON are rejected by serde, and the serialized
+    /// filter carries exactly the documented keys (no scope fields in the IPC contract).
+    #[test]
+    fn rejects_malformed_payload_json_and_keeps_filter_contract_minimal() {
+        assert!(serde_json::from_str::<LayoutFilterRequest>(r#"{ "zScaleFactor": 1.0 }"#).is_err());
+        assert!(serde_json::from_str::<LayoutFilterRequest>(r#"{ "timeScaleMode": "Linear", "zScaleFactor": "big" }"#).is_err());
+        let serialized = serde_json::to_value(LayoutFilterRequest { time_scale_mode: "Linear".to_string(), z_scale_factor: 1.0 }).unwrap();
+        let keys = serialized.as_object().unwrap().keys().cloned().collect::<Vec<_>>();
+        assert_eq!(keys, vec!["timeScaleMode".to_string(), "zScaleFactor".to_string()]);
+        assert!(serde_json::from_str::<RenderPayload>(r#"{ "nodes3d": 7, "lines3d": [], "warnings": [] }"#).is_err());
+        assert!(serde_json::from_str::<RenderPayload>(r#"{ "lines3d": [], "warnings": [] }"#).is_err());
+    }
+
+    /// TC-03-RUST-013 [REQ-03-DATA-001][REQ-03-DATA-003] Positive: the filter and render
+    /// payload contracts round-trip through the documented camelCase JSON shapes.
+    #[test]
+    fn round_trips_layout_payload_contracts() {
+        let filter: LayoutFilterRequest = serde_json::from_str(r#"{ "timeScaleMode": "SequentialIndex", "zScaleFactor": 1.5 }"#).unwrap();
+        assert_eq!(filter.time_scale_mode, "SequentialIndex");
+        assert_eq!(filter.z_scale_factor, 1.5);
+        let payload = RenderPayload {
+            nodes_3d: vec![Node3dGeometry {
+                id: "fact-1".to_string(),
+                entity_type: "FACT".to_string(),
+                label: "First".to_string(),
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+                person_name: Some("Ada".to_string()),
+                is_direct_fact: Some(true),
+                parent_experience_ids: Some(vec!["exp-1".to_string()]),
+                linked_entity_ids: Some(vec!["fact-2".to_string()]),
+            }],
+            lines_3d: vec![Line3dGeometry {
+                id: "link-1".to_string(),
+                line_type: "LINK".to_string(),
+                from: [0.0, 0.0, 0.0],
+                to: [1.0, 1.0, 1.0],
+                from_id: Some("fact-1".to_string()),
+                to_id: Some("fact-2".to_string()),
+                control_points: None,
+            }],
+            warnings: vec!["Unreferenced folder detected".to_string()],
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+        assert_eq!(json["nodes3d"][0]["entityType"], "FACT");
+        assert_eq!(json["nodes3d"][0]["isDirectFact"], true);
+        assert_eq!(json["lines3d"][0]["fromId"], "fact-1");
+        assert_eq!(json["lines3d"][0]["toId"], "fact-2");
+        let round_tripped: RenderPayload = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&round_tripped).unwrap(), json);
+    }
+
     fn experience(experience_id: Uuid, name: &str, parent_experience_ids: Vec<Uuid>) -> crate::hasm::definitions::Experience {
         crate::hasm::definitions::Experience { link: Vec::new(), experience_id, person_id: Uuid::nil(), experience_name: name.to_string(), experience_description_path: String::new(), parent_experience_ids, link_ids: vec![], markdown: String::new(), markdown_path: String::new() }
     }
@@ -471,6 +657,8 @@ mod tests {
     }
 }
 
+/// [REQ-07-FUNC-501][REQ-03-RULE-019] Builds an isolated temporary workspace (folders, Markdown, SQLite)
+/// used by the native command-chain regression tests.
 pub fn create_test_workspace_fixture() -> Result<TestWorkspaceFixture, String> {
     let root = {
         let temp_dir = std::env::temp_dir();

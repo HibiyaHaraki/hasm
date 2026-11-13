@@ -1,6 +1,8 @@
 import { Form } from "react-bootstrap";
 import ExperienceSelect from "./ExperienceSelect";
 
+// [REQ-08-011][REQ-08-014][REQ-08-017][REQ-08-018] Dedicated EXPERIENCE creation form:
+// required name plus multi-selected parent EXPERIENCE UUIDs, no description input.
 function CreateExperienceForm({ value, onChange, experiences }) {
   return (
     <>

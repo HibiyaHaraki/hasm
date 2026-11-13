@@ -20,6 +20,9 @@ import { createLogger } from "../hasm_logger/src/react/logger.js";
 const ENTITY_TYPES = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 const logger = createLogger("entity-creation");
 
+// [REQ-04-RULE-010] [REQ-04-RULE-011] Entity creation page (SEQ-MD-08): collects the shared
+// external `link: string[]` array for every entity type and rejects invalid HTTP(S) URLs
+// before any creation invoke is issued.
 function EntityCreatePage() {
   const location = useLocation();
   const navigate = useNavigate();

@@ -13,6 +13,9 @@ pub use fact::Fact;
 pub use link::Link;
 pub use person::Person;
 
+/// [REQ-04-RULE-011] [REQ-04-RULE-010] Rejects non-absolute, credentialed, or
+/// whitespace-containing external references; every entity's `link: string[]`
+/// must pass before any read/save proceeds. Never logs URL contents.
 pub fn validate_external_links(links: &[String]) -> Result<(), String> {
     for (index, value) in links.iter().enumerate() {
         let absolute = value.split_once("://").is_some_and(|(scheme, _)| {

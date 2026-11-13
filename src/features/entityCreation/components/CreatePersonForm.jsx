@@ -1,5 +1,7 @@
 import { Form } from "react-bootstrap";
 
+// [REQ-08-010][REQ-08-014][REQ-08-018] Dedicated PERSON creation form: required name,
+// security level 0-5, optional root EXPERIENCE stream toggle, no description input.
 function CreatePersonForm({ value, onChange }) {
   return (
     <>

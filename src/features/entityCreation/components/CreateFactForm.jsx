@@ -2,6 +2,8 @@ import { Form } from "react-bootstrap";
 import ExperienceSelect from "./ExperienceSelect";
 import DateInput from "../../../components/DateInput";
 
+// [REQ-08-012][REQ-08-014][REQ-08-017][REQ-08-018][REQ-08-022] Dedicated FACT creation form:
+// required name, calendar-only start/end dates, Belonging EXPERIENCE multi-select.
 function CreateFactForm({ value, onChange, experiences }) {
   return (
     <>

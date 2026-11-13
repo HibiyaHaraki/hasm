@@ -245,3 +245,112 @@ it("TC-03-VIEW-003 shows exactly the hovered EXPERIENCE badge and its line color
   expect(container.querySelectorAll("circle")).toHaveLength(2);
   expect(within(table).getByText("Paper")).toBeInTheDocument();
 });
+
+// Shared fixtures for the 2D hover-highlight tests: two trunks, two linked FACTs, one unlinked FACT.
+const hoverPayload = {
+  nodes3d: [
+    { id: "exp-parent", entityType: "EXPERIENCE", label: "Life", x: 0, y: 0, z: 0 },
+    { id: "exp-child", entityType: "EXPERIENCE", label: "Research", x: 6, y: 4, z: 0 },
+    { id: "fact-a", entityType: "FACT", label: "A", x: 6, y: 4, z: 3, isDirectFact: true, linkedEntityIds: ["fact-b"], parentExperienceIds: ["exp-parent"] },
+    { id: "fact-b", entityType: "FACT", label: "B", x: 0, y: 0, z: 6, isDirectFact: true, linkedEntityIds: ["fact-a"] },
+    { id: "fact-c", entityType: "FACT", label: "C", x: 6, y: 4, z: 9, isDirectFact: true },
+  ],
+  lines3d: [
+    { id: "branch-exp-parent", lineType: "BRANCH", from: [0, 0, 3], to: [0, 0, 6] },
+    { id: "branch-exp-child", lineType: "BRANCH", from: [6, 4, 3], to: [6, 4, 9] },
+    { id: "link-1", lineType: "LINK", fromId: "fact-a", toId: "fact-b" },
+  ],
+  warnings: [],
+};
+
+it("TC-03-HOVER-001 highlights the hovered FACT, its linked FACT, and parent trunks", () => {
+  const theme = getPatternById("classic").colors;
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const dispose = createCommitGraph2D(container, hoverPayload, theme, null, null, null, null, { timeScaleMode: "SequentialIndex" });
+  const highlightColor = renderer3D.ensureReadableColor(theme.textColor, theme.textBackgroundColor);
+  const [factA, factB] = [...container.querySelectorAll("circle")];
+  const trunks = [...container.querySelectorAll("path")].filter((path) => !path.getAttribute("stroke-dasharray"));
+  expect(trunks).toHaveLength(2);
+  fireEvent.pointerEnter(factA);
+  // Hovered FACT, its linked FACT, its own trunk, and its parent trunk all take the highlight color.
+  expect(factA.getAttribute("fill")).toBe(highlightColor);
+  expect(factB.getAttribute("fill")).toBe(highlightColor);
+  trunks.forEach((trunk) => expect(trunk.getAttribute("stroke")).toBe(highlightColor));
+  expect(container.querySelector("path[stroke-dasharray]").getAttribute("opacity")).toBe("1");
+  dispose();
+  container.remove();
+});
+
+it("TC-03-HOVER-002 leaves unrelated geometry unemphasized and restores base state on leave", () => {
+  const theme = getPatternById("classic").colors;
+  const onHover = vi.fn();
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const dispose = createCommitGraph2D(container, hoverPayload, theme, null, onHover, null, null, { timeScaleMode: "SequentialIndex" });
+  const colors = buildExperienceColorMaps(hoverPayload, theme);
+  const highlightColor = renderer3D.ensureReadableColor(theme.textColor, theme.textBackgroundColor);
+  const [factA, factB, factC] = [...container.querySelectorAll("circle")];
+  const link = container.querySelector("path[stroke-dasharray]");
+  fireEvent.pointerEnter(factC);
+  expect(onHover).toHaveBeenCalledWith(expect.objectContaining({ id: "fact-c" }), expect.anything());
+  expect(factC.getAttribute("fill")).toBe(highlightColor);
+  // The LINK does not touch fact-c, so its segment and endpoints keep their base emphasis.
+  expect(link.getAttribute("opacity")).toBe("0.7");
+  expect(factA.getAttribute("fill")).toBe(colors.factColorByPositionKey.get(positionKey(6, 4)));
+  expect(factB.getAttribute("fill")).toBe(colors.factColorByPositionKey.get(positionKey(0, 0)));
+  fireEvent.pointerLeave(factC);
+  expect(onHover).toHaveBeenLastCalledWith(null, expect.anything());
+  expect(factC.getAttribute("fill")).toBe(colors.factColorByPositionKey.get(positionKey(6, 4)));
+  expect(link.getAttribute("opacity")).toBe("0.7");
+  dispose();
+  container.remove();
+});
+
+// WCAG relative luminance / contrast, computed independently of the implementation under test.
+function wcagContrast(firstHex, secondHex) {
+  const luminance = (hex) => {
+    const value = hex.replace("#", "");
+    const [r, g, b] = [0, 2, 4]
+      .map((offset) => parseInt(value.slice(offset, offset + 2), 16) / 255)
+      .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [lighter, darker] = [luminance(firstHex), luminance(secondHex)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+const colorPayload = (laneCount) => ({
+  nodes3d: Array.from({ length: laneCount }, (_value, index) => (
+    { id: `exp-${index}`, entityType: "EXPERIENCE", label: `Lane ${index}`, x: index * 6, y: 0, z: 0 }
+  )),
+  lines3d: [],
+  warnings: [],
+});
+
+it("TC-03-COLOR-001 derives distinguishable, related, AA-readable trunk and FACT colors", () => {
+  const theme = getPatternById("classic").colors;
+  const { trunkColorByPositionKey, factColorByPositionKey } = buildExperienceColorMaps(colorPayload(12), theme);
+  expect(new Set(trunkColorByPositionKey.values()).size).toBe(12);
+  for (const [key, trunkColor] of trunkColorByPositionKey) {
+    const factColor = factColorByPositionKey.get(key);
+    expect(factColor).not.toBe(trunkColor);
+    expect(wcagContrast(trunkColor, theme.textBackgroundColor)).toBeGreaterThanOrEqual(4.5);
+    expect(wcagContrast(factColor, theme.textBackgroundColor)).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+it("TC-03-COLOR-002 adjusts clashing hues up to AA contrast on a dark surface", () => {
+  // A hostile theme whose anchors all sit on the dark background pulls every derived color
+  // toward an unreadable clash; the maps must still return AA-contrast colors, never the surface.
+  const theme = { textBackgroundColor: "#20232a", mainColor: "#20232a", textColor: "#20232a" };
+  const { trunkColorByPositionKey, factColorByPositionKey } = buildExperienceColorMaps(colorPayload(6), theme);
+  expect(trunkColorByPositionKey.size).toBe(6);
+  for (const [key, trunkColor] of trunkColorByPositionKey) {
+    const factColor = factColorByPositionKey.get(key);
+    for (const color of [trunkColor, factColor]) {
+      expect(color.toLowerCase()).not.toBe(theme.textBackgroundColor);
+      expect(wcagContrast(color, theme.textBackgroundColor)).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+});

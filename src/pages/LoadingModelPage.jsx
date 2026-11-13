@@ -33,6 +33,15 @@ function initialSteps() {
   }));
 }
 
+// [SEQ-MD-02][REQ-02-FUNC-101][REQ-02-FUNC-102][REQ-02-FUNC-104][REQ-02-FUNC-106] Lock check on mount with
+// 3,000ms timeout, read-only banner, and stale lock recovery notice.
+// [REQ-02-FUNC-201][REQ-02-FUNC-203][REQ-02-FUNC-204][REQ-02-FUNC-205][REQ-02-FUNC-302] Progress stream
+// subscriptions and the 10,000ms load/verify watchdog routing stalls to /error-model.
+// [REQ-02-FUNC-306][REQ-02-FUNC-407][REQ-02-RULE-014] Single DB load per open; explicit Go to visualization
+// after verification, retaining the verified model in route state; empty workspaces go to /initialize-model.
+// [REQ-02-RULE-011][REQ-02-RULE-013] Load attempt lifetime ownership plus the four-stage stepper and
+// optional nine-bar loading detail view.
+// [REQ-07-FUNC-105] Shows the redirect reason only while loading and clears it from router state.
 function LoadingModelPage() {
   const location = useLocation();
   const navigate = useNavigate();

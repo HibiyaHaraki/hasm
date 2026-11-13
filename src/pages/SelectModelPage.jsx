@@ -21,6 +21,13 @@ function normalizeWorkspacePath(value) {
     : path;
 }
 
+// [SEQ-MD-01][REQ-01-FUNC-503][REQ-01-FUNC-504][REQ-01-FUNC-505] Manual workspace path input with
+// 300ms-debounced real-time validation under a 2,000ms IPC timeout.
+// [REQ-01-FUNC-506][REQ-01-FUNC-508][REQ-01-FUNC-509] Enables/disables Open and shows inline warnings by validation state.
+// [REQ-01-FUNC-510][REQ-01-FUNC-512][REQ-01-FUNC-601][REQ-01-FUNC-602] Captures the quote-normalized path and transfers it to /loading-model.
+// [REQ-02-RULE-012] Native single-folder Browse action feeding the same debounced validation.
+// [REQ-07-RULE-002] Displays redirectReason from router state and clears it to prevent duplicate notices.
+// Create New HASM uses the native save dialog and workspace scaffolding (REQ-08-001 / REQ-08-002).
 function SelectModelPage() {
   const navigate = useNavigate();
   const location = useLocation();

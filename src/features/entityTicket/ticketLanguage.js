@@ -116,6 +116,8 @@ const japanese = {
   "Launching HASM Markdown App timed out.": "HASM Markdown Appの起動がタイムアウトしました。",
 };
 
+// [REQ-04-RULE-021] English/Japanese ticket translation for application-authored messages;
+// raw diagnostics, entity names, and user content stay verbatim.
 export function translateTicket(text, values = {}, language = "en") {
   // Native diagnostics and user content stay verbatim if they are not UI messages.
   const template = language === "ja" ? japanese[text] ?? text : text;

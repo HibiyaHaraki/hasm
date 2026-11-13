@@ -1,6 +1,9 @@
 import { Form } from "react-bootstrap";
 import { translateTicket } from "../features/entityTicket/ticketLanguage";
 
+// [SEQ-MD-04][REQ-04-RULE-017] Accessible native date calendar without raw ISO text input: preserves an
+// existing time/timezone suffix when a date is picked and keeps invalid stored text visible as a warning
+// until replaced. Also used by FACT creation date fields (REQ-08-022).
 export default function DateInput({ id, value, onChange, disabled = false, autoFocus = false, t = translateTicket }) {
   const match = value.match(/^(\d{4}-\d{2}-\d{2})(T.*)?$/);
   const date = match?.[1] || "";

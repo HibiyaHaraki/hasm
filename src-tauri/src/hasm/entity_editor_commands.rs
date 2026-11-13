@@ -3,6 +3,9 @@ use crate::hasm::service;
 use crate::hasm::types::{CheckMtimePayload, EntityDetailPayload};
 use std::fs;
 
+/// [REQ-04-FUNC-103][REQ-04-FUNC-104][REQ-04-FUNC-106][REQ-04-FUNC-114][REQ-04-DATA-002]
+/// Loads a single entity ticket: metadata, raw Markdown body, and the file
+/// `loaded_mtime_ms`, rejecting missing entities or missing `main.md` files.
 #[tauri::command]
 pub fn load_entity_detail(model_root: String, entity_type: String, entity_id: String) -> Result<EntityDetailPayload, String> {
     let detail = detail_value(&model_root, &entity_type, &entity_id)?;
@@ -14,6 +17,9 @@ pub fn load_entity_detail(model_root: String, entity_type: String, entity_id: St
     Ok(EntityDetailPayload { entity_type, entity_id, name, markdown_body, loaded_mtime_ms, detail })
 }
 
+/// [REQ-04-RULE-007][REQ-04-FUNC-502][REQ-04-FUNC-503][REQ-04-FUNC-504][REQ-04-DATA-005]
+/// Lightweight window-focus freshness poll: stats `main.md` without parsing
+/// content, reporting external modification or on-disk deletion.
 #[tauri::command]
 pub fn check_entity_mtime(model_root: String, entity_type: String, entity_id: String, last_loaded_mtime_ms: u64) -> Result<CheckMtimePayload, String> {
     // REQ-04-RULE-007: the focus-triggered freshness poll must stay sub-10ms, so the
@@ -43,6 +49,9 @@ fn conventional_markdown_path(model_root: &str, entity_type: &str, entity_id: &s
     }
 }
 
+/// [REQ-04-FUNC-508][REQ-04-FUNC-509] Re-reads the entity Markdown after an
+/// external edit, rejecting with `ERR_MARKDOWN_FILE_NOT_FOUND` when `main.md`
+/// was deleted on disk.
 #[tauri::command]
 pub fn reload_entity_markdown(model_root: String, entity_type: String, entity_id: String) -> Result<EntityDetailPayload, String> { load_entity_detail(model_root, entity_type, entity_id) }
 
@@ -111,6 +120,109 @@ mod tests {
         link.link_name = "Supports Updated".to_string(); 
         service::save_link_detail(&demo.path, &link).unwrap(); 
         assert_eq!(service::get_link_detail(&demo.path, &link.link_id.to_string()).unwrap().link_name, "Supports Updated");
+        fs::remove_dir_all(demo.path).unwrap();
+    }
+
+    // TC-04-RUST-011: [REQ-04-FUNC-103] [REQ-04-FUNC-104] [REQ-04-FUNC-106] [REQ-04-RULE-008]
+    // Unknown entities and missing Markdown reject explicitly without creating rows
+    // or scanning the package (SEQ-MD-04 load error contract).
+    #[test]
+    fn rejects_unknown_entities_and_missing_markdown_without_touching_rows() {
+        let demo = create_test_workspace_fixture().unwrap();
+        let unknown = "99999999-9999-9999-9999-999999999999";
+        for entity_type in ["PERSON", "EXPERIENCE", "FACT", "LINK"] {
+            let error = load_entity_detail(demo.path.clone(), entity_type.to_string(), unknown.to_string()).unwrap_err();
+            assert!(error.contains("not found") || error.contains("ERR_ENTITY_NOT_FOUND"), "unexpected error: {error}");
+        }
+        // Unsupported entity types and malformed UUIDs reject before any filesystem walk.
+        assert_eq!(load_entity_detail(demo.path.clone(), "WORKSPACE".to_string(), unknown.to_string()).unwrap_err(), "ERR_ENTITY_NOT_FOUND");
+        assert_eq!(check_entity_mtime(demo.path.clone(), "FACT".to_string(), "../escape".to_string(), 0).unwrap_err(), "ERR_ENTITY_NOT_FOUND");
+        // A present row whose main.md was deleted rejects with the Markdown marker.
+        let fact_id = "33333333-3333-3333-3333-333333333331";
+        fs::remove_file(format!("{}/FACT/{fact_id}/main.md", demo.path)).unwrap();
+        let error = load_entity_detail(demo.path.clone(), "FACT".to_string(), fact_id.to_string()).unwrap_err();
+        assert!(error.contains("ERR_MARKDOWN_FILE_NOT_FOUND"), "unexpected error: {error}");
+        // The rejected lookups must not have created an entity row for the unknown id.
+        let connection = rusqlite::Connection::open(std::path::Path::new(&demo.path).join("main.db")).unwrap();
+        for (table, column) in [("person", "person_id"), ("experience", "experience_id"), ("fact", "fact_id"), ("link", "link_id")] {
+            let rows: i64 = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table} WHERE {column} = ?1"), [unknown], |row| row.get(0))
+                .unwrap();
+            assert_eq!(rows, 0, "{table} gained a row for a rejected lookup");
+        }
+        drop(connection);
+        fs::remove_dir_all(demo.path).unwrap();
+    }
+
+    // TC-04-RUST-012: [REQ-04-FUNC-502] [REQ-04-FUNC-503] [REQ-04-RULE-007]
+    // The focus poll reports an externally modified main.md and never flags an
+    // unchanged file (SEQ-MD-04 freshness contract).
+    #[test]
+    fn detects_external_modification_on_the_focus_poll() {
+        let demo = create_test_workspace_fixture().unwrap();
+        let entity_id = "33333333-3333-3333-3333-333333333331";
+        let loaded = load_entity_detail(demo.path.clone(), "FACT".to_string(), entity_id.to_string()).unwrap();
+        // An unchanged file must not be reported as modified.
+        let unchanged = check_entity_mtime(demo.path.clone(), "FACT".to_string(), entity_id.to_string(), loaded.loaded_mtime_ms).unwrap();
+        assert!(!unchanged.is_modified);
+        assert!(!unchanged.is_deleted);
+        // Simulate an external editor save with a strictly newer mtime.
+        let path = format!("{}/FACT/{entity_id}/main.md", demo.path);
+        let file = fs::File::options().write(true).open(&path).unwrap();
+        file.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5)).unwrap();
+        drop(file);
+        let modified = check_entity_mtime(demo.path.clone(), "FACT".to_string(), entity_id.to_string(), loaded.loaded_mtime_ms).unwrap();
+        assert!(modified.is_modified);
+        assert!(!modified.is_deleted);
+        assert!(modified.current_mtime_ms > loaded.loaded_mtime_ms);
+        fs::remove_dir_all(demo.path).unwrap();
+    }
+
+    // TC-04-RUST-013: [REQ-04-RULE-004] [REQ-04-RULE-006] [REQ-04-RULE-011]
+    // A rejected save leaves the stored row untouched and a corrected save
+    // afterwards succeeds (rollback/recovery contract of SEQ-MD-04 persistence).
+    #[test]
+    fn recovers_after_rejected_saves_without_corrupting_rows() {
+        let demo = create_test_workspace_fixture().unwrap();
+        let person_id = "11111111-1111-1111-1111-111111111111";
+        let original = service::get_person_detail(&demo.path, person_id).unwrap();
+        let mut invalid = original.clone();
+        invalid.person_name = "Should not persist".to_string();
+        invalid.link = vec!["javascript:alert(1)".to_string()];
+        let error = service::save_person_detail(&demo.path, &invalid).unwrap_err();
+        assert!(error.contains("ERR_INVALID_EXTERNAL_LINK"), "unexpected error: {error}");
+        // Validation failure must block persistence entirely.
+        let unchanged = service::get_person_detail(&demo.path, person_id).unwrap();
+        assert_eq!(unchanged.person_name, original.person_name);
+        assert_eq!(unchanged.link, original.link);
+        // The user's corrected input persists on the next attempt.
+        let mut corrected = original.clone();
+        corrected.person_name = "Recovered".to_string();
+        corrected.link = vec!["https://example.org/profile".to_string()];
+        service::save_person_detail(&demo.path, &corrected).unwrap();
+        let saved = service::get_person_detail(&demo.path, person_id).unwrap();
+        assert_eq!(saved.person_name, "Recovered");
+        assert_eq!(saved.link, corrected.link);
+        fs::remove_dir_all(demo.path).unwrap();
+    }
+
+    // TC-04-RUST-014: [REQ-04-FUNC-202] [REQ-04-FUNC-203] [REQ-04-FUNC-204] [REQ-04-FUNC-205]
+    // Domain `verify()` rejects time inversion, self-loop LINKs, and blank names
+    // while accepting well-formed entities.
+    #[test]
+    fn rejects_invalid_domain_updates_through_entity_verify() {
+        let demo = create_test_workspace_fixture().unwrap();
+        let mut fact = service::get_fact_detail(&demo.path, "33333333-3333-3333-3333-333333333331").unwrap();
+        assert!(fact.verify(Some("2026-05-01"), Some("2026-08-01"), 1).is_ok());
+        assert_eq!(fact.verify(Some("2026-08-01"), Some("2026-05-01"), 1).unwrap_err(), "EntityValidationError::TimeInversion");
+        fact.fact_name = "   ".to_string();
+        assert_eq!(fact.verify(None, None, 1).unwrap_err(), "EntityValidationError::EmptyName");
+        let mut link = service::get_link_detail(&demo.path, "44444444-4444-4444-4444-444444444444").unwrap();
+        let endpoint = uuid::Uuid::parse_str("33333333-3333-3333-3333-333333333331").unwrap();
+        link.related_ids = vec![endpoint, uuid::Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap()];
+        assert!(link.verify().is_ok());
+        link.related_ids = vec![endpoint, endpoint];
+        assert_eq!(link.verify().unwrap_err(), "EntityValidationError::SelfLoopLink");
         fs::remove_dir_all(demo.path).unwrap();
     }
 

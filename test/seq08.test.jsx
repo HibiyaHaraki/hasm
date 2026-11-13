@@ -3,18 +3,24 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import EntityCreatePage from "../src/pages/EntityCreatePage";
 import ModelInitializationPage from "../src/pages/ModelInitializationPage";
+import SelectModelPage from "../src/pages/SelectModelPage";
 import VisualizerPage from "../src/pages/VisualizerPage";
 import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
+  browseWorkspaceDirectory: vi.fn(),
   computeVisualizerLayout: vi.fn(),
+  createHasmWorkspace: vi.fn(),
   createPerson: vi.fn(),
   createExperience: vi.fn(),
   createFact: vi.fn(),
   createLink: vi.fn(),
   loadHasmModelDb: vi.fn(),
+  pickWorkspaceDirectory: vi.fn(),
   switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
+  validateHasmFolderPath: vi.fn(),
+  withTimeout: vi.fn((promise) => promise),
 }));
 vi.mock("../src/hasm_visualizer/threeCommitGraph.js", async () => {
   const actual = await vi.importActual("../src/hasm_visualizer/threeCommitGraph.js");
@@ -274,6 +280,51 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create LINK" }));
 
     expect(await screen.findByText("SelfLoopLink")).toBeInTheDocument();
+    // [REQ-08-021] A failed creation must not invalidate state: no model reload, no re-layout.
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+    expect(api.computeVisualizerLayout).not.toHaveBeenCalled();
+  });
+
+  it("TC-08-REACT-008 cancels or fails the native save dialog without scaffolding a workspace", async () => {
+    // [REQ-08-001] Cancelling the OS save dialog must not create any workspace.
+    api.withTimeout.mockImplementation((promise) => promise);
+    api.pickWorkspaceDirectory.mockResolvedValueOnce(null);
+    render(
+      <MemoryRouter initialEntries={["/select"]}>
+        <Routes>
+          <Route path="/select" element={<SelectModelPage />} />
+          <Route path="/loading-model" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create New HASM" }));
+    await vi.waitFor(() => expect(api.pickWorkspaceDirectory).toHaveBeenCalledTimes(1));
+    expect(api.createHasmWorkspace).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+
+    api.pickWorkspaceDirectory.mockResolvedValueOnce("C:/NewLife.hasm");
+    api.createHasmWorkspace.mockRejectedValueOnce(new Error("ERR_WORKSPACE_CREATION_FAILED"));
+    fireEvent.click(await screen.findByRole("button", { name: "Create New HASM" }));
+    expect(await screen.findByText("ERR_WORKSPACE_CREATION_FAILED")).toBeInTheDocument();
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+  });
+
+  it("TC-08-REACT-009 surfaces backend TimeInversion from calendar-only FACT dates", async () => {
+    // [REQ-08-022] Calendar-only FACT date fields keep the existing IPC payload, and
+    // an inverted range fails with a visible backend error and no model reload.
+    api.createFact.mockRejectedValue(new Error("EntityValidationError::TimeInversion"));
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "FACT" }));
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("End date")).toHaveAttribute("type", "date");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Backdated" } });
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-08-12" } });
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2020-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create FACT" }));
+    await vi.waitFor(() => expect(api.createFact).toHaveBeenCalledWith("C:/fixture.hasm",
+      expect.objectContaining({ startTime: "2026-08-12", endTime: "2020-01-01" })));
+    expect(await screen.findByRole("alert")).toHaveTextContent("TimeInversion");
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });
 
   it("TC-08-REACT-004 confirms name and birth date before initializing an empty model", async () => {

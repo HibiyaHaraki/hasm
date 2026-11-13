@@ -98,6 +98,27 @@ describe("EVAL-03 visualizer scope selection", () => {
     expect(scopeModel(model, { personIds: ["person-1"], experienceIds: [] }).facts.map((fact) => fact.factId))
       .toEqual(["fact-root", "fact-child", "fact-independent", "fact-person-only"]);
   });
+
+  it("TC-03-SCOPE-008 tolerates unknown ids, missing scopes, and shapeless entities without crashing", () => {
+    // Unknown selections narrow to a valid empty model instead of throwing or leaking entities.
+    const unknownScope = scopeModel(camelCaseModel, { personIds: [], experienceIds: ["exp-missing"] });
+    expect(unknownScope.experiences).toEqual([]);
+    expect(unknownScope.facts).toEqual([]);
+    expect(unknownScope.links).toEqual([]);
+    // Missing or empty scopes and models pass through unchanged.
+    expect(scopeModel(null, { personIds: ["person-1"], experienceIds: [] })).toBeNull();
+    expect(isEmptyScope(undefined)).toBe(true);
+    expect(isEmptyScope({ personIds: undefined, experienceIds: undefined })).toBe(true);
+    expect(countModelEntities({})).toBe(0);
+    // A PERSON with no EXPERIENCEs offers no options rather than failing.
+    expect(listExperienceOptions(camelCaseModel, ["person-missing"])).toEqual([]);
+    // Entities carrying neither the snake_case nor the camelCase id shape are handled.
+    const shapeless = { people: [{}], experiences: [{}], facts: [{}], links: [{}] };
+    const scopedShapeless = scopeModel(shapeless, { personIds: ["person-1"], experienceIds: [] });
+    expect(scopedShapeless.experiences).toEqual([]);
+    expect(scopedShapeless.facts).toEqual([]);
+    expect(scopedShapeless.links).toEqual([]);
+  });
 });
 
 describe("EVAL-03 visualizer render budget", () => {

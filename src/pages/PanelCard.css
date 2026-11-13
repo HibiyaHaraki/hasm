@@ -4,7 +4,7 @@
   ###################################################
   Purpose : Shared "paper" card look for boot/error/selection style pages
   Description : Used by AppBootGatePage, ErrorAppPage, ErrorModelPage,
-  LoadingModelPage, EntityDetailPlaceholderPage, and SelectModelPage.
+  LoadingModelPage, and SelectModelPage.
   ################################################### */
 
 .panel-layout {

@@ -9,6 +9,11 @@ import "./ModelInitializationPage.css";
 
 const logger = createLogger("model-initialization");
 
+// [SEQ-MD-08] Confirmed Life bootstrap for an empty workspace (REQ-08-015): collects PERSON name and
+// birth date, shows a confirmation dialog before any create invoke, calls create_person with
+// createLifeExperience=true, blocks duplicate submissions, and retries model reload without
+// duplicating entities. Reached from LoadingModelPage when the model holds zero entities
+// [REQ-02-FUNC-306].
 function ModelInitializationPage() {
   const { state } = useLocation();
   const navigate = useNavigate();

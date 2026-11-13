@@ -226,6 +226,25 @@ describe("Entity graph GUI and real IPC wrapper", () => {
       expect(region.querySelector(".ticket-graph-entities .ticket-graph-current")).toHaveTextContent(`${type}:`);
     },
   );
+  it("TC-04-GRAPH-EMPHASIS-002 never invents PERSON nodes or emphasizes unaddressed FACT markers", async () => {
+    const rendererSpy = vi.spyOn(graphRenderer, "createCommitGraph2D");
+    renderTicket("PERSON", "p");
+    const region = await screen.findByRole("region", { name: "Extended commit graph" });
+    await waitFor(() => expect(region.querySelector("svg")).not.toBeNull());
+    expect(rendererSpy).toHaveBeenCalled();
+    const theme = getPatternById(DEFAULT_COLOR_PATTERN).colors;
+    const highlight = ensureReadableColor(theme.textColor, theme.textBackgroundColor);
+    // [REQ-04-RULE-024] PERSON tickets emphasize retained timelines, never FACT markers.
+    for (const marker of region.querySelectorAll("circle")) {
+      expect(marker.getAttribute("fill")).not.toBe(highlight);
+    }
+    const layoutCalls = bridge.invoke.mock.calls.filter(([command]) => command === "compute_visualizer_layout").length;
+    fireEvent.pointerEnter(region.querySelector("circle"));
+    fireEvent.pointerLeave(region.querySelector("circle"));
+    expect(bridge.invoke.mock.calls.filter(([command]) => command === "compute_visualizer_layout")).toHaveLength(layoutCalls);
+    expect(region.querySelector(".ticket-graph-current strong")).toHaveTextContent("PERSON:");
+    expect(region.querySelector('a[aria-current="page"]')).toHaveAttribute("href", "/entity-detail/PERSON/p");
+  });
   it.each([["FACT", "focus"], ["EXPERIENCE", "child"], ["LINK", "incoming"], ["PERSON", "p"]])(
     "TC-04-GRAPH-IPC-001 displays %s graph at the bottom and invokes layout with the exact extracted model",
     async (type, id) => {

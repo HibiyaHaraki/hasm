@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AppBootGatePage from "../src/pages/AppBootGatePage";
@@ -25,7 +25,12 @@ vi.mock("../src/features/hasm/api", () => ({
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}</output>;
+  return (
+    <>
+      <output data-testid="location">{location.pathname}</output>
+      <output data-testid="location-state">{JSON.stringify(location.state ?? null)}</output>
+    </>
+  );
 }
 
 function renderBoot() {
@@ -151,7 +156,7 @@ describe("SEQ-01 app launch validation", () => {
     await waitFor(() => expect(api.completeAppLaunch).toHaveBeenCalledWith("select"));
   });
 
-  it("TC-01-REACT-002 routes a direct launch to workspace selection", async () => {
+  it("TC-01-REACT-002 and TC-01-REACT-028 route a direct launch to selection without folder validation", async () => {
     api.validateHasmMarkdownApp.mockResolvedValue();
     api.validateAppVersion.mockResolvedValue({ isModelSelected: false, path: null });
     renderBoot();
@@ -253,6 +258,136 @@ describe("SEQ-01 app launch validation", () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+  });
+
+  it("TC-01-REACT-017 aborts subsequent IPC and stores the error after a critical check failure", async () => {
+    api.validateHasmMarkdownApp.mockRejectedValue(new Error("Markdown app missing"));
+    renderBoot();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-app");
+    expect(screen.getByTestId("location-state")).toHaveTextContent("Markdown app missing");
+    expect(api.validateAppVersion).not.toHaveBeenCalled();
+    expect(api.validateHasmFolderPath).not.toHaveBeenCalled();
+  });
+
+  it("TC-01-REACT-018 stores the Check 2 error and routes to the error page", async () => {
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockRejectedValue(new Error("Version inspection failed"));
+    renderBoot();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-app");
+    expect(screen.getByTestId("location-state")).toHaveTextContent("Version inspection failed");
+    expect(api.validateHasmFolderPath).not.toHaveBeenCalled();
+  });
+
+  it("TC-01-REACT-019 keeps the initial boot state intact when validation fails immediately", async () => {
+    api.validateHasmMarkdownApp.mockRejectedValue(new Error("Markdown app missing"));
+    renderBoot();
+    // Initial mount state: isLoading=true, loadState=0, error=null, before the rejection routes away.
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("HASM Markdown application")).toHaveAttribute("data-active", "true");
+    expect(screen.getByText("Application version and launch path")).toHaveAttribute("data-active", "false");
+    expect(screen.queryByText("Markdown app missing")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-app");
+  });
+
+  it("TC-01-REACT-020 halts boot progress when version inspection fails", async () => {
+    let rejectVersion;
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockReturnValue(new Promise((_resolve, reject) => { rejectVersion = reject; }));
+    renderBoot();
+    // Check 1 success advanced loadState to 1; Check 2 is still pending.
+    await waitFor(() => expect(screen.getByText("Application version and launch path")).toHaveAttribute("data-active", "true"));
+    expect(screen.getByText("Workspace path")).toHaveAttribute("data-active", "false");
+    expect(api.validateAppVersion).toHaveBeenCalledTimes(1);
+    rejectVersion(new Error("Version inspection failed"));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-app");
+    expect(api.validateHasmFolderPath).not.toHaveBeenCalled();
+  });
+
+  it("TC-01-REACT-021 never navigates to loading-model with an unverified CLI path", async () => {
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockResolvedValue({ isModelSelected: true, path: "C:/missing" });
+    api.validateHasmFolderPath.mockRejectedValue(new Error("missing"));
+    renderBoot();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/select");
+    expect(screen.getByTestId("location")).not.toHaveTextContent("/loading-model");
+    // The stored CLI path reached Check 3 but was never transferred as verified route state.
+    expect(api.validateHasmFolderPath).toHaveBeenCalledWith("C:/missing");
+    expect(screen.getByTestId("location-state")).toHaveTextContent("Specified HASM path does not exist.");
+  });
+
+  it("TC-01-REACT-022 gracefully falls back to select carrying the stored CLI path error", async () => {
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockResolvedValue({ isModelSelected: true, path: "C:/missing" });
+    api.validateHasmFolderPath.mockRejectedValue(new Error("missing"));
+    renderBoot();
+    // Fallback reaches /select (isModelSelected reset, manual flow active, no /error-app)
+    // with the documented error message stored in route state.
+    expect(await screen.findByTestId("location")).toHaveTextContent("/select");
+    expect(screen.getByTestId("location-state")).toHaveTextContent("Specified HASM path does not exist.");
+    await waitFor(() => expect(api.completeAppLaunch).toHaveBeenCalledWith("select-invalid-path"));
+  });
+
+  it("TC-01-REACT-023 wires hard timeouts on every boot IPC call", async () => {
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockResolvedValue({ isModelSelected: true, path: "C:/workspace" });
+    api.validateHasmFolderPath.mockResolvedValue();
+    renderBoot();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+    // Check 1 (5,000ms), Check 2 (5,000ms), Check 3 (3,000ms) all run under withTimeout.
+    expect(api.withTimeout.mock.calls.map((call) => call[1])).toEqual([5000, 5000, 3000]);
+  });
+
+  it("TC-01-REACT-024 wires the 2,000ms hard timeout on real-time path validation", async () => {
+    api.validateHasmFolderPath.mockResolvedValue();
+    renderSelect();
+    fireEvent.change(screen.getByLabelText("Workspace folder"), { target: { value: "C:/workspace" } });
+    await waitFor(() => expect(api.withTimeout).toHaveBeenCalled());
+    expect(api.withTimeout.mock.calls[0][1]).toBe(2000);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open" })).toBeEnabled());
+  });
+
+  it("TC-01-REACT-025 suppresses a keystroke storm until the 300ms debounce elapses", async () => {
+    vi.useFakeTimers();
+    try {
+      api.validateHasmFolderPath.mockResolvedValue();
+      renderSelect();
+      const input = screen.getByLabelText("Workspace folder");
+      for (let keystroke = 0; keystroke < 10; keystroke += 1) {
+        if (keystroke > 0) act(() => vi.advanceTimersByTime(10));
+        fireEvent.change(input, { target: { value: `C:/workspace${keystroke}` } });
+      }
+      // Earlier debounce timers were cancelled; the last one has not fired at 299ms.
+      act(() => vi.advanceTimersByTime(299));
+      expect(api.validateHasmFolderPath).not.toHaveBeenCalled();
+      await act(async () => { vi.advanceTimersByTime(1); });
+      expect(api.validateHasmFolderPath).toHaveBeenCalledTimes(1);
+      expect(api.validateHasmFolderPath).toHaveBeenCalledWith("C:/workspace9");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("TC-01-REACT-026 keeps an unmatched quote literal in manual path input", async () => {
+    api.validateHasmFolderPath.mockRejectedValue(new Error("ERR_TARGET_PATH_NOT_FOUND"));
+    renderSelect();
+    fireEvent.change(screen.getByLabelText("Workspace folder"), { target: { value: '  "C:\\unclosed  ' } });
+    await waitFor(() => expect(api.validateHasmFolderPath).toHaveBeenCalledWith('"C:\\unclosed'));
+    expect(await screen.findByText("Invalid HASM workspace folder.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+  });
+
+  it("TC-01-REACT-027 recovers from an invalid path: warning shows then clears and submit enables", async () => {
+    api.validateHasmFolderPath
+      .mockRejectedValueOnce(new Error("ERR_TARGET_PATH_NOT_FOUND"))
+      .mockResolvedValueOnce();
+    renderSelect();
+    const input = screen.getByLabelText("Workspace folder");
+    fireEvent.change(input, { target: { value: "C:/missing" } });
+    expect(await screen.findByText("Invalid HASM workspace folder.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    fireEvent.change(input, { target: { value: "C:/workspace" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open" })).toBeEnabled());
+    expect(screen.getByRole("status").textContent).toBe("");
   });
 
   it("does not offer a test graph action", () => {

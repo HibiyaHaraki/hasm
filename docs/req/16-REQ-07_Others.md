@@ -80,3 +80,7 @@ This matrix defines the strict evaluation rules executed by `<ProtectedRoute>` w
 * **[REQ-07-FUNC-401] Synchronous Status Display:** Renders for active path, read-only status, verification state, and warning lists in `GlobalNavbar.jsx` MUST read directly from `useWorkspaceStore.js` without issuing Tauri IPC requests (0ms latency).
 * **[REQ-07-FUNC-402] Metadata Save Status Invalidation:** Successful execution of `save_entity_metadata` (`SEQ-04`) MUST automatically update `useWorkspaceStore` setting `isVerified = false`, immediately updating the status badge in `GlobalNavbar.jsx` to reflect that re-verification is required.
 * **[REQ-07-FUNC-403] Storage Repair Warning Clearance:** Successful execution of `repair_missing_entity_folders` (`SEQ-06`) MUST update `useWorkspaceStore` removing repaired UUIDs from the active `warnings` list.
+
+### Chapter 5: Evaluation Support
+
+* **[REQ-07-FUNC-501] Deterministic Test Workspace Fixture:** Rust MUST provide a test-only command (`create_test_workspace_fixture`) that scaffolds a deterministic, populated temporary workspace and returns its path together with the loaded model, so evaluation suites can run without relying on local absolute paths. The fixture command MUST NOT be reachable from production UI flows.

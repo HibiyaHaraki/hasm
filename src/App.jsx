@@ -46,6 +46,11 @@ function CloseLockListener() {
   return null;
 }
 
+// [SEQ-MD-07][REQ-07-RULE-001][REQ-07-FUNC-301] Root router shell: wires ProtectedRoute guards,
+// the catch-all unknown-route redirect to /select, and applies the active hasm_color_pattern
+// theme as CSS custom properties on the document root.
+// [REQ-02-RULE-003][REQ-02-FUNC-108][REQ-02-FUNC-109] Mounts the close-requested workspace lock
+// release listener (CloseLockListener) for graceful lock cleanup on window close.
 function App() {
   const [activePatternId, setActivePatternId] = useState(DEFAULT_COLOR_PATTERN);
 

@@ -2,6 +2,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Container } from "react-bootstrap";
 import "./PanelCard.css";
 
+// [SEQ-MD-06][REQ-06-RULE-001][REQ-06-FUNC-101] App system error fallback screen for /error-app:
+// renders the startup validation error message from router state without crashing.
+// [REQ-06-FUNC-102] Retry re-runs the SEQ-01 boot validation by navigating back to the boot gate.
 function ErrorAppPage() {
   const location = useLocation();
   const navigate = useNavigate();

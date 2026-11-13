@@ -17,6 +17,9 @@ const ENTITY_TIMEOUT: Duration = Duration::from_millis(5000);
 const LOCK_DIRECTORY: &str = ".hasm";
 const LOCK_FILENAME: &str = "lock";
 
+/// [REQ-08-002][REQ-08-100][REQ-01-RULE-008][REQ-02-FUNC-107] Scaffolds a new `.hasm` workspace: entity
+/// directories, SQLite schema with the `link` JSON-array column, and the
+/// `.hasm/lock` file recording the current PID, rolling back artifacts on failure.
 #[tauri::command]
 pub fn create_hasm_workspace(target_directory_path: String) -> Result<WorkspacePathPayload, String> {
     let started = Instant::now();
@@ -95,6 +98,9 @@ fn cleanup_workspace_artifacts(root: &Path) {
     }
 }
 
+/// [REQ-08-010][REQ-08-015][REQ-08-016][REQ-08-020][REQ-08-101] Creates a PERSON entity
+/// (optionally with its Life EXPERIENCE and birth-date FACT) after domain
+/// validation of the name, security level, and external URL array.
 #[tauri::command]
 pub fn create_person(path: String, payload: CreatePersonRequest) -> Result<EntityCreationPayload, String> {
     let started = Instant::now();
@@ -108,6 +114,9 @@ pub fn create_person(path: String, payload: CreatePersonRequest) -> Result<Entit
     result
 }
 
+/// [REQ-08-011][REQ-08-016][REQ-08-020][REQ-08-101] Creates an EXPERIENCE
+/// entity with optional parent bindings; domain validation (non-empty name,
+/// valid external URLs) must pass before the SQLite insert and file scaffold.
 #[tauri::command]
 pub fn create_experience(path: String, payload: CreateExperienceRequest) -> Result<EntityCreationPayload, String> {
     let started = Instant::now();
@@ -154,6 +163,9 @@ pub fn create_experience(path: String, payload: CreateExperienceRequest) -> Resu
     })
 }
 
+/// [REQ-08-012][REQ-08-016][REQ-08-020][REQ-08-101] Creates
+/// a FACT entity with optional EXPERIENCE bindings; validation enforces a
+/// non-empty name, chronological start/end times, and valid external URLs.
 #[tauri::command]
 pub fn create_fact(path: String, payload: CreateFactRequest) -> Result<EntityCreationPayload, String> {
     let started = Instant::now();
@@ -161,6 +173,9 @@ pub fn create_fact(path: String, payload: CreateFactRequest) -> Result<EntityCre
     create_fact_with_id(&root, payload, Uuid::new_v4(), started)
 }
 
+/// [REQ-08-013][REQ-08-016][REQ-08-020][REQ-08-101][REQ-08-102] Creates a LINK entity
+/// after rejecting self-loop endpoints, verifying both endpoint entities exist
+/// in storage, and validating the relationship type and external URL array.
 #[tauri::command]
 pub fn create_link(path: String, payload: CreateLinkRequest) -> Result<EntityCreationPayload, String> {
     let started = Instant::now();
@@ -620,11 +635,49 @@ mod tests {
         let root = temp_workspace_path("workspace-error");
         fs::write(&root, "occupied").unwrap();
 
+        // [REQ-08-100] Failure plus rollback must stay within the 3,000 ms scaffolding SLA.
+        let started = Instant::now();
         let error = create_hasm_workspace(root.to_string_lossy().to_string()).unwrap_err();
+        assert!(
+            started.elapsed() < WORKSPACE_TIMEOUT,
+            "workspace rollback exceeded the 3,000 ms scaffolding SLA"
+        );
         assert!(error.contains("ERR_WORKSPACE_CREATION_FAILED"));
         assert!(root.is_file());
 
         fs::remove_file(root).unwrap();
+    }
+
+    #[test]
+    fn link_graph_invariant_checks_complete_within_sla() {
+        // [REQ-08-102][REQ-08-013] In-memory link invariant checks (self-loop guard)
+        // must complete within the 5 ms SLA for valid and self-loop candidates.
+        let origin = Uuid::new_v4();
+        let valid = Link {
+            link: Vec::new(),
+            link_id: Uuid::new_v4(),
+            link_name: "references".to_string(),
+            link_type: "references".to_string(),
+            link_description_path: String::new(),
+            related_ids: vec![origin, Uuid::new_v4()],
+            markdown: String::new(),
+            markdown_path: String::new(),
+        };
+        let self_loop = Link {
+            related_ids: vec![origin, origin],
+            ..valid.clone()
+        };
+
+        let started = Instant::now();
+        assert!(valid.verify().is_ok());
+        assert_eq!(
+            self_loop.verify().unwrap_err(),
+            "EntityValidationError::SelfLoopLink"
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(5),
+            "in-memory link invariant checks exceeded the 5 ms SLA"
+        );
     }
 
     #[test]
@@ -686,6 +739,8 @@ mod tests {
         create_hasm_workspace(root.to_string_lossy().to_string()).unwrap();
         let urls = vec!["https://x.com/test/status/1".to_string(), "https://example.org/source".to_string()];
 
+        // [REQ-08-101] Each entity creation transaction must complete within 5,000 ms.
+        let sla_person = Instant::now();
         let person = create_person(
             root.to_string_lossy().to_string(),
             CreatePersonRequest { link: urls.clone(),
@@ -697,12 +752,14 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(sla_person.elapsed() < ENTITY_TIMEOUT);
 
         let mut model = service::read_model_database(&root.to_string_lossy()).unwrap();
         assert_eq!(model.people.len(), 1);
         assert_eq!(model.experiences.len(), 1);
         let root_experience_id = model.experiences[0].experience_id;
 
+        let sla_experience = Instant::now();
         let experience = create_experience(
             root.to_string_lossy().to_string(),
             CreateExperienceRequest { link: urls.clone(),
@@ -713,7 +770,9 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(sla_experience.elapsed() < ENTITY_TIMEOUT);
 
+        let sla_fact = Instant::now();
         let fact = create_fact(
             root.to_string_lossy().to_string(),
             CreateFactRequest { link: urls.clone(),
@@ -726,7 +785,9 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(sla_fact.elapsed() < ENTITY_TIMEOUT);
 
+        let sla_link = Instant::now();
         let link = create_link(
             root.to_string_lossy().to_string(),
             CreateLinkRequest { link: urls.clone(),
@@ -740,6 +801,7 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(sla_link.elapsed() < ENTITY_TIMEOUT);
 
         model = service::read_model_database(&root.to_string_lossy()).unwrap();
         assert_eq!(model.people.len(), 1);

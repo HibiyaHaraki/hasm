@@ -19,12 +19,15 @@ pub const SPLASH_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
 /// Emitted once with the handoff reason (boot outcome or `fallback`) after `main` is shown.
 pub const SPLASH_HANDOFF_EVENT: &str = "hasm://splash-handoff";
 
+/// [REQ-01-FUNC-003][REQ-01-FUNC-004] Tracks the process launch instant and the
+/// single-handoff flag that gates the splash-to-main window transition.
 pub struct SplashState {
     started_at: Instant,
     handed_off: AtomicBool,
 }
 
 impl SplashState {
+    /// [REQ-01-FUNC-003] Captures the launch instant the minimum splash duration is measured from.
     pub fn new(started_at: Instant) -> Self {
         Self {
             started_at,
@@ -45,10 +48,13 @@ impl SplashState {
     }
 }
 
+/// [REQ-01-RULE-009][REQ-01-FUNC-003] Remaining delay before the 5,000ms minimum splash duration elapses.
 pub fn remaining_splash_delay(elapsed: Duration) -> Duration {
     MIN_SPLASH_DURATION.saturating_sub(elapsed)
 }
 
+/// [REQ-01-FUNC-005][REQ-01-RULE-009] Performs the handoff with reason `fallback` and logs a
+/// warning when no boot completion is reported within 30,000ms.
 /// Called from Tauri `setup` right after the windows are created.
 pub fn start_splash_fallback<R: Runtime>(app: &AppHandle<R>) {
     let handle = app.clone();
@@ -74,6 +80,8 @@ pub fn start_splash_fallback<R: Runtime>(app: &AppHandle<R>) {
 
 /// [SEQ-MD-01][SPLASH] Frontend boot gate reports a terminal outcome
 /// (`select`, `loading-model`, `error-app`, ...). Returns the delay applied in ms.
+/// [REQ-01-DATA-003][REQ-01-FUNC-003][REQ-01-FUNC-004] Delays the handoff until the
+/// 5,000ms minimum splash duration has elapsed and ignores repeated completion reports.
 #[tauri::command]
 pub fn complete_app_launch<R: Runtime>(
     app: AppHandle<R>,
@@ -110,7 +118,8 @@ pub fn complete_app_launch<R: Runtime>(
     delay.as_millis() as u64
 }
 
-/// Shows and focuses `main` before closing `splashscreen` so a window is always visible.
+/// [REQ-01-FUNC-003][REQ-01-DATA-003] Shows and focuses `main` before closing `splashscreen`
+/// so a window is always visible, then emits the handoff event with the given reason.
 pub fn show_main_window<R: Runtime>(app: &AppHandle<R>, reason: &str) {
     match app.get_webview_window(MAIN_WINDOW_LABEL) {
         Some(main) => {
@@ -152,6 +161,28 @@ mod tests {
         assert_eq!(remaining_splash_delay(Duration::from_secs(12)), Duration::ZERO);
         assert!(MIN_SPLASH_DURATION >= Duration::from_secs(5));
         assert!(SPLASH_FALLBACK_TIMEOUT > MIN_SPLASH_DURATION);
+    }
+
+    // [REQ-01-RULE-009][REQ-01-FUNC-003][REQ-01-FUNC-004][REQ-01-FUNC-005]
+    // Negative/fault: once the 30,000ms fallback claims the handoff for an
+    // unreported boot, late completion reports stay ignored so the splash can
+    // never be re-opened or handed off twice, and the fallback always fires
+    // after the minimum splash duration.
+    #[test]
+    fn splash_fallback_claim_blocks_late_completion_reports() {
+        assert_eq!(SPLASH_FALLBACK_TIMEOUT, Duration::from_secs(30));
+        let started_at = Instant::now();
+        let state = SplashState::new(started_at);
+        // The fallback timer thread claims the handoff first (unreported boot).
+        assert!(state.claim_handoff());
+        // Any late frontend completion report must be ignored.
+        assert!(!state.claim_handoff());
+        assert!(!state.claim_handoff());
+        // At fallback time the minimum splash duration has already elapsed.
+        assert_eq!(
+            state.remaining_at(started_at + SPLASH_FALLBACK_TIMEOUT),
+            Duration::ZERO
+        );
     }
 
     #[test]

@@ -69,6 +69,27 @@ pub enum ModelLoadingError {
     MissingStorageFolder { missing: Vec<(EntityType, Uuid)> },
 }
 
+// [REQ-02-DATA-006] Workspace Overview Payload
+// `open_hasm_model` MUST bootstrap folder-only entities and return per-entity-type
+// summary sections and counts without reading Markdown bodies.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelWorkspace {
+    pub model_root: String,
+    pub sections: BTreeMap<String, Vec<EntitySummary>>, // keyed by entity type
+    pub counts: BTreeMap<String, usize>,                // keyed by entity type
+}
+
+// [REQ-02-DATA-007] Entity Summary Row Payload
+// Each workspace entity MUST be returned as a summary row containing its UUID,
+// human-readable title, and readable subtitle, falling back to the UUID when
+// no name exists.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntitySummary {
+    pub id: String,       // entity UUID
+    pub title: String,    // readable name, or the UUID when unnamed
+    pub subtitle: String, // readable secondary context line
+}
+
 ```
 
 ---

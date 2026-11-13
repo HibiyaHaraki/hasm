@@ -5,6 +5,9 @@ import { translateTicket } from "./ticketLanguage";
 import ExperienceSelect from "../entityCreation/components/ExperienceSelect";
 import DateInput from "../../components/DateInput";
 
+// [REQ-04-RULE-017] Typed detail field definitions per entity type (PERSON birthday/death/
+// graph links, EXPERIENCE owner/parents/graph links, FACT occurrence/experiences/people/
+// graph links, LINK relationship type/related entities).
 export const DETAIL_FIELDS = {
   PERSON: [
     { key: "birthday", label: "Birthday", date: true },
@@ -28,12 +31,18 @@ export const DETAIL_FIELDS = {
   ],
 };
 
+// [REQ-04-RULE-017] Builds the editable details draft; list fields become comma-separated
+// UUID text that serializes back to UUID arrays on save.
 export function createDetailsDraft(detail, entityType) {
   return Object.fromEntries(DETAIL_FIELDS[entityType].map(({ key, list }) => [
     key, list ? (detail[key] ?? []).join(", ") : (detail[key] ?? ""),
   ]));
 }
 
+// [REQ-04-RULE-016] Single-section editor form with Save/Cancel controls; Escape discards
+// the draft without IPC and Cancel stays disabled while persisting.
+// [REQ-04-RULE-017] Renders typed detail editors, including the shared searchable
+// EXPERIENCE selector and accessible native date calendars.
 export function TicketForm({ field, entityType, value, onChange, onSave, onCancel, saving, experiences = [], t = translateTicket }) {
   return (
     <Form className="ticket-form" aria-label={t(`Edit ${field}`)} onSubmit={onSave}

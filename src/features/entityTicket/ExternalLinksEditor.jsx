@@ -4,6 +4,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import "./ExternalLinksEditor.css";
 import { translateTicket } from "./ticketLanguage";
 
+// [REQ-04-RULE-011] Validates that a reference is an absolute HTTP(S) URL with a host and
+// no credentials or whitespace.
 export function isExternalUrl(value) {
   try {
     const url = new URL(value);
@@ -14,6 +16,8 @@ export function isExternalUrl(value) {
   }
 }
 
+// [REQ-04-RULE-012] Identifies X, Google, Google Maps, or generic web pages from parsed
+// hostname boundaries without any network fetch.
 export function externalLinkSite(value) {
   if (!isExternalUrl(value)) return { name: "Web page", icon: "web" };
   const url = new URL(value);
@@ -44,6 +48,8 @@ function SiteIcon({ site, t }) {
   );
 }
 
+// [REQ-04-RULE-012] Opens a valid link in the OS browser through the Tauri opener plugin
+// and surfaces opener errors.
 export function ExternalLinkPreview({ url, children, t = translateTicket }) {
   const [error, setError] = useState("");
   const site = externalLinkSite(url);
@@ -67,6 +73,8 @@ export function ExternalLinkPreview({ url, children, t = translateTicket }) {
   );
 }
 
+// [REQ-04-RULE-012] Reading-mode external reference list with wrapping labels and icons.
+// [REQ-04-RULE-016] Link values act as the explicit edit trigger for the links section.
 export function ExternalLinksView({ value, onEdit, disabled, t = translateTicket }) {
   return value.length ? (
     <ul className="external-links-read">
@@ -88,6 +96,8 @@ export function ExternalLinksView({ value, onEdit, disabled, t = translateTicket
   );
 }
 
+// [REQ-04-RULE-010] [REQ-04-RULE-012] Editor for the shared `link: string[]` array:
+// add, edit, and remove multiple references; an empty list serializes as [].
 export function ExternalLinksEditor({ value, onChange, disabled = false, autoFocus = false, t = translateTicket }) {
   return (
     <fieldset className="external-links" disabled={disabled}>

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
+/// [REQ-01-DATA-001] Error payload contract for SEQ-01 app launch validation failures.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppValidationError {
@@ -15,6 +16,7 @@ pub struct AppValidationError {
     pub message: String,
 }
 
+/// [REQ-01-DATA-002] Version/CLI-path inspection response returned by `validate_app_version`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppVersionResponse {
@@ -23,6 +25,8 @@ pub struct AppVersionResponse {
     pub version: String,
 }
 
+/// [REQ-02-DATA-002] Workspace lock status payload returned by `check_workspace_lock`,
+/// covering active-holder detection and stale-lock recovery reporting.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LockStatus {
@@ -32,6 +36,8 @@ pub struct LockStatus {
     pub is_read_only: bool,
 }
 
+/// [REQ-02-DATA-004] Progress stream event payload emitted on `model-load-progress`
+/// and `model-verify-progress` channels during SEQ-02 load/verification.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressPayload {
@@ -42,6 +48,8 @@ pub struct ProgressPayload {
     pub message: String,
 }
 
+/// [REQ-02-FUNC-301] [REQ-02-RULE-006] Storage verification result listing missing
+/// `main.md` directories (fatal) and unreferenced folder entities (warnings).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationResult {
@@ -49,6 +57,7 @@ pub struct VerificationResult {
     pub unreferenced_entities: Vec<String>,
 }
 
+/// [REQ-03-DATA-001] Layout filter request payload for `compute_visualizer_layout`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutFilterRequest {
@@ -56,6 +65,7 @@ pub struct LayoutFilterRequest {
     pub z_scale_factor: f32,
 }
 
+/// [REQ-03-DATA-003] Node geometry entry of the final 3D render payload.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Node3dGeometry {
@@ -75,6 +85,8 @@ pub struct Node3dGeometry {
     pub linked_entity_ids: Option<Vec<String>>,
 }
 
+/// [REQ-03-DATA-003] Line geometry entry of the final 3D render payload; LINK entries
+/// carry endpoint entity IDs for the renderers.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Line3dGeometry {
@@ -90,6 +102,7 @@ pub struct Line3dGeometry {
     pub control_points: Option<Vec<[f32; 3]>>,
 }
 
+/// [REQ-03-DATA-003] Final 3D render payload resolved by `compute_visualizer_layout`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderPayload {
@@ -98,6 +111,9 @@ pub struct RenderPayload {
     pub warnings: Vec<String>,
 }
 
+/// [REQ-07-FUNC-501] Test-only populated workspace fixture returned by
+/// `create_test_workspace_fixture` so evaluation suites stay deterministic
+/// without relying on local absolute paths.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestWorkspaceFixture {
@@ -105,6 +121,8 @@ pub struct TestWorkspaceFixture {
     pub model: ModelDatabase,
 }
 
+/// [REQ-04-DATA-002] [REQ-04-FUNC-114] Entity detail response payload resolved by
+/// `load_entity_detail` with metadata, raw Markdown body, and `loaded_mtime_ms`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityDetailPayload {
@@ -116,6 +134,8 @@ pub struct EntityDetailPayload {
     pub detail: serde_json::Value,
 }
 
+/// [REQ-04-DATA-005] Window-focus mtime check response reporting external
+/// modification ([REQ-04-FUNC-503]) and deletion ([REQ-04-FUNC-504]) of `main.md`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckMtimePayload {
@@ -124,6 +144,8 @@ pub struct CheckMtimePayload {
     pub current_mtime_ms: u64,
 }
 
+/// [REQ-05-DATA-002] [REQ-05-FUNC-113] Launch response payload resolved after a
+/// successful detached `hasm_markdown.exe` spawn.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchExternalAppPayload {
@@ -131,6 +153,9 @@ pub struct LaunchExternalAppPayload {
     pub executable_path: String,
 }
 
+/// [REQ-02-DATA-007] Human-readable per-entity list row (UUID, title, subtitle)
+/// inside `ModelWorkspace` sections; the title falls back to the UUID when the
+/// entity has no name.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySummary {
@@ -139,6 +164,8 @@ pub struct EntitySummary {
     pub subtitle: String,
 }
 
+/// [REQ-02-DATA-006] Workspace snapshot (sections and counts per entity type)
+/// returned by `open_hasm_model` without reading Markdown bodies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelWorkspace {
@@ -147,6 +174,9 @@ pub struct ModelWorkspace {
     pub counts: BTreeMap<String, usize>,
 }
 
+/// [REQ-02-FUNC-207] [REQ-02-RULE-008] In-memory HASM model snapshot: all four
+/// entity collections with metadata-only bodies (`markdownPath` populated,
+/// `markdown` empty on metadata-only loads).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelDatabase {
@@ -156,18 +186,25 @@ pub struct ModelDatabase {
     pub links: Vec<Link>,
 }
 
+/// [REQ-04-FUNC-213] Success message payload resolved by the typed metadata save
+/// commands and whole-model save.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {
     pub message: String,
 }
 
+/// [REQ-08-002] Created workspace path returned by `create_hasm_workspace` after
+/// atomic scaffolding. REQ-08 IDs use a non-standard format; see traceability report.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacePathPayload {
     pub path: String,
 }
 
+/// [REQ-04-RULE-010] [REQ-08-010] [REQ-08-015] PERSON creation request: shared
+/// external URL array, name/security-level validation inputs, and optional
+/// birth-date Life bootstrap fields.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePersonRequest {
@@ -181,6 +218,8 @@ pub struct CreatePersonRequest {
     pub birth_date: Option<String>,
 }
 
+/// [REQ-04-RULE-010] [REQ-08-011] [REQ-08-017] EXPERIENCE creation request with
+/// shared external URL array and parent EXPERIENCE UUID selections.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateExperienceRequest {
@@ -192,6 +231,8 @@ pub struct CreateExperienceRequest {
     pub parent_experience_ids: Vec<Uuid>,
 }
 
+/// [REQ-04-RULE-010] [REQ-08-012] FACT creation request with shared external URL
+/// array, optional chronological start/end times, and belonging EXPERIENCE UUIDs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFactRequest {
@@ -205,6 +246,8 @@ pub struct CreateFactRequest {
     pub experience_ids: Vec<Uuid>,
 }
 
+/// [REQ-04-RULE-010] [REQ-08-013] [REQ-08-019] LINK creation request with shared
+/// external URL array and typed origin/target endpoint UUIDs (self-loop forbidden).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateLinkRequest {
@@ -219,6 +262,8 @@ pub struct CreateLinkRequest {
     pub security_level: i32,
 }
 
+/// [REQ-08-020] [REQ-08-021] Creation response identifying the new entity and its
+/// scaffolded directory. REQ-08 IDs use a non-standard format; see traceability report.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct EntityCreationPayload {

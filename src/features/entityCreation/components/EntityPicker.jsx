@@ -3,6 +3,8 @@ import { Dropdown, Form } from "react-bootstrap";
 import { dismissEntityPreview } from "../../entityTicket/EntityInfoPreview";
 import "./EntityPicker.css";
 
+// [REQ-04-RULE-027] Accessible entity choice dropdown whose options carry entity type/id
+// metadata for the shared information preview; closing or replacing results dismisses it.
 function EntityPicker({ controlId, label, options, value, onChange, multiple = false,
   placeholder, emptyMessage, describedBy, show, onToggle, disabled = false }) {
   const [expanded, setExpanded] = useState(false);

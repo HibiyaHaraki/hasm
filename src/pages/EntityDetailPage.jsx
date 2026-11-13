@@ -41,6 +41,11 @@ function formatOccurrence(value, language, t) {
   }).format(date);
 }
 
+// [REQ-04-FUNC-101] [REQ-04-FUNC-102] [REQ-04-FUNC-115] Mounts the entity ticket route,
+// initializes loading state, and renders the ticket view from the loaded payload (SEQ-MD-04).
+// [REQ-04-FUNC-501] Attaches the window focus mtime check for external Markdown changes.
+// [REQ-04-RULE-013] [REQ-04-RULE-015] Keeps abandoned-ticket responses inert and presents
+// reader-first content before any section editor is activated.
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
   const [ticket, setTicket] = useState(null); const [form, setForm] = useState(null); const [saving, setSaving] = useState(false); const [changed, setChanged] = useState(false); const [deleted, setDeleted] = useState(false); const [message, setMessage] = useState("");

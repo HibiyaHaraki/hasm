@@ -9,6 +9,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+/// [REQ-04-RULE-028][REQ-04-RULE-029] Confirmed deletion request carrying the
+/// client's stale-checked affected FACTs, replacement EXPERIENCE, child parent
+/// reassignments, and per-LINK delete/retain decisions.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteRequest {
@@ -34,6 +37,8 @@ struct LinkDecision {
     delete: bool,
 }
 
+/// [REQ-04-RULE-029] Deletion outcome exposing the recoverable archive path
+/// under `.hasm/deleted/<operation-id>/` and an optional non-fatal warning.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeleteResult {
@@ -53,6 +58,10 @@ struct ArchiveManifest {
     entries: Vec<ArchiveEntry>,
 }
 
+/// [REQ-04-RULE-028][REQ-04-RULE-029] Deletes an EXPERIENCE, FACT, or LINK
+/// transactionally: revalidates lock/choices against current storage, updates
+/// related LINKs and FACT/child reassignments, and archives deleted folders
+/// and rows under `.hasm/deleted/<operation-id>/` instead of erasing them.
 #[tauri::command]
 pub async fn delete_entity(path: String, request: DeleteRequest) -> Result<DeleteResult, String> {
     let result = tauri::async_runtime::spawn_blocking(move || delete_entity_inner(&path, request))

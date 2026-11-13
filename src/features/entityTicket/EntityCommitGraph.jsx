@@ -17,6 +17,9 @@ import { previewGraphEntity } from "./EntityInfoPreview";
 const logger = createLogger("entity-commit-graph");
 const FILTER = { timeScaleMode: "SequentialIndex", zScaleFactor: 1 };
 
+// [REQ-04-RULE-023] Compact entity extended commit graph rendered with the shared 2D renderer.
+// [REQ-04-RULE-024] Persistently emphasizes the addressed entity through the highlight API.
+// [REQ-04-RULE-025] SequentialIndex layout with the adjacent newest-first FACT title table.
 export function EntityCommitGraph({ entityType, entityId, detail, workspaceState, disabled, onSelect, language }) {
   const { activePatternId } = useTheme();
   const sceneRef = useRef(null);

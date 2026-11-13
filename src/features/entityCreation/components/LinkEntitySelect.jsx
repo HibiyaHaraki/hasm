@@ -2,6 +2,8 @@ import { Form } from "react-bootstrap";
 import { useMemo, useState } from "react";
 import EntityPicker from "./EntityPicker";
 
+// [REQ-04-RULE-027] Origin/Target LINK endpoint search with dropdown choices that
+// participate in the shared entity information preview and retain hidden selections.
 function LinkEntitySelect({ endpoint, value, query, onChange, onSearch, entityOptions }) {
   const label = endpoint === "origin" ? "Origin" : "Target";
   const [show, setShow] = useState(false);
