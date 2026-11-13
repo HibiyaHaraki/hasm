@@ -113,11 +113,10 @@ sequenceDiagram
 
 ### Compact entity Extended Commit Graph
 
-Every loaded ticket ends with `EntityCommitGraph`, a 300px-high, horizontally
-scrollable graph surface. `entityGraphModel.js` extracts a model from route state,
+Every loaded ticket ends with `EntityCommitGraph`, a 300px-high graph surface
+without horizontal scrolling. `entityGraphModel.js` extracts a model from route state,
 overlaying the current loaded/saved detail without mutating the workspace model.
-No workspace reload, filesystem scan, new command, or submodule modification is
-needed. Graph extraction is an optional presentation scan of in-memory metadata,
+No workspace reload, filesystem scan, or new command is needed. Graph extraction is an optional presentation scan of in-memory metadata,
 not part of the constant-time native detail load/save contract.
 
 * FACT: retain every direct EXPERIENCE placement, all ancestor EXPERIENCEs for
@@ -189,8 +188,18 @@ PERSON, EXPERIENCE and LINK tickets. Matching uses entity type and UUID, not nam
 The table owns native vertical scrolling and forwards its scroll offset to the
 renderer; graph wheel input changes and clamps that same offset. Both use shared
 30px rows and a 37px sticky header, and retain scroll alignment on redraws.
-Horizontal overflow stays within the 300px-high graph panel. Title links retain
-the full workspace state and existing editing/verification navigation guards.
+Each row displays its title and occurrence in separate single-line columns.
+Compact timestamps use the ticket's locale and local time in 24-hour form;
+the full localized value with time zone is available to assistive technology and
+the tooltip also includes the original value. Date-only days are preserved and
+missing or invalid input remains identifiable. A resize observer fits the renderer's optional lane width to
+30% of the panel while retaining space for the table; the shared renderer's
+default lane width is unchanged. Narrow labels and markers remain identifiable
+through the accessible Graph entities list. There is no horizontal scrollbar.
+Title links retain the full workspace state and existing editing/verification navigation guards.
+
+The detail page suppresses the shell's decorative horizontal ruling while it is
+mounted. The existing themed shell background and other routes are unchanged.
 
 FACT title rows also show an EXPERIENCE badge before the title on the same line,
 separated by a space, using the shared visualizer badge and the representative

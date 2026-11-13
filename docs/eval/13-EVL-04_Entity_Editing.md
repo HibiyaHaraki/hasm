@@ -85,6 +85,13 @@ row centers against SVG marker centers before/after scrolling at wide/narrow
 widths and verifies the matching title's computed font weight.
 `TC-04-GRAPH-SEQUENTIAL-003` verifies FACT title navigation through the real
 detail invoke with workspace context and moves bold emphasis to the destination.
+`TC-04-GRAPH-SEQUENTIAL-005` checks separate title/occurrence columns, compact
+localized timestamps, full accessible/tooltip values, date-only, missing and
+invalid occurrence values. `TC-04-GRAPH-SEQUENTIAL-006` checks that resizing
+narrows all lanes without another layout invoke. Browser acceptance checks the
+page and graph for horizontal overflow, single-line columns and visible timestamps, row alignment
+before and after vertical scrolling, visible LINK geometry, and the absence of
+shell ruling on the ticket while another route retains its original background.
 
 `TC-04-GRAPH-EMPHASIS-001` (FACT, EXPERIENCE, LINK, PERSON) verifies
 `REQ-04-RULE-024` with the real SVG renderer: current markers/timelines/LINK
@@ -99,6 +106,8 @@ disables navigation. No additional layout invoke is permitted.
 | `TC-04-GRAPH-SEQUENTIAL-002` (PERSON, EXPERIENCE, LINK) | `REQ-04-RULE-025` | Negative (No False Bold) | Tickets whose addressed entity is not a FACT never bold any FACT title and expose no `aria-current` row. |
 | `TC-04-GRAPH-SEQUENTIAL-003` | `REQ-04-RULE-025` | Positive (Title Navigation) | FACT title navigation uses the real detail invoke with workspace context and moves bold emphasis to the destination, with no whole-model reload. |
 | `TC-04-GRAPH-SEQUENTIAL-004` | `REQ-04-RULE-023` `REQ-04-RULE-025` | Positive (Badge Navigation) | The table EXPERIENCE badge opens its specific EXPERIENCE through the real detail IPC wrapper. |
+| `TC-04-GRAPH-SEQUENTIAL-005` | `REQ-04-RULE-025` | Positive (Occurrence Values) | FACT rows have separate title and occurrence columns, compact localized date and time, full accessible/tooltip values, preserved date-only days, and missing or invalid values. |
+| `TC-04-GRAPH-SEQUENTIAL-006` | `REQ-04-RULE-025` | Positive (Responsive Lanes) | Resizing narrows lanes to the available panel width without a new layout invoke. |
 | `TC-04-GRAPH-EMPHASIS-001` (all four types) | `REQ-04-RULE-024` | Positive (Persistent Emphasis) | Current markers/timelines/LINK segments keep highlight colors on load, across hover/pointer-leave and language redraw, with a bold current caption, accessible current list entry, and no additional layout invoke while editing disables navigation. |
 | `TC-04-GRAPH-EMPHASIS-002` | `REQ-04-RULE-024` | Negative (No Invented Emphasis) | A PERSON ticket never paints FACT markers with the current-entity highlight, hover enter/leave triggers no new layout invoke, and the bold caption plus `aria-current` entry still identify the addressed PERSON. |
 

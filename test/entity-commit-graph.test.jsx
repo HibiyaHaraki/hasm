@@ -62,7 +62,7 @@ beforeEach(() => {
     throw new Error(`Unexpected command: ${command}`);
   });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.resetAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe("Entity graph extraction", () => {
   it("TC-04-GRAPH-001 extracts FACT branches, reflections, adjacent events and incoming/outgoing LINK endpoints only", () => {
@@ -143,6 +143,59 @@ describe("Entity graph GUI and real IPC wrapper", () => {
     expect(table.querySelector("strong")).toHaveTextContent("focus");
     expect(within(table).queryByRole("link")).toBeNull();
   });
+    it("TC-04-GRAPH-SEQUENTIAL-005 shows localized occurrence times, date-only values and missing or invalid values", async () => {
+      const graphModel = { ...model, facts: model.facts.map((item) => ({
+        ...item,
+        occurredAt: {
+          after: "2026-01-04T15:23:00Z",
+          before: "invalid date",
+          old: "",
+        }[item.factId] ?? item.occurredAt,
+      })) };
+      renderTicket("PERSON", "p", { path: "fixture.hasm", model: graphModel, isVerified: true });
+      const table = await screen.findByRole("table", { name: "FACT titles" });
+      const rowFor = (id) => within(table).getByRole("link", { name: id }).closest("tr");
+      const expectedTime = new Intl.DateTimeFormat("en-US", {
+        year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).format(new Date("2026-01-04T15:23:00Z"));
+      expect([...table.querySelectorAll("thead th")].map((cell) => cell.textContent)).toEqual(["FACT titles", "Occurred at"]);
+      expect(rowFor("after").cells).toHaveLength(2);
+      expect(rowFor("after").cells[1]).toHaveClass("ticket-graph-occurrence");
+      expect(rowFor("after").querySelector(".ticket-graph-occurrence")).toHaveTextContent(expectedTime);
+      expect(rowFor("after").cells[1]).toHaveAttribute("title", expect.stringContaining("2026-01-04T15:23:00Z"));
+      expect(rowFor("after").cells[1]).toHaveAccessibleName(new Intl.DateTimeFormat("en-US", {
+        year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+      }).format(new Date("2026-01-04T15:23:00Z")));
+      expect(rowFor("focus").querySelector(".ticket-graph-occurrence")).toHaveTextContent("1/3/2026");
+      expect(rowFor("before").querySelector(".ticket-graph-occurrence")).toHaveTextContent("invalid date");
+      expect(rowFor("old").querySelector(".ticket-graph-occurrence")).toHaveTextContent("Not set");
+      fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ja" } });
+      expect(rowFor("old").querySelector(".ticket-graph-occurrence")).toHaveTextContent("未設定");
+      expect(rowFor("focus").querySelector(".ticket-graph-occurrence")).toHaveTextContent("2026/1/3");
+    });
+    it("TC-04-GRAPH-SEQUENTIAL-006 fits lanes after resize without another layout invoke", async () => {
+      const callbacks = new Map();
+      vi.stubGlobal("ResizeObserver", class {
+        constructor(callback) { this.callback = callback; }
+        observe(element) { callbacks.set(element, this.callback); }
+        disconnect() {}
+      });
+      const rendererSpy = vi.spyOn(graphRenderer, "createCommitGraph2D");
+      renderTicket();
+      const scene = await screen.findByRole("group", { name: "Extended commit graph" });
+      await waitFor(() => expect(scene.querySelector("svg")).not.toBeNull());
+      const viewport = scene.closest(".ticket-graph-viewport");
+      const layoutCalls = bridge.invoke.mock.calls.filter(([command]) => command === "compute_visualizer_layout").length;
+      Object.defineProperty(viewport, "clientWidth", { configurable: true, value: 300 });
+      act(() => callbacks.get(viewport)());
+      await waitFor(() => expect(rendererSpy.mock.calls.at(-1)[7].laneWidthPx).toBeLessThan(56));
+      const svg = scene.querySelector("svg");
+      expect(Number(svg.getAttribute("width"))).toBeLessThanOrEqual(90);
+      expect(Number.parseFloat(scene.style.width)).toBeCloseTo(Number(svg.getAttribute("width")));
+      expect([...svg.querySelectorAll("circle")].every((circle) =>
+        Number(circle.getAttribute("cx")) < Number(svg.getAttribute("width")))).toBe(true);
+      expect(bridge.invoke.mock.calls.filter(([command]) => command === "compute_visualizer_layout")).toHaveLength(layoutCalls);
+    });
   it.each([["PERSON", "p"], ["EXPERIENCE", "child"], ["LINK", "incoming"]])(
     "TC-04-GRAPH-SEQUENTIAL-002 does not bold a FACT title on a %s ticket",
     async (type, id) => {
