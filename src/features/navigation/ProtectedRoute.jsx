@@ -39,7 +39,7 @@ function ProtectedRoute({ requireVerified = false }) {
           ...location.state,
           path: location.state?.path || window.sessionStorage.getItem("hasm-active-workspace"),
           returnTo: location.pathname,
-          redirectReason: "モデルの検証が完了していません。再ロード・検証を実行します。",
+          redirectReason: "Reloading and verifying the workspace before returning to visualization.",
           redirectType: "info",
         }}
       />

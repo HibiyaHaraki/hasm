@@ -154,6 +154,10 @@ re-verification. Empty models retain automatic routing to `/initialize-model`.
 Failures retain their existing immediate error routes. All views use wrapping,
 theme-aware styling, with no artificial waits.
 
+An unverified-route redirect displays "Reloading and verifying the workspace
+before returning to visualization." while loading. This message is removed
+from the completion view; read-only and stale-lock notices remain independent.
+
 ### Navigation-Safe Load Attempts
 
 Each `LoadingModelPage` effect owns its watchdog and progress subscriptions.

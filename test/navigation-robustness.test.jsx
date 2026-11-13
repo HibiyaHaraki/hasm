@@ -37,6 +37,7 @@ function NavigationProbe() {
   const navigate = useNavigate();
   return <>
     <output data-testid="route">{location.pathname}</output>
+    {location.state?.error ? <output data-testid="route-error">{location.state.error}</output> : null}
     <Button onClick={() => navigate("/visualizer", { state: { path, model, isVerified: true } })}>Visit graph</Button>
     <Button onClick={() => navigate(`/entity-detail/FACT/${id}`, { state: { path, model, isVerified: true } })}>Visit ticket</Button>
   </>;
@@ -279,6 +280,83 @@ describe("bounded graph-ticket navigation robustness", () => {
     view.unmount();
     await flush();
     expect(listeners.filter((entry) => !entry.disposed)).toEqual([]);
+  });
+
+  it.each([
+    ["PERSON", "people", { personId: id, personName: "Original", birthday: "", die: "", linkIds: [], link: [] }],
+    ["EXPERIENCE", "experiences", { experienceId: id, experienceName: "Original", personId: "", parentExperienceIds: [], linkIds: [], link: [] }],
+    ["FACT", "facts", { ...fact, factName: "Original" }],
+    ["LINK", "links", { linkId: id, linkName: "Original", linkType: "references", relatedIds: [], link: [] }],
+  ])("TC-NAV-EDIT-001 saves %s, re-verifies, and opens the updated model", async (type, collection, entity) => {
+    const verification = deferred();
+    const initialModel = { people: [], experiences: [], facts: [], links: [], [collection]: [entity] };
+    const nameKey = `${type.toLowerCase()}Name`;
+    const savedEntity = { ...entity, [nameKey]: "Updated title" };
+    const updatedModel = { ...initialModel, [collection]: [savedEntity] };
+    const command = `save_${type.toLowerCase()}_detail`;
+    let persistedModel = initialModel;
+    bridge.invoke.mockImplementation(async (name, args) => {
+      if (name === "load_entity_detail") return { entityType: type, entityId: id, name: "Original", detail: entity, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === command) {
+        persistedModel = { ...initialModel, [collection]: [args.detail] };
+        return {};
+      }
+      if (name === "check_workspace_lock") return { isReadOnly: type === "PERSON", isStaleRecovered: false };
+      if (name === "load_hasm_model_db") return persistedModel;
+      if (name === "verify_hasm_storage") return verification.promise;
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/${type}/${id}`, false, initialModel);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Summary" }), { target: { value: "Updated title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith(command, { modelRoot: path, detail: savedEntity });
+    fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    expect(screen.getByText("Reloading and verifying the workspace before returning to visualization.")).toBeInTheDocument();
+    if (type === "PERSON") expect(screen.getByText("Opened in Read-Only Mode")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Go to visualization" })).not.toBeInTheDocument();
+    expect(bridge.invoke).toHaveBeenCalledWith("check_workspace_lock", { path });
+    expect(bridge.invoke).toHaveBeenCalledWith("load_hasm_model_db", { path });
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model: updatedModel });
+    await act(async () => verification.resolve({ missingEntities: [], unreferencedEntities: [] }));
+    await flush();
+    expect(screen.getByRole("heading", { name: "Workspace ready" })).toBeInTheDocument();
+    expect(screen.queryByText("Reloading and verifying the workspace before returning to visualization.")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading complete. Choose Go to visualization when you are ready.")).toBeInTheDocument();
+    if (type === "PERSON") expect(screen.getByText("Opened in Read-Only Mode")).toBeInTheDocument();
+    expect(listeners.filter((entry) => !entry.disposed)).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+    expect(bridge.invoke).toHaveBeenCalledWith("compute_visualizer_layout", { model: updatedModel, filter: expect.any(Object) });
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "load_hasm_model_db")).toHaveLength(1);
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "verify_hasm_storage")).toHaveLength(1);
+  });
+
+  it("TC-NAV-EDIT-002 reports re-verification failure after saving without offering visualization", async () => {
+    const verification = deferred();
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((name, args) => name === "verify_hasm_storage"
+      ? verification.promise : originalInvoke(name, args));
+    renderFlow(`/entity-detail/FACT/${id}`);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Summary" }), { target: { value: "Updated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
+    await flush();
+    expect(screen.getByText("Reloading and verifying the workspace before returning to visualization.")).toBeInTheDocument();
+    await act(async () => verification.reject(new Error("Storage verification failed")));
+    await flush();
+    expect(screen.getByRole("heading", { name: "Model loading error" })).toBeInTheDocument();
+    expect(screen.getByTestId("route-error")).toHaveTextContent("Storage verification failed");
+    expect(screen.queryByRole("button", { name: "Go to visualization" })).not.toBeInTheDocument();
   });
 
   it("TC-NAV-INLINE-001 clicked detail content saves through the real typed invoke wrapper", async () => {

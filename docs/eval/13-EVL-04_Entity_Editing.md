@@ -179,7 +179,14 @@ mocked. `TC-NAV-002` covers twelve read-only inspection/return cycles;
 `TC-NAV-003`/`012` cover late load/refresh errors after leaving a ticket;
 `TC-NAV-008` covers save/return/re-verification and the explicit Go to
 visualization action on the completion screen. These trace
-`REQ-04-RULE-013`. See [EVAL-03](./12-EVL-03_Visualizer.md) for all race cases,
+`REQ-04-RULE-013`. `TC-NAV-EDIT-001` covers summary saves for PERSON,
+EXPERIENCE, FACT, and LINK through the real typed invoke wrappers, reloads the
+saved model, checks the pending and completed notices and read-only notice,
+and verifies the updated model reaches visualization without a second load.
+`TC-NAV-EDIT-002` covers a failed post-save storage verification and confirms
+the error is propagated without offering visualization. These tests mock the
+native transport rather than exercising Rust handlers or a desktop window.
+See [EVAL-03](./12-EVL-03_Visualizer.md) for all race cases,
 three-minute CI limits, and native dispatch coverage (`TC-NAV-IPC-001`).
 
 ### External-Link Coverage

@@ -38,14 +38,14 @@ function LoadingModelPage() {
   const navigate = useNavigate();
   const path = location.state?.path;
   const redirectReason = location.state?.redirectReason || "";
-  const [state, setState] = useState(() => ({ steps: initialSteps(), notice: "", result: null }));
+  const [state, setState] = useState(() => ({ steps: initialSteps(), notice: "", redirectNotice: "", result: null }));
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
     if (!redirectReason) {
       return;
     }
-    setState((current) => ({ ...current, notice: redirectReason }));
+    setState((current) => ({ ...current, redirectNotice: redirectReason }));
     navigate("/loading-model", { replace: true, state: { ...location.state, redirectReason: "", path } });
   }, [navigate, path, redirectReason]);
 
@@ -74,7 +74,7 @@ function LoadingModelPage() {
     const completeStep = (id, message) => {
       updateStep(id, { status: "Complete", progress: 100, message, current: null, total: null });
     };
-    setState((current) => ({ ...current, steps: initialSteps(), result: null }));
+    setState((current) => ({ ...current, steps: initialSteps(), redirectNotice: redirectReason, result: null }));
     setShowDetail(false);
     startStep("SUBSCRIPTIONS", "Connecting to workspace progress events...");
     const stop = () => {
@@ -242,6 +242,7 @@ function LoadingModelPage() {
           </ol>
         </div>
         {state.result?.path === path ? <p role="status">Loading complete. Choose Go to visualization when you are ready.</p> : null}
+        {state.result?.path !== path && state.redirectNotice ? <p className="model-notice" role="status">{state.redirectNotice}</p> : null}
         {state.notice ? <p className="model-notice">{state.notice}</p> : null}
       </section>
     </Container>
