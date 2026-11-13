@@ -9,7 +9,7 @@ Code locations come from `[REQ-...]` comment tags on exported functions,
 classes, Rust `pub` items, and Tauri commands.
 
 - Requirements: **346**
-- Test cases: **495**
+- Test cases: **496**
 - Tagged code items: **169 / 169**
 
 ## docs/req/10-REQ-01_AppLaunch_AppValidation.md
@@ -353,10 +353,10 @@ classes, Rust `pub` items, and Tauri commands.
 | --- | --- | --- | --- |
 | `REQ-07-RULE-001` | `src/App.jsx:54` App<br/>`src/features/navigation/ProtectedRoute.jsx:20` ProtectedRoute | `TC-07-E2E-001`<br/>`TC-07-E2E-002`<br/>`TC-07-E2E-003`<br/>`TC-07-REACT-001`<br/>`TC-07-REACT-002` | `TC-07-E2E-004`<br/>`TC-07-REACT-007`<br/>`TC-07-REACT-008` |
 | `REQ-07-RULE-002` | `src/features/navigation/ProtectedRoute.jsx:20` ProtectedRoute<br/>`src/pages/SelectModelPage.jsx:31` SelectModelPage | `TC-07-E2E-001`<br/>`TC-07-E2E-002`<br/>`TC-07-REACT-003` | `TC-07-REACT-004`<br/>`TC-07-REACT-007` |
-| `REQ-07-RULE-003` | `src/features/hasm/api.js:111` switchWorkspaceCleanly<br/>`src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar<br/>`src-tauri/src/hasm/model_commands.rs:92` switch_workspace_cleanly | `TC-07-E2E-005`<br/>`TC-07-RUST-002`<br/>`TC-07-RUST-003`<br/>`TC-07-RUST-004` | `TC-07-RUST-005` |
-| `REQ-07-RULE-004` | `src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar | `TC-07-REACT-005`<br/>`TC-07-REACT-011` | `TC-07-REACT-009` |
-| `REQ-07-RULE-005` | `src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar<br/>`src/features/theme/ThemeContext.jsx:11` ThemeProvider | `TC-07-E2E-006`<br/>`TC-07-REACT-006`<br/>`TC-07-REACT-013`<br/>`TC-07-REACT-016` | `TC-07-REACT-014`<br/>`TC-07-REACT-015` |
-| `REQ-07-RULE-006` | `src/features/entityCreation/components/ExperienceSelect.jsx:11` ExperienceSelect | `TC-02-REACT-THEME-001` | `TC-07-REACT-017` |
+| `REQ-07-RULE-003` | `src/features/hasm/api.js:111` switchWorkspaceCleanly<br/>`src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar<br/>`src-tauri/src/hasm/model_commands.rs:92` switch_workspace_cleanly | `TC-07-E2E-005`<br/>`TC-07-RUST-002`<br/>`TC-07-RUST-003`<br/>`TC-07-RUST-004` | `TC-07-RUST-005` |
+| `REQ-07-RULE-004` | `src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar | `TC-07-REACT-005`<br/>`TC-07-REACT-011` | `TC-07-REACT-009` |
+| `REQ-07-RULE-005` | `src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar<br/>`src/features/theme/ThemeContext.jsx:11` ThemeProvider | `TC-07-E2E-006`<br/>`TC-07-REACT-006`<br/>`TC-07-REACT-013`<br/>`TC-07-REACT-016` | `TC-07-REACT-014`<br/>`TC-07-REACT-015` |
+| `REQ-07-RULE-006` | `src/features/entityCreation/components/ExperienceSelect.jsx:11` ExperienceSelect<br/>`src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar | `TC-07-NAV-CONTRAST-001`<br/>`TC-02-REACT-THEME-001` | `TC-07-REACT-017` |
 | `REQ-07-DATA-001` | — | `TC-07-RUST-001`<br/>`TC-07-RUST-004` | `TC-07-RUST-005` |
 | `REQ-07-DATA-002` | — | `TC-07-REACT-016`<br/>`TC-07-RUST-001` | `TC-07-REACT-015` |
 | `REQ-07-FUNC-101` | `src/features/navigation/ProtectedRoute.jsx:20` ProtectedRoute | `TC-07-E2E-001`<br/>`TC-07-REACT-001` | `TC-07-REACT-007` |
@@ -364,13 +364,13 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-07-FUNC-103` | `src/features/navigation/ProtectedRoute.jsx:20` ProtectedRoute | `TC-07-E2E-002`<br/>`TC-07-REACT-002` | `TC-07-REACT-008` |
 | `REQ-07-FUNC-104` | `src/features/navigation/ProtectedRoute.jsx:20` ProtectedRoute | `TC-07-E2E-002`<br/>`TC-07-REACT-002` | `TC-07-REACT-008` |
 | `REQ-07-FUNC-105` | `src/pages/LoadingModelPage.jsx:45` LoadingModelPage | `TC-07-E2E-001`<br/>`TC-07-E2E-002`<br/>`TC-07-REACT-003` | `TC-07-REACT-004` |
-| `REQ-07-FUNC-201` | `src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar | `TC-07-E2E-005` | `TC-07-REACT-009` |
+| `REQ-07-FUNC-201` | `src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar | `TC-07-E2E-005`<br/>`TC-07-NAV-CONTRAST-001` | `TC-07-REACT-009` |
 | `REQ-07-FUNC-202` | — | `TC-07-E2E-005` | `TC-07-E2E-007` |
-| `REQ-07-FUNC-203` | `src/features/hasm/api.js:111` switchWorkspaceCleanly<br/>`src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar<br/>`src-tauri/src/hasm/model_commands.rs:92` switch_workspace_cleanly | `TC-07-E2E-005`<br/>`TC-07-RUST-002`<br/>`TC-07-RUST-003`<br/>`TC-07-RUST-004` | `TC-07-REACT-010`<br/>`TC-07-RUST-005` |
-| `REQ-07-FUNC-204` | `src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar | `TC-07-E2E-005` | `TC-07-REACT-010` |
-| `REQ-07-FUNC-301` | `src/App.jsx:54` App<br/>`src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar<br/>`src/features/theme/ThemeContext.jsx:11` ThemeProvider<br/>`src/features/theme/ThemeContext.jsx:16` useTheme | `TC-07-E2E-006`<br/>`TC-07-REACT-006`<br/>`TC-07-REACT-013`<br/>`TC-02-REACT-THEME-001` | `TC-07-REACT-015` |
+| `REQ-07-FUNC-203` | `src/features/hasm/api.js:111` switchWorkspaceCleanly<br/>`src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar<br/>`src-tauri/src/hasm/model_commands.rs:92` switch_workspace_cleanly | `TC-07-E2E-005`<br/>`TC-07-RUST-002`<br/>`TC-07-RUST-003`<br/>`TC-07-RUST-004` | `TC-07-REACT-010`<br/>`TC-07-RUST-005` |
+| `REQ-07-FUNC-204` | `src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar | `TC-07-E2E-005` | `TC-07-REACT-010` |
+| `REQ-07-FUNC-301` | `src/App.jsx:54` App<br/>`src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar<br/>`src/features/theme/ThemeContext.jsx:11` ThemeProvider<br/>`src/features/theme/ThemeContext.jsx:16` useTheme | `TC-07-E2E-006`<br/>`TC-07-REACT-006`<br/>`TC-07-REACT-013`<br/>`TC-02-REACT-THEME-001` | `TC-07-REACT-015` |
 | `REQ-07-FUNC-302` | `src/features/theme/ThemeContext.jsx:16` useTheme | `TC-07-E2E-006`<br/>`TC-07-REACT-013` | `TC-07-REACT-014` |
-| `REQ-07-FUNC-401` | `src/features/navigation/GlobalNavbar.jsx:14` GlobalNavbar | `TC-07-REACT-005`<br/>`TC-07-REACT-011` | `TC-07-REACT-009` |
+| `REQ-07-FUNC-401` | `src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar | `TC-07-REACT-005`<br/>`TC-07-REACT-011` | `TC-07-REACT-009` |
 | `REQ-07-FUNC-402` | — | `TC-07-REACT-011` | `TC-07-REACT-012` |
 | `REQ-07-FUNC-403` | — | `TC-07-REACT-011` | `TC-07-REACT-012` |
 | `REQ-07-FUNC-501` | `src-tauri/src/hasm/types.rs:119` TestWorkspaceFixture<br/>`src-tauri/src/hasm/visualizer_commands.rs:726` create_test_workspace_fixture | `TC-07-RUST-006` | `TC-07-RUST-007` |
@@ -558,7 +558,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `src/features/hasm/api.js:14` function **validateHasmMarkdownApp** | `REQ-01-FUNC-201` |
 | `src/features/hasm/api.js:122` function **verifyHasmStorage** | `REQ-02-FUNC-301` |
 | `src/features/hasm/api.js:53` function **withTimeout** | `REQ-01-RULE-005` |
-| `src/features/navigation/GlobalNavbar.jsx:14` default export **GlobalNavbar** | `REQ-07-RULE-004` `REQ-07-FUNC-201` `REQ-07-FUNC-401` `REQ-07-RULE-003` `REQ-07-FUNC-203` `REQ-07-FUNC-204` `REQ-07-RULE-005` `REQ-07-FUNC-301` |
+| `src/features/navigation/GlobalNavbar.jsx:15` default export **GlobalNavbar** | `REQ-07-RULE-004` `REQ-07-FUNC-201` `REQ-07-FUNC-401` `REQ-07-RULE-003` `REQ-07-FUNC-203` `REQ-07-FUNC-204` `REQ-07-RULE-005` `REQ-07-RULE-006` `REQ-07-FUNC-301` |
 | `src/features/navigation/ProtectedRoute.jsx:20` default export **ProtectedRoute** | `REQ-07-RULE-001` `REQ-07-RULE-002` `REQ-07-FUNC-101` `REQ-07-FUNC-102` `REQ-07-FUNC-103` `REQ-07-FUNC-104` |
 | `src/features/theme/ThemeContext.jsx:11` function **ThemeProvider** | `REQ-07-RULE-005` `REQ-07-FUNC-301` |
 | `src/features/theme/ThemeContext.jsx:16` function **useTheme** | `REQ-07-FUNC-301` `REQ-07-FUNC-302` |

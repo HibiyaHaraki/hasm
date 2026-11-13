@@ -10,7 +10,8 @@ import "./GlobalNavbar.css";
 // workspace path, lock/verification status, and warning badges synchronously without IPC.
 // [REQ-07-RULE-003][REQ-07-FUNC-203][REQ-07-FUNC-204] Switch Model invokes switch_workspace_cleanly, clears
 // frontend workspace state, and navigates to /select.
-// [REQ-07-RULE-005][REQ-07-FUNC-301] Theme selector updates the active hasm_color_pattern palette.
+// [REQ-07-RULE-005][REQ-07-RULE-006][REQ-07-FUNC-301] Theme selector updates the active
+// hasm_color_pattern palette and the navigation text remains readable.
 function GlobalNavbar() {
   const location = useLocation();
   const navigate = useNavigate();

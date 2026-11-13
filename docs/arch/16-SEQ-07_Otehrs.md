@@ -22,6 +22,9 @@ This document provides the detailed technical sequence and specifications for cr
 Bootstrap dialogs rendered through body portals inherit the same colors as the
 app shell. Confirmation dialogs use the opaque theme surface; EXPERIENCE picker
 badges use the theme text color instead of Bootstrap's default white.
+The global navigation bar uses an opaque theme surface and theme text for its
+brand, status badges, and theme label. Scoped selectors override Bootstrap's
+brand and badge foregrounds regardless of stylesheet import order.
 
 ---
 
