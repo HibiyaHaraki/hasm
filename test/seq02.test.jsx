@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
 import App from "../src/App";
 import * as api from "../src/features/hasm/api";
+import { getThemeVariables } from "../src/hasm_color_pattern/src/index.js";
 
 vi.mock("../src/features/hasm/api", () => ({
   browseWorkspaceDirectory: vi.fn(),
@@ -380,5 +381,21 @@ describe("SEQ-02 model loading and storage verification", () => {
     await closeHandler();
 
     expect(api.releaseWorkspaceLock).toHaveBeenCalledWith("C:/fixture.hasm");
+  });
+
+  it("TC-02-REACT-THEME-001 applies and updates theme variables on the document root for portals", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    window.localStorage.setItem("hasm-theme-pattern", "classic-light");
+    window.history.pushState({}, "", "/select");
+    const { unmount } = render(<App />);
+
+    expect(document.documentElement.style.getPropertyValue("--theme-surface")).toBe(getThemeVariables("classic-light")["--theme-surface"]);
+    expect(document.documentElement.style.getPropertyValue("--theme-text")).toBe(getThemeVariables("classic-light")["--theme-text"]);
+    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "classic" } });
+    expect(document.documentElement.style.getPropertyValue("--theme-surface")).toBe(getThemeVariables("classic")["--theme-surface"]);
+    expect(document.documentElement.style.getPropertyValue("--theme-text")).toBe(getThemeVariables("classic")["--theme-text"]);
+    unmount();
+    expect(document.documentElement.style.getPropertyValue("--theme-surface")).toBe("");
+    window.localStorage.removeItem("hasm-theme-pattern");
   });
 });

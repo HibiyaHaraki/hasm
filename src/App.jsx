@@ -7,7 +7,7 @@
 // Description : Mounts the HASM model flow experience.
 // ###################################################
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import GlobalNavbar from "./features/navigation/GlobalNavbar";
 import ProtectedRoute from "./features/navigation/ProtectedRoute";
@@ -62,8 +62,20 @@ function App() {
 
   const themeStyle = useMemo(() => getThemeVariables(activePatternId), [activePatternId]);
 
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previous = Object.keys(themeStyle).map((name) => [
+      name, root.style.getPropertyValue(name), root.style.getPropertyPriority(name),
+    ]);
+    Object.entries(themeStyle).forEach(([name, value]) => root.style.setProperty(name, value));
+    return () => previous.forEach(([name, value, priority]) => {
+      if (value) root.style.setProperty(name, value, priority);
+      else root.style.removeProperty(name);
+    });
+  }, [themeStyle]);
+
   return (
-    <div className="app-shell" style={themeStyle}>
+    <div className="app-shell">
       <BrowserRouter>
         <ThemeProvider value={{ activePatternId, setActivePatternId }}>
           <CloseLockListener />

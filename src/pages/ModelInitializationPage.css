@@ -1,6 +1,6 @@
-.model-initialization-confirmation {
+.modal-content.model-initialization-confirmation {
   color: var(--theme-text);
-  background-color: var(--theme-soft);
+  background-color: var(--theme-surface);
   border: 1px solid var(--theme-border);
   border-radius: 0;
   overflow-wrap: anywhere;

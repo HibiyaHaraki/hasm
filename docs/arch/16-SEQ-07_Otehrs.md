@@ -18,6 +18,11 @@ This document provides the detailed technical sequence and specifications for cr
 4. **Synchronous Workspace Status Monitor:** Displays the current loaded HASM path and active verification warnings directly from `useWorkspaceStore.js` (0ms IPC latency).
 5. **Global Route Protection (Barrier 1):** Centrally guarded by `ProtectedRoute.jsx` wrapping operational views (`/visualizer`, `/entity-detail/...`). Intercepts direct URL navigation or state violations, redirects users to safe recovery routes, and passes human-readable explanation messages for Toast rendering.
 
+`App.jsx` applies the selected theme variables to the document root so that
+Bootstrap dialogs rendered through body portals inherit the same colors as the
+app shell. Confirmation dialogs use the opaque theme surface; EXPERIENCE picker
+badges use the theme text color instead of Bootstrap's default white.
+
 ---
 
 ## 2. Data Contracts & IPC Specifications

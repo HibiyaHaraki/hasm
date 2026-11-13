@@ -39,6 +39,8 @@ the standalone searchable EXPERIENCE multi-picker, reused by creation and ticket
 editing through `ExperienceSelect.jsx`. `EntityPicker.jsx` remains the LINK
 endpoint picker. Host EXPERIENCE choices supply typed IDs for the shared preview
 layer; picker lifecycle dismisses previews without changing IPC contracts.
+`App.css` overrides Bootstrap's badge foreground for this picker to match the
+active theme without changing the visualizer submodule.
 
 `src/components/DateInput.jsx` provides accessible native calendar-only controls
 while preserving existing serialized time/offset suffixes.

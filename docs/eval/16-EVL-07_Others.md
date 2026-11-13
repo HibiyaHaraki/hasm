@@ -2,6 +2,13 @@
 
 This document defines the comprehensive test matrix, acceptance criteria, and traceability mapping for validating Route Protection (Barrier 1) evaluation rules, redirection reason toast notifications, atomic workspace switching (`switch_workspace_cleanly`), dynamic color theme customization, and synchronous status monitoring across the HASM Desktop Application (`SEQ-07` / `REQ-07`).
 
+`TC-02-REACT-THEME-001` checks root theme variables on initial selection and
+switching, including availability to body portals. Visual acceptance for
+`REQ-07-RULE-006`: open deletion and model-initialization confirmations and
+select an EXPERIENCE in creation, editing and visualizer scope under light and
+dark themes; verify opaque dialog backgrounds and readable badge text and
+removal controls.
+
 Tests are structured across three distinct test levels: **Desktop App Level (E2E / System Integration)**, **React Level (Frontend Route Guards & Component States)**, and **Tauri Level (Rust Domain Engine & Clean Switch Commands)**.
 
 ---
