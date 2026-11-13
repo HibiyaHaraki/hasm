@@ -8,6 +8,10 @@ existing native layout command, and renders through `hasm_visualizer`. Graph
 selection retains the full workspace state and follows ticket navigation guards.
 See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
 
+EXPERIENCE, FACT and LINK tickets support confirmed deletion with relationship
+choices and recoverable content archives, followed by SEQ-02 re-verification.
+PERSON deletion is not offered. See [SEQ-04 deletion](./13-SEQ-04_Entity_Editing.md#confirmed-deletion-and-archive).
+
 Typed entity hyperlinks across pages, including visualizer badge links, and the
 host-owned ticket graph share a Bootstrap information hover/focus card. It reads
 one entity without navigating or reloading the workspace. The main visualizer

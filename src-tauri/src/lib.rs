@@ -43,6 +43,7 @@ pub fn run() {
             hasm::entity_creation_commands::create_experience,
             hasm::entity_creation_commands::create_fact,
             hasm::entity_creation_commands::create_link,
+            hasm::entity_deletion_commands::delete_entity,
             hasm::visualizer_commands::compute_visualizer_layout,
             hasm::entity_editor_commands::load_entity_detail,
             hasm::entity_editor_commands::check_entity_mtime,

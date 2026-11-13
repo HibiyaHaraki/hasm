@@ -10,6 +10,7 @@ import * as renderer3D from "../src/hasm_visualizer/threeCommitGraph.js";
 import ProtectedRoute from "../src/features/navigation/ProtectedRoute";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
 import EntityInfoPreview from "../src/features/entityTicket/EntityInfoPreview";
+import EntityDetailPage from "../src/pages/EntityDetailPage";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listen: vi.fn().mockResolvedValue(() => {}) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
@@ -29,6 +30,7 @@ it("TC-03-VIEW-001 removes repeated same-lane FACTs while retaining ancestor ref
   const dispose = createCommitGraph2D(container, payload, getPatternById("classic").colors, null, null, null, null,
     { timeScaleMode: "SequentialIndex" });
   expect(container.querySelectorAll("circle")).toHaveLength(2);
+  expect(container.querySelector("button")).toBeNull();
   expect(container.querySelectorAll('circle[fill="none"]')).toHaveLength(1);
   dispose();
   container.remove();
@@ -48,6 +50,29 @@ function ExperienceTicket() {
     <button onClick={() => navigate("/visualizer", { state })}>Return</button>
   </>;
 }
+it.each([["child", "Research"], ["empty", "Empty timeline"], ["unnamed", "Untitled EXPERIENCE"]])("TC-03-VIEW-007 opens 2D EXPERIENCE %s through the real ticket invoke", async (experienceId, title) => {
+  const experience = { experienceId, experienceName: title, parentExperienceIds: ["root"], linkIds: [], link: [] };
+  const workspace = { ...model, experiences: [...model.experiences, { experienceId: "empty", experienceName: "Empty timeline" },
+    { experienceId: "unnamed", experienceName: "" }] };
+  bridge.invoke.mockImplementation(async (command, args) => {
+    if (command === "compute_visualizer_layout") {
+      const payload = computeVisualizerLayoutJS(args.model, args.filter);
+      payload.nodes3d.forEach((node) => { node.label = node.entityType === "FACT" ? "Paper" : node.id === "root" ? "Life" : node.id === "child" ? "Research" : node.id === "empty" ? "Empty timeline" : ""; });
+      return payload;
+    }
+    if (command === "load_entity_detail") return { name: title, detail: experience, markdownBody: "", loadedMtimeMs: 1 };
+    throw new Error(`Unexpected invoke: ${command}`);
+  });
+  render(<MemoryRouter initialEntries={[{ pathname: "/visualizer", state: { path: "fixture.hasm", model: workspace, isVerified: true } }]}>
+    <Routes><Route path="/visualizer" element={<VisualizerPage />} />
+      <Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /></Routes>
+  </MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: `Open EXPERIENCE: ${title}` }));
+  expect(await screen.findByRole("button", { name: "Edit summary" })).toHaveTextContent(title);
+  expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", {
+    modelRoot: "fixture.hasm", entityType: "EXPERIENCE", entityId: experienceId,
+  });
+});
 it("TC-03-VIEW-PREVIEW-001 real visualizer badge shows the common card without modifying the submodule", async () => {
   const personId = "11111111-1111-1111-1111-111111111111";
   const experienceId = "22222222-2222-2222-2222-222222222222";

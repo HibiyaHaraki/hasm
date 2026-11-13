@@ -6,6 +6,8 @@ This specification defines the functional, data, time constraint, progress strea
 
 ## 1. System Invariants & Core Rules
 
+* **[REQ-03-RULE-020] Accessible 2D EXPERIENCE Navigation:** Each 2D EXPERIENCE lane label, including an empty timeline without a trunk, MUST be keyboard- and pointer-activatable and select that EXPERIENCE through the existing renderer callback. The host MUST open its typed detail ticket with workspace and view context intact. Detail graphs MUST disable these controls whenever graph navigation is disabled. A standalone renderer without a selection callback MUST render a noninteractive label.
+
 * **[REQ-03-RULE-001] State Guard Interception:** Access to `/visualizer` MUST be guarded by the Rust in-memory state. If no model is loaded (`ERR_NO_ACTIVE_MODEL`), the system MUST navigate to `/select`. If the loaded model is unverified (`is_verified == false`), the system MUST navigate to `/loading-model`.
 * **[REQ-03-RULE-002] Multi-Mode Z-Axis Mapping:** The spatial mapping of entity Z-coordinates MUST support three discrete user-selectable modes (`TimeScaleMode`), with `SequentialIndex` as the default:
 1. `Linear`: $Z \propto \Delta t$.

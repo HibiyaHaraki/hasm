@@ -244,8 +244,10 @@ describe("Entity graph GUI and real IPC wrapper", () => {
     renderTicket();
     const region = await screen.findByRole("region", { name: "Extended commit graph" });
     await waitFor(() => expect(region.querySelector("circle")).not.toBeNull());
+    expect(within(region).getAllByRole("button", { name: /^Open EXPERIENCE:/ }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
     expect(within(region).queryByRole("link")).toBeNull();
+    expect(within(region).queryByRole("button", { name: /^Open EXPERIENCE:/ })).not.toBeInTheDocument();
     fireEvent.click(region.querySelector("circle"));
     expect(bridge.invoke.mock.calls.filter(([command]) => command === "load_entity_detail")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));

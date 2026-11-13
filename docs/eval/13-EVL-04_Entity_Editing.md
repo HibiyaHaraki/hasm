@@ -8,6 +8,29 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### Confirmed entity deletion
+
+| Test ID | Test name / evidence |
+| --- | --- |
+| `TC-NAV-DELETE-001` | Actual ticket and JS IPC wrapper: required FACT reassignment, child parent, individual LINK choices, confirmation, pending state and post-delete reload/verification. |
+| `TC-NAV-DELETE-002` | FACT and LINK confirmations surface IPC failure and retain the ticket. |
+| `TC-NAV-DELETE-003` | FACT reassignment is optional when another EXPERIENCE remains; FACT-related LINK selection reaches the invoke. |
+| `TC-NAV-DELETE-004` | PERSON deletion is unavailable and read-only FACT deletion is disabled. |
+| `TC-NAV-DELETE-005` | An EXPERIENCE with exclusively belonging FACTs cannot be deleted without an available replacement; the dialog explains why. |
+| `TC-04-IPC-DELETE-001` | Generated native invoke: required reassignment, parent and LINK choices, archived Markdown/assets/metadata and verified reload. |
+| `TC-04-IPC-DELETE-002` | Generated native invokes: FACT and LINK deletion, retained endpoints and reference cleanup. |
+| `TC-04-IPC-DELETE-003` | Stale choices, read-only lock, missing storage and PERSON deletion are rejected without committing. |
+| `TC-04-IPC-DELETE-004` | Pending pre-commit archive is restored and pending post-commit archive is finalized before synchronization. |
+| `TC-04-IPC-DELETE-005` | Parent choices that create a cycle together are rejected. |
+| `TC-04-IPC-DELETE-006` | Other FACT placements remain without an optional replacement. |
+
+Run the frontend cases with `npm run test:robustness` and native cases with
+`cargo test --test entity_deletion_ipc` from `src-tauri`. The React tests mock
+the native transport; the native tests exercise registered Tauri dispatch and
+real SQLite and filesystem fixtures. Installed-desktop accessibility, actual
+mouse/keyboard interaction, and archive recovery after an OS/process crash
+remain manual acceptance checks.
+
 ### Shared entity information preview
 
 `test/entity-info-preview.test.jsx` runs under `npm run test:eval-04`, using the

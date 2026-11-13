@@ -27,6 +27,7 @@ To achieve clean separation between human-readable content and structural metada
 ```
 my.hasm/
   |-- hasm.db
+  |-- .hasm/deleted/       (recoverable confirmed-deletion archives)
   |-- EXPERIENCE/
   |   `-- {UUID}/
   |       |-- main.md (HASM Markdown)
@@ -45,6 +46,11 @@ my.hasm/
           `-- assets/
 
 ```
+
+Confirmed entity deletion stores original entity folders, including Markdown and
+assets, and original database rows under a unique `.hasm/deleted/` operation
+directory. This archive is outside the synchronized entity directories and is
+not an automatic restore interface. See [SEQ-04](./13-SEQ-04_Entity_Editing.md#confirmed-deletion-and-archive).
 
 ---
 

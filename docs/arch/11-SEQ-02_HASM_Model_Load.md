@@ -157,6 +157,8 @@ theme-aware styling, with no artificial waits.
 An unverified-route redirect displays "Reloading and verifying the workspace
 before returning to visualization." while loading. This message is removed
 from the completion view; read-only and stale-lock notices remain independent.
+Post-deletion archive warnings are also displayed independently and are not
+carried into subsequent visualization route state.
 
 ### Navigation-Safe Load Attempts
 

@@ -82,7 +82,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
       // SEQ-MD-04: hover adds emphasis but never clears the addressed ticket.
       const renderer = createCommitGraph2D(
         sceneRef.current, layout, getPatternById(activePatternId).colors,
-        (node) => { if (!disabled) onSelect(node); }, (node, event) => {
+        disabled ? null : onSelect, (node, event) => {
           previewGraphEntity(node, event, sceneRef.current);
           setHoveredNode(node);
           renderer.setHighlight({
@@ -97,6 +97,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
           rowHeightPx: ROW_HEIGHT_PX,
           headerHeightPx: TABLE_HEADER_HEIGHT_PX,
           onScroll: syncScroll,
+          experienceLabel: (title) => t("Open {type}: {title}", { type: "EXPERIENCE", title }),
         },
       );
       renderer.setHighlight(currentNode);

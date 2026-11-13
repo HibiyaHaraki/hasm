@@ -148,6 +148,11 @@ jobs:
         working-directory: src-tauri
         run: cargo test entity_editor_commands
 
+      - name: EVAL-04 Rust entity deletion IPC tests
+        timeout-minutes: 3
+        working-directory: src-tauri
+        run: cargo test --test entity_deletion_ipc
+
       - name: EVAL-05 Rust external editor tests
         working-directory: src-tauri
         run: cargo test external_editor_commands

@@ -10,6 +10,50 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### Confirmed deletion and archive
+
+The detail ticket offers Delete for EXPERIENCE, FACT and LINK, not PERSON.
+An accessible confirmation lists the affected FACTs, child EXPERIENCEs and
+related LINKs. One selected FACT replacement applies to all listed FACTs and
+is mandatory if any would otherwise have no existing EXPERIENCE. Every child
+requires its own replacement parent. Each related LINK has a delete checkbox;
+unchecked LINKs retain their other endpoints. LINK deletion needs only the
+confirmation. Read-only and unverified tickets cannot initiate deletion.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Ticket as Entity detail
+    participant IPC as delete_entity
+    participant DB as SQLite
+    participant Archive as .hasm/deleted
+    participant Loader as SEQ-02 loader
+    User->>Ticket: Choose Delete and review consequences
+    User->>Ticket: Select replacements and LINK choices; confirm
+    Ticket->>IPC: Typed target, affected IDs and choices
+    IPC->>DB: Verify lock and recheck relationships in transaction
+    IPC->>DB: Validate parents and update references
+    IPC->>Archive: Write recovery manifest and move entity folders
+    IPC->>DB: Delete rows and commit
+    IPC-->>Ticket: Archive path and any finalization warning
+    Ticket->>Loader: Reload and re-verify updated workspace
+    Loader-->>User: Workspace ready; explicit visualization action
+```
+
+`delete_entity` runs on a blocking worker, rejects stale or invalid choices,
+and removes references to deleted LINKs from PERSON/EXPERIENCE/FACT `linkIds`
+and all LINK endpoints. It archives the original rows in the manifest and
+preserves each entity's Markdown and assets in the same operation directory.
+The `pending.json` manifest is written before folder moves and becomes
+`complete.json` after commit. On a normal failure, folder moves are reversed and
+the database transaction rolls back. Before opening the database for subsequent
+work, pending manifests are reconciled against committed rows under a SQLite
+write transaction: original rows cause folder restoration; absent rows cause
+archive finalization. Mixed states or failed restoration are explicit errors.
+Folder synchronization uses a consistent database snapshot and rechecks missing
+folders before bootstrap, avoiding resurrection from a stale directory scan.
+Archived records are not automatically restorable through the UI.
+
 ### Shared entity information hover card
 
 `EntityInfoPreview` is mounted once inside the router and themed app shell.
@@ -39,7 +83,7 @@ entity clicks, but its contents are not pointer-selectable or scrollable. The
 fixed card stays within viewport bounds, limits its height, wraps long text, and
 inherits active HASM theme variables.
 
-**Submodule boundary:** `src/hasm_visualizer` is unchanged. Its main 2D/3D canvas
+**Submodule boundary:** The preview does not alter `src/hasm_visualizer`. Its main 2D/3D canvas
 hover remains the existing submodule tooltip because there is no public hover
 callback/render slot. Only its actual entity hyperlinks use the shared card.
 Creation-page EXPERIENCE and LINK choices use the host-owned Bootstrap

@@ -551,7 +551,7 @@ fn validate_model_root(model_root: &str) -> Result<PathBuf, String> {
     Ok(root)
 }
 
-fn open_connection(model_root: &Path) -> Result<Connection, String> {
+pub(super) fn open_connection(model_root: &Path) -> Result<Connection, String> {
     init_logger();
     debug!("open_connection start: {}", model_root.display());
 
@@ -594,6 +594,7 @@ fn open_connection(model_root: &Path) -> Result<Connection, String> {
 
     // Step 4. Ensure required schema exists.
     ensure_schema(&connection)?;
+    crate::hasm::entity_deletion_commands::recover_pending_archives(model_root, &connection)?;
     debug!("open_connection success: {}", main_db_path.display());
     Ok(connection)
 }
@@ -681,6 +682,16 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
     sync_directories_to_db_with_progress(connection, model_root, &mut |_, _, _| {})
 }
 
+fn entity_directory_exists(root: &Path, entity_type: &str, id: &Uuid) -> Result<bool, String> {
+    let path = root.join(entity_type).join(id.to_string());
+    match fs::metadata(&path) {
+        Ok(metadata) if metadata.is_dir() => Ok(true),
+        Ok(_) => Err(format!("Entity path is no longer a directory: {}", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("Cannot inspect entity directory {}: {error}", path.display())),
+    }
+}
+
 /// Bootstraps folder-only entities into `main.db`.
 ///
 /// Runs inside a single transaction and issues an INSERT only for folders that are
@@ -701,15 +712,15 @@ fn sync_directories_to_db_with_progress(
     let link_ids = read_entity_directories(model_root, "LINK")?;
     let total = (person_ids.len() + experience_ids.len() + fact_ids.len() + link_ids.len()).max(1);
 
-    let existing_people = read_existing_ids(connection, "person", "person_id")?;
-    let existing_experiences = read_existing_ids(connection, "experience", "experience_id")?;
-    let existing_facts = read_existing_ids(connection, "fact", "fact_id")?;
-    let existing_links = read_existing_ids(connection, "link", "link_id")?;
+    // SEQ-MD-04: read all IDs from one snapshot and recheck missing folders
+    // before insertion, so a concurrent archive cannot resurrect an entity.
+    let transaction = connection.unchecked_transaction().map_err(|error| error.to_string())?;
+    let existing_people = read_existing_ids(&transaction, "person", "person_id")?;
+    let existing_experiences = read_existing_ids(&transaction, "experience", "experience_id")?;
+    let existing_facts = read_existing_ids(&transaction, "fact", "fact_id")?;
+    let existing_links = read_existing_ids(&transaction, "link", "link_id")?;
 
     // Step 2. Insert only the missing rows, batched into one transaction.
-    let transaction = connection
-        .unchecked_transaction()
-        .map_err(|error| error.to_string())?;
     let mut processed = 0usize;
     let mut inserted = 0usize;
 
@@ -721,7 +732,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &person_ids {
-            if !existing_people.contains(entity_id) {
+            if !existing_people.contains(entity_id) && entity_directory_exists(model_root, "PERSON", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Person::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -740,7 +751,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &experience_ids {
-            if !existing_experiences.contains(entity_id) {
+            if !existing_experiences.contains(entity_id) && entity_directory_exists(model_root, "EXPERIENCE", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Experience::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -759,7 +770,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &fact_ids {
-            if !existing_facts.contains(entity_id) {
+            if !existing_facts.contains(entity_id) && entity_directory_exists(model_root, "FACT", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Fact::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -778,7 +789,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &link_ids {
-            if !existing_links.contains(entity_id) {
+            if !existing_links.contains(entity_id) && entity_directory_exists(model_root, "LINK", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Link::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;

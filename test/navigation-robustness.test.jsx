@@ -359,6 +359,156 @@ describe("bounded graph-ticket navigation robustness", () => {
     expect(screen.queryByRole("button", { name: "Go to visualization" })).not.toBeInTheDocument();
   });
 
+  it("TC-NAV-DELETE-001 confirms EXPERIENCE reassignment, child parents and individual LINK choices through IPC", async () => {
+    const target = "22222222-2222-2222-2222-222222222222";
+    const replacement = "22222222-2222-2222-2222-222222222221";
+    const child = "22222222-2222-2222-2222-222222222223";
+    const link1 = "44444444-4444-4444-4444-444444444441";
+    const link2 = "44444444-4444-4444-4444-444444444442";
+    const experience = { experienceId: target, experienceName: "Research", parentExperienceIds: [], linkIds: [link1], link: [] };
+    const workspace = { people: [], experiences: [
+      experience, { experienceId: replacement, experienceName: "Life", parentExperienceIds: [] },
+      { experienceId: child, experienceName: "Writing", parentExperienceIds: [target] },
+    ], facts: [{ ...fact, experienceIds: [target] }], links: [
+      { linkId: link1, linkName: "Keep relation", linkType: "references", relatedIds: [target, id] },
+      { linkId: link2, linkName: "Remove relation", linkType: "references", relatedIds: [target, id] },
+    ] };
+    const updated = { ...workspace, experiences: workspace.experiences.filter((item) => item.experienceId !== target)
+      .map((item) => item.experienceId === child ? { ...item, parentExperienceIds: [replacement] } : item),
+    facts: [{ ...fact, experienceIds: [replacement] }], links: [{ ...workspace.links[0], relatedIds: [id] }] };
+    const deletion = deferred();
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: "Research", detail: experience, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      if (name === "delete_entity") return deletion.promise;
+      if (name === "check_workspace_lock") return { isReadOnly: true };
+      if (name === "load_hasm_model_db") return updated;
+      if (name === "verify_hasm_storage") return { missingEntities: [], unreferencedEntities: [] };
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/EXPERIENCE/${target}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Delete EXPERIENCE" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Are you sure you want to delete Research?")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Confirm deletion" })).toBeDisabled();
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "delete_entity")).toHaveLength(0);
+    fireEvent.change(within(dialog).getByLabelText("Replacement EXPERIENCE (required)"), { target: { value: replacement } });
+    fireEvent.change(within(dialog).getByLabelText("Parent for Writing"), { target: { value: replacement } });
+    fireEvent.click(within(dialog).getByLabelText("Remove relation"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm deletion" }));
+    expect(bridge.invoke).toHaveBeenCalledWith("delete_entity", { path, request: {
+      entityType: "EXPERIENCE", entityId: target, factIds: [id], replacementExperienceId: replacement,
+      childParents: [{ childId: child, parentId: replacement }],
+      linkDecisions: [{ linkId: link1, delete: false }, { linkId: link2, delete: true }],
+    } });
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await act(async () => deletion.resolve({ archivePath: "archive", warning: "Archive finalization needs attention." }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model: updated });
+    expect(screen.getByText("Archive finalization needs attention.")).toBeInTheDocument();
+    expect(screen.getByText("Opened in Read-Only Mode")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+  });
+
+  it.each(["FACT", "LINK"])("TC-NAV-DELETE-002 confirms %s deletion and reports IPC failure without leaving the ticket", async (type) => {
+    const entity = type === "FACT" ? fact : { linkId: id, linkName: "Relation", linkType: "references", relatedIds: [] };
+    const collection = type === "FACT" ? "facts" : "links";
+    const workspace = { people: [], experiences: [], facts: [], links: [], [collection]: [entity] };
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: type === "FACT" ? "Publication" : "Relation", detail: entity, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      if (name === "delete_entity") throw new Error("Archive failed");
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/${type}/${id}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: `Delete ${type}` }));
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "delete_entity")).toHaveLength(0);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Confirm deletion" }));
+    await flush();
+    expect(screen.getByRole("alert")).toHaveTextContent("Archive failed");
+    expect(screen.getByTestId("route")).toHaveTextContent(`/entity-detail/${type}/${id}`);
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("TC-NAV-DELETE-003 allows optional FACT reassignment and asks about FACT-related LINKs", async () => {
+    const target = "22222222-2222-2222-2222-222222222222";
+    const other = "22222222-2222-2222-2222-222222222221";
+    const link = "44444444-4444-4444-4444-444444444444";
+    const experience = { experienceId: target, experienceName: "Research", parentExperienceIds: [], linkIds: [], link: [] };
+    const workspace = { people: [], experiences: [experience, { experienceId: other, experienceName: "Life", parentExperienceIds: [] }],
+      facts: [{ ...fact, experienceIds: [target, other] }],
+      links: [{ linkId: link, linkName: "FACT relation", relatedIds: [id], linkType: "references" }] };
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: "Research", detail: experience, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/EXPERIENCE/${target}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Delete EXPERIENCE" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Replacement EXPERIENCE (optional)")).toHaveValue("");
+    expect(within(dialog).getByRole("button", { name: "Confirm deletion" })).toBeEnabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "delete_entity")).toHaveLength(0);
+
+    cleanup();
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: fact.factName, detail: workspace.facts[0], markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      if (name === "delete_entity") throw new Error("Not deleted");
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/FACT/${id}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Delete FACT" }));
+    fireEvent.click(screen.getByLabelText("FACT relation"));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Confirm deletion" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("delete_entity", { path, request: {
+      entityType: "FACT", entityId: id, factIds: [], replacementExperienceId: null,
+      childParents: [], linkDecisions: [{ linkId: link, delete: true }],
+    } });
+  });
+
+  it.each([["PERSON", false], ["FACT", true]])("TC-NAV-DELETE-004 restricts %s deletion when unavailable", async (type, readOnly) => {
+    const entity = type === "PERSON" ? { personId: id, personName: "Ada", linkIds: [], link: [] } : fact;
+    const workspace = { people: type === "PERSON" ? [entity] : [], experiences: [], facts: type === "FACT" ? [entity] : [], links: [] };
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: type === "PERSON" ? "Ada" : fact.factName, detail: entity, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    render(<MemoryRouter initialEntries={[{ pathname: `/entity-detail/${type}/${id}`, state: { path, model: workspace, isVerified: true, isReadOnly: readOnly } }]}>
+      <Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /></Routes>
+    </MemoryRouter>);
+    await flush();
+    if (type === "PERSON") expect(screen.queryByRole("button", { name: "Delete PERSON" })).not.toBeInTheDocument();
+    else expect(screen.getByRole("button", { name: "Delete FACT" })).toBeDisabled();
+  });
+
+  it("TC-NAV-DELETE-005 explains when no replacement EXPERIENCE is available", async () => {
+    const target = "22222222-2222-2222-2222-222222222222";
+    const experience = { experienceId: target, experienceName: "Only timeline", parentExperienceIds: [], linkIds: [], link: [] };
+    const workspace = { people: [], experiences: [experience], facts: [{ ...fact, experienceIds: [target] }], links: [] };
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: experience.experienceName, detail: experience, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/EXPERIENCE/${target}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Delete EXPERIENCE" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Create another EXPERIENCE before deleting this one.");
+    expect(screen.getByRole("button", { name: "Confirm deletion" })).toBeDisabled();
+  });
+
   it("TC-NAV-INLINE-001 clicked detail content saves through the real typed invoke wrapper", async () => {
     renderFlow(`/entity-detail/FACT/${id}`);
     await flush();

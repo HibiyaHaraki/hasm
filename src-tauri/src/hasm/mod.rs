@@ -10,6 +10,7 @@ pub mod model_commands;
 pub mod visualizer_commands;
 pub mod entity_editor_commands;
 pub mod entity_creation_commands;
+pub mod entity_deletion_commands;
 pub mod external_editor_commands;
 pub mod definitions;
 pub mod service;
