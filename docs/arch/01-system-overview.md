@@ -8,6 +8,16 @@ existing native layout command, and renders through `hasm_visualizer`. Graph
 selection retains the full workspace state and follows ticket navigation guards.
 See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
 
+EXPERIENCE, FACT and LINK tickets support confirmed deletion with relationship
+choices and recoverable content archives, followed by SEQ-02 re-verification.
+PERSON deletion is not offered. See [SEQ-04 deletion](./13-SEQ-04_Entity_Editing.md#confirmed-deletion-and-archive).
+
+Typed entity hyperlinks across pages, including visualizer badge links, and the
+host-owned ticket graph share a Bootstrap information hover/focus card. It reads
+one entity without navigating or reloading the workspace. The main visualizer
+canvas retains its submodule-owned tooltip. See
+[shared previews](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card).
+
 ---
 
 ## 1. System Overview Flowchart
@@ -82,6 +92,12 @@ flowchart TB
         ModelCheck -->|NG| ErrorHASMModel[/"HASM Model Error Page (/error-model)"/]:::error
         ModelCheck -->|OK, populated| ModelReady["Workspace ready: Go to visualization"]:::page
         ModelReady -->|User clicks Go to visualization| VisualizePage["3D Visualizer Page (/visualizer)"]:::page
+        ModelCheck -->|OK, empty| InitializeModel["Initialize Model (/initialize-model): PERSON name and birth date"]:::page
+        InitializeModel --> ReviewModel["Confirmation: review PERSON, Life EXPERIENCE and birth date FACT"]:::modal
+        ReviewModel -->|Back to edit; preserve inputs| InitializeModel
+        ReviewModel -->|Confirm| BootstrapLife[["Tauri: create_person with birthDate; atomic PERSON, Life EXPERIENCE and birth date FACT"]]:::tauri
+        BootstrapLife -->|Failure; show error| ReviewModel
+        BootstrapLife -->|Success; reload model| VisualizePage
     end
 
     %% ----------------------------------------------------
@@ -89,7 +105,7 @@ flowchart TB
     %% ----------------------------------------------------
     subgraph CreationPhase["2. Interactive Entity & Link Creation"]
         VisualizePage --> ClickCreate(["Click Create PERSON / EXP / FACT / LINK"]):::action
-        ClickCreate --> CreateModal["Entity / Link Creation Modal"]:::modal
+        ClickCreate --> CreateModal["Entity Creation Page: EXPERIENCE dropdowns, no description input"]:::page
         
         CreateModal --> SubmitCreate(["Submit Form"]):::action
         SubmitCreate --> ExecCreate[["Tauri: create_person / experience / fact / link (SEQ-08)"]]:::tauri

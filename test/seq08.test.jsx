@@ -1,20 +1,26 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import EntityCreatePage from "../src/pages/EntityCreatePage";
 import ModelInitializationPage from "../src/pages/ModelInitializationPage";
+import SelectModelPage from "../src/pages/SelectModelPage";
 import VisualizerPage from "../src/pages/VisualizerPage";
 import * as api from "../src/features/hasm/api";
 
 vi.mock("../src/features/hasm/api", () => ({
+  browseWorkspaceDirectory: vi.fn(),
   computeVisualizerLayout: vi.fn(),
+  createHasmWorkspace: vi.fn(),
   createPerson: vi.fn(),
   createExperience: vi.fn(),
   createFact: vi.fn(),
   createLink: vi.fn(),
   loadHasmModelDb: vi.fn(),
+  pickWorkspaceDirectory: vi.fn(),
   switchWorkspaceCleanly: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
+  validateHasmFolderPath: vi.fn(),
+  withTimeout: vi.fn((promise) => promise),
 }));
 vi.mock("../src/hasm_visualizer/threeCommitGraph.js", async () => {
   const actual = await vi.importActual("../src/hasm_visualizer/threeCommitGraph.js");
@@ -33,12 +39,98 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
+function choices(label) {
+  const toggle = label.includes("EXPERIENCE")
+    ? screen.getByRole("combobox", { name: label }) : screen.getByRole("button", { name: label, exact: true });
+  if (toggle.getAttribute("aria-expanded") !== "true") {
+    if (toggle.tagName === "INPUT") fireEvent.focus(toggle);
+    else fireEvent.click(toggle);
+  }
+  return screen.getByRole("listbox", { name: label });
+}
+
+function choose(label, id) {
+  const menu = choices(label);
+  const option = id
+    ? [...within(menu).getAllByRole("option")].find((item) => item.dataset.entityId === id)
+    : within(menu).getByRole("option", { name: `Select ${label.toLowerCase()}` });
+  fireEvent.click(option);
+}
+
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
 });
 
 describe("SEQ-08 entity creation navigation and forms", () => {
+  it("TC-08-REACT-SEARCH-001 independently searches LINK endpoints and submits selected entities", async () => {
+    api.createLink.mockResolvedValue({});
+    api.loadHasmModelDb.mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model, path: "C:/fixture.hasm" } }]}>
+      <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "  jOhN  " } });
+    const origin = choices("Origin");
+    const target = choices("Target");
+    expect(within(origin).getAllByRole("option")).toHaveLength(2);
+    expect(within(target).getAllByRole("option")).toHaveLength(4);
+    choose("Origin", model.people[0].personId);
+    fireEvent.change(screen.getByLabelText("Search target entities"), { target: { value: "FACT" } });
+    expect(within(choices("Target")).getAllByRole("option")).toHaveLength(2);
+    choose("Target", model.facts[0].factId);
+    fireEvent.click(screen.getByRole("button", { name: "Create LINK" }));
+    await vi.waitFor(() => expect(api.createLink).toHaveBeenCalledWith("C:/fixture.hasm", {
+      link: [], linkType: "references", linkDescription: "", securityLevel: 1,
+      originEntityType: "PERSON", originEntityId: model.people[0].personId,
+      targetEntityType: "FACT", targetEntityId: model.facts[0].factId,
+    }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+  });
+
+  it("TC-08-REACT-SEARCH-002 handles no results, retained selections, clearing, and form switching", () => {
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "no-match" } });
+    expect(within(choices("Origin")).getAllByRole("option")).toHaveLength(1);
+    expect(screen.getAllByText("No matching entities.").length).toBeGreaterThan(0);
+    expect(api.createLink).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "" } });
+    choose("Origin", model.people[0].personId);
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "Root" } });
+    expect(screen.getByLabelText("Origin")).toHaveTextContent("John");
+    expect(within(choices("Origin")).getByText("Current selection (outside search results):")).toBeInTheDocument();
+    expect(screen.getByText(/Current selection is retained/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "PERSON" }));
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    expect(screen.getByLabelText("Search origin entities")).toHaveValue("Root");
+    expect(screen.getByLabelText("Origin")).toHaveTextContent("John");
+    fireEvent.change(screen.getByLabelText("Search origin entities"), { target: { value: "" } });
+    expect(within(choices("Origin")).getAllByRole("option")).toHaveLength(4);
+    choose("Origin", "");
+    expect(screen.getByLabelText("Origin")).toHaveTextContent("Select origin");
+  });
+
+  it("TC-08-REACT-SEARCH-003 distinguishes duplicate names and searches unnamed entities by UUID", () => {
+    const people = [
+      model.people[0],
+      { personId: "11111111-1111-1111-1111-111111111112", personName: "John" },
+      { personId: "11111111-1111-1111-1111-111111111113", personName: "" },
+    ];
+    render(<MemoryRouter initialEntries={[{ state: { model: { ...model, people }, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "LINK" }));
+    fireEvent.change(screen.getByLabelText("Search target entities"), { target: { value: "John" } });
+    const target = choices("Target");
+    expect(within(target).getAllByRole("option")).toHaveLength(3);
+    for (const person of people.slice(0, 2)) {
+      expect(within(target).getByRole("option", { name: `PERSON John (${person.personId})` })).toHaveAttribute("data-entity-id", person.personId);
+    }
+    fireEvent.change(screen.getByLabelText("Search target entities"), { target: { value: people[2].personId } });
+    expect(within(target).getAllByRole("option")).toHaveLength(2);
+    choose("Target", people[2].personId);
+    expect(screen.getByLabelText("Target")).toHaveTextContent(people[2].personId);
+  });
+
   it("TC-08-REACT-LINK-001 includes URL arrays in all four creation payloads", async () => {
     for (const [type, create] of [["PERSON", api.createPerson], ["EXPERIENCE", api.createExperience], ["FACT", api.createFact], ["LINK", api.createLink]]) {
       create.mockResolvedValue({});
@@ -47,13 +139,90 @@ describe("SEQ-08 entity creation navigation and forms", () => {
         <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
       </MemoryRouter>);
       fireEvent.click(screen.getByRole("button", { name: type }));
+      expect(screen.queryByLabelText("Description")).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Add link" }));
       fireEvent.change(screen.getByLabelText("Link 1"), { target: { value: "https://example.org/source" } });
       fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
       await vi.waitFor(() => expect(create).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ link: ["https://example.org/source"] })));
+      const descriptionKey = { PERSON: "personDescription", EXPERIENCE: "experienceDescription", FACT: "factDescription", LINK: "linkDescription" }[type];
+      expect(create).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ [descriptionKey]: "" }));
       await screen.findByTestId("location");
       cleanup(); vi.resetAllMocks();
     }
+  });
+  it.each([
+    ["FACT", "Belonging EXPERIENCE", "experienceIds", "createFact"],
+    ["EXPERIENCE", "Parent EXPERIENCE", "parentExperienceIds", "createExperience"],
+  ])("TC-08-REACT-REL-001 %s lists all experiences and submits multiple selected UUIDs", async (type, label, key, command) => {
+    const experiences = [
+      { experienceId: "22222222-2222-2222-2222-222222222221", experienceName: "Shared name" },
+      { experienceId: "22222222-2222-2222-2222-222222222222", experienceName: "Shared name" },
+      { experienceId: "22222222-2222-2222-2222-222222222223", experienceName: "" },
+    ];
+    api[command].mockResolvedValue({});
+    api.loadHasmModelDb.mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { model: { ...model, experiences }, path: "C:/fixture.hasm" } }]}>
+      <Routes><Route path="/entity-create" element={<EntityCreatePage />} /><Route path="/visualizer" element={<LocationProbe />} /></Routes>
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    const select = choices(label);
+    expect(select).toHaveAttribute("aria-multiselectable", "true");
+    expect(within(select).getAllByRole("option")).toHaveLength(3);
+    expect(within(select).getAllByRole("option", { name: "Shared name" })).toHaveLength(2);
+    expect(within(select).getByRole("option", { name: "Untitled EXPERIENCE" })).toBeInTheDocument();
+    expect(select).not.toHaveTextContent(experiences[0].experienceId);
+    const search = screen.getByRole("combobox", { name: label });
+    fireEvent.change(search, { target: { value: "  SHARED  " } });
+    expect(within(select).getAllByRole("option")).toHaveLength(2);
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(within(select).getAllByRole("option")[0]).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(within(select).getAllByRole("option")[0]).toHaveAttribute("aria-selected", "false");
+    fireEvent.change(search, { target: { value: "no match" } });
+    expect(within(select).getByRole("status")).toHaveTextContent("No matching experiences.");
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(api[command]).not.toHaveBeenCalled();
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    expect(within(select).getAllByRole("option")[0]).toHaveFocus();
+    fireEvent.keyDown(within(select).getAllByRole("option")[0], { key: "ArrowDown" });
+    expect(within(select).getAllByRole("option")[1]).toHaveFocus();
+    choose(label, experiences[0].experienceId);
+    choose(label, experiences[2].experienceId);
+    expect(screen.getByRole("button", { name: "Remove Untitled EXPERIENCE" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Remove Untitled EXPERIENCE" }));
+    choose(label, experiences[2].experienceId);
+    fireEvent.click(screen.getByRole("button", { name: "PERSON" }));
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    const selectedIds = [experiences[0].experienceId, experiences[2].experienceId];
+    const selected = within(choices(label)).getAllByRole("option", { selected: true });
+    expect(selected.map((option) => option.dataset.entityId)).toEqual(selectedIds);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New entity" } });
+    fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+    await vi.waitFor(() => expect(api[command]).toHaveBeenCalledWith("C:/fixture.hasm",
+      expect.objectContaining({ [key]: selectedIds })));
+    await screen.findByTestId("location");
+  });
+
+  it.each([
+    ["FACT", "Belonging EXPERIENCE", "experienceIds", "createFact"],
+    ["EXPERIENCE", "Parent EXPERIENCE", "parentExperienceIds", "createExperience"],
+  ])("TC-08-REACT-REL-002 %s supports clearing a selection and empty experience lists", async (type, label, key, command) => {
+    api[command].mockRejectedValue(new Error("Creation failed"));
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    choose(label, model.experiences[0].experienceId);
+    expect(within(choices(label)).getByRole("option")).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("button", { name: `Clear ${label}` }));
+    expect(within(choices(label)).queryAllByRole("option", { selected: true })).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: `Create ${type}` }));
+    await vi.waitFor(() => expect(api[command]).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ [key]: [] })));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Creation failed");
+    cleanup();
+    render(<MemoryRouter initialEntries={[{ state: { model: { ...model, experiences: [] }, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: type }));
+    expect(screen.getByLabelText(label)).toBeDisabled();
+    expect(screen.getByLabelText(label)).toHaveAttribute("placeholder", "No EXPERIENCE available");
   });
   it("TC-08-REACT-001 shows Create New Entity button on Visualizer and moves to creation page", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
@@ -106,14 +275,59 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "LINK" }));
-    fireEvent.change(screen.getByLabelText("Origin"), { target: { value: "PERSON:11111111-1111-1111-1111-111111111111" } });
-    fireEvent.change(screen.getByLabelText("Target"), { target: { value: "PERSON:11111111-1111-1111-1111-111111111111" } });
+    choose("Origin", model.people[0].personId);
+    choose("Target", model.people[0].personId);
     fireEvent.click(screen.getByRole("button", { name: "Create LINK" }));
 
     expect(await screen.findByText("SelfLoopLink")).toBeInTheDocument();
+    // [REQ-08-021] A failed creation must not invalidate state: no model reload, no re-layout.
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+    expect(api.computeVisualizerLayout).not.toHaveBeenCalled();
   });
 
-  it("TC-08-REACT-004 initializes an empty model with minimum required input", async () => {
+  it("TC-08-REACT-008 cancels or fails the native save dialog without scaffolding a workspace", async () => {
+    // [REQ-08-001] Cancelling the OS save dialog must not create any workspace.
+    api.withTimeout.mockImplementation((promise) => promise);
+    api.pickWorkspaceDirectory.mockResolvedValueOnce(null);
+    render(
+      <MemoryRouter initialEntries={["/select"]}>
+        <Routes>
+          <Route path="/select" element={<SelectModelPage />} />
+          <Route path="/loading-model" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Create New HASM" }));
+    await vi.waitFor(() => expect(api.pickWorkspaceDirectory).toHaveBeenCalledTimes(1));
+    expect(api.createHasmWorkspace).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+
+    api.pickWorkspaceDirectory.mockResolvedValueOnce("C:/NewLife.hasm");
+    api.createHasmWorkspace.mockRejectedValueOnce(new Error("ERR_WORKSPACE_CREATION_FAILED"));
+    fireEvent.click(await screen.findByRole("button", { name: "Create New HASM" }));
+    expect(await screen.findByText("ERR_WORKSPACE_CREATION_FAILED")).toBeInTheDocument();
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+  });
+
+  it("TC-08-REACT-009 surfaces backend TimeInversion from calendar-only FACT dates", async () => {
+    // [REQ-08-022] Calendar-only FACT date fields keep the existing IPC payload, and
+    // an inverted range fails with a visible backend error and no model reload.
+    api.createFact.mockRejectedValue(new Error("EntityValidationError::TimeInversion"));
+    render(<MemoryRouter initialEntries={[{ state: { model, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "FACT" }));
+    expect(screen.getByLabelText("Start date")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("End date")).toHaveAttribute("type", "date");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Backdated" } });
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-08-12" } });
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2020-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create FACT" }));
+    await vi.waitFor(() => expect(api.createFact).toHaveBeenCalledWith("C:/fixture.hasm",
+      expect.objectContaining({ startTime: "2026-08-12", endTime: "2020-01-01" })));
+    expect(await screen.findByRole("alert")).toHaveTextContent("TimeInversion");
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+
+  it("TC-08-REACT-004 confirms name and birth date before initializing an empty model", async () => {
     api.createPerson.mockResolvedValue({ entityType: "PERSON", entityId: "new-person" });
     api.loadHasmModelDb.mockResolvedValue({ ...model, people: [{ personId: "new-person", personName: "Bootstrap" }] });
 
@@ -126,12 +340,83 @@ describe("SEQ-08 entity creation navigation and forms", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Bootstrap" } });
-    fireEvent.click(screen.getByRole("button", { name: "Initialize and Open Visualizer" }));
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: " Bootstrap " } });
+    expect(screen.getByRole("button", { name: "Review model" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-02-29" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm new HASM model" });
+    expect(dialog).toHaveTextContent("Bootstrap");
+    expect(dialog).toHaveTextContent("2000-02-29");
+    expect(dialog).toHaveTextContent("Bootstrap Life");
+    expect(dialog).toHaveTextContent("Bootstrap Birth date");
+    expect(api.createPerson).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and create model" }));
 
     await vi.waitFor(() =>
-      expect(api.createPerson).toHaveBeenCalledWith("C:/fixture.hasm", expect.objectContaining({ personName: "Bootstrap" })),
+      expect(api.createPerson).toHaveBeenCalledWith("C:/fixture.hasm", {
+        personName: "Bootstrap", birthDate: "2000-02-29", personDescription: "",
+        securityLevel: 1, createLifeExperience: true,
+      }),
     );
     expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+  });
+
+  it("TC-08-REACT-005 returns to edit without persisting and confirms revised input", async () => {
+    api.createPerson.mockResolvedValue({});
+    api.loadHasmModelDb.mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ state: { path: "C:/fixture.hasm" } }]}>
+      <ModelInitializationPage />
+    </MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Original" } });
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Back to edit" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(api.createPerson).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Birth date (required)")).toHaveValue("2000-01-01");
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Revised" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Revised Life");
+  });
+
+  it("TC-08-REACT-006 reports creation errors and blocks duplicate submissions", async () => {
+    let rejectCreation;
+    api.createPerson.mockImplementation(() => new Promise((_, reject) => { rejectCreation = reject; }));
+    render(<MemoryRouter initialEntries={[{ state: { path: "C:/fixture.hasm" } }]}>
+      <ModelInitializationPage />
+    </MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Person" } });
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    const confirm = await screen.findByRole("button", { name: "Confirm and create model" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(api.createPerson).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Back to edit" })).toBeDisabled();
+    rejectCreation(new Error("Birth FACT could not be saved"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Birth FACT could not be saved");
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Back to edit" })).toBeEnabled();
+  });
+
+  it("TC-08-REACT-007 retries loading without duplicating initialized entities", async () => {
+    api.createPerson.mockResolvedValue({});
+    api.loadHasmModelDb.mockRejectedValueOnce(new Error("Database temporarily unavailable")).mockResolvedValue(model);
+    render(<MemoryRouter initialEntries={[{ pathname: "/initialize-model", state: { path: "C:/fixture.hasm" } }]}>
+      <Routes>
+        <Route path="/initialize-model" element={<ModelInitializationPage />} />
+        <Route path="/visualizer" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("PERSON name (required)"), { target: { value: "Person" } });
+    fireEvent.change(screen.getByLabelText("Birth date (required)"), { target: { value: "2000-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review model" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm and create model" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Database temporarily unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Retry opening visualizer" }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/visualizer");
+    expect(api.createPerson).toHaveBeenCalledTimes(1);
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(2);
   });
 });

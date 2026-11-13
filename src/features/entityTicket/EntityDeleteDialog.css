@@ -1,0 +1,24 @@
+.entity-delete-dialog .modal-content {
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+
+.entity-delete-dialog .modal-header,
+.entity-delete-dialog .modal-footer {
+  border-color: var(--theme-border);
+}
+
+.entity-delete-dialog section {
+  margin-block: 1rem;
+}
+
+.entity-delete-dialog h2 {
+  font-size: 1rem;
+}
+
+.entity-delete-dialog .form-group {
+  margin-bottom: .75rem;
+}

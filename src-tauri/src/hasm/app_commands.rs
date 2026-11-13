@@ -8,6 +8,8 @@ use tauri::{AppHandle, Manager, Runtime};
 
 const MARKDOWN_EXECUTABLE: &str = "hasm_markdown.exe";
 
+/// [REQ-01-FUNC-202][REQ-01-FUNC-207] Verifies the HASM Markdown executable exists in
+/// packaged resources or the development staging directory in every build profile.
 #[tauri::command]
 pub fn validate_hasm_markdown_app<R: Runtime>(
     app: AppHandle<R>,
@@ -16,6 +18,8 @@ pub fn validate_hasm_markdown_app<R: Runtime>(
     validate_markdown_executable(&executable)
 }
 
+/// [REQ-01-FUNC-302][REQ-01-FUNC-303][REQ-01-FUNC-304][REQ-01-FUNC-305][REQ-01-FUNC-306][REQ-01-FUNC-311]
+/// Reads `CARGO_PKG_VERSION` and inspects CLI arguments for a quote-normalized workspace path.
 #[tauri::command]
 pub fn validate_app_version() -> Result<AppVersionResponse, AppValidationError> {
     let args: Vec<String> = env::args().collect();
@@ -33,6 +37,8 @@ pub fn validate_app_version() -> Result<AppVersionResponse, AppValidationError> 
     })
 }
 
+/// [REQ-01-FUNC-402][REQ-01-RULE-007] Verifies the quote-normalized workspace path
+/// exists on disk as a directory, rejecting with `ERR_TARGET_PATH_NOT_FOUND` otherwise.
 #[tauri::command]
 pub fn validate_hasm_folder_path(path: String) -> Result<(), AppValidationError> {
     let normalized_path = normalize_workspace_path(&path);
@@ -189,6 +195,64 @@ mod tests {
     fn treats_malicious_path_text_as_a_literal_path() {
         let error = validate_hasm_folder_path("C:\\valid; rm -rf".to_string()).unwrap_err();
         assert_eq!(error.code, "ERR_TARGET_PATH_NOT_FOUND");
+    }
+
+    // [REQ-01-RULE-007][REQ-01-FUNC-304][REQ-01-FUNC-305][REQ-01-FUNC-306][REQ-01-FUNC-311]
+    // Negative: unmatched/inner quotes stay literal and flag-only or empty launch
+    // arguments never produce a selected model path.
+    #[test]
+    fn keeps_unmatched_quotes_literal_and_ignores_flag_only_launch_args() {
+        // Unmatched leading quote is not stripped; the literal text is preserved.
+        assert_eq!(normalize_workspace_path("  \"C:/unclosed  "), "\"C:/unclosed");
+        // Inner quotes remain literal.
+        assert_eq!(normalize_workspace_path("C:/a\"b"), "C:/a\"b");
+        // Flag-only or trailing `--path` arguments yield no model selection.
+        assert_eq!(parse_launch_path(&["hasm.exe".into(), "--path".into()]), None);
+        assert_eq!(parse_launch_path(&["hasm.exe".into(), "--verbose".into()]), None);
+        assert_eq!(
+            parse_launch_path(&["hasm.exe".into(), "--path".into(), "\"\"".into()]),
+            None
+        );
+        // An unmatched-quote path is rejected as a literal, non-existent path.
+        let error = validate_hasm_folder_path("\"C:/unclosed-hasm-path".to_string()).unwrap_err();
+        assert_eq!(error.code, "ERR_TARGET_PATH_NOT_FOUND");
+    }
+
+    // [REQ-01-DATA-001][REQ-01-DATA-002][REQ-01-FUNC-302]
+    // Negative: payloads missing contract fields are rejected on deserialization,
+    // including a response that drops the CARGO_PKG_VERSION-backed version field.
+    #[test]
+    fn rejects_payloads_missing_contract_fields() {
+        assert!(serde_json::from_value::<AppValidationError>(json!({ "code": "ERR_X" })).is_err());
+        assert!(serde_json::from_value::<AppValidationError>(json!({ "message": "m" })).is_err());
+        assert!(serde_json::from_value::<AppVersionResponse>(json!({
+            "path": null,
+            "version": "0.1.0"
+        }))
+        .is_err());
+        assert!(serde_json::from_value::<AppVersionResponse>(json!({
+            "isModelSelected": false,
+            "path": null
+        }))
+        .is_err());
+        // Positive-direction guard inside the same contract: the full payload round-trips.
+        let roundtrip: AppVersionResponse = serde_json::from_value(json!({
+            "isModelSelected": false,
+            "path": null,
+            "version": env!("CARGO_PKG_VERSION")
+        }))
+        .unwrap();
+        assert_eq!(roundtrip.version, env!("CARGO_PKG_VERSION"));
+    }
+
+    // [REQ-01-RULE-008] Negative: path validation stays filesystem-only; URL-like
+    // input is rejected as a non-existent literal path without contacting the network.
+    #[test]
+    fn rejects_url_like_paths_without_network_access() {
+        for url in ["https://example.com/workspace", "http://127.0.0.1/icons"] {
+            let error = validate_hasm_folder_path(url.to_string()).unwrap_err();
+            assert_eq!(error.code, "ERR_TARGET_PATH_NOT_FOUND");
+        }
     }
 
     #[test]

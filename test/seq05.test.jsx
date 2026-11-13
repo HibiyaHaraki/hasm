@@ -68,4 +68,37 @@ describe("SEQ-05 external Markdown invocation", () => {
     ["TC-05-REACT-004", "ERR_LAUNCH_TIMEOUT", "Launching HASM Markdown App timed out."],
     ["TC-05-REACT-005", "ERR_PROCESS_SPAWN_FAILED", "Failed to launch hasm_markdown.exe process."],
   ])("%s displays the documented launch error", async (_id, errorCode, message) => { api.loadEntityDetail.mockResolvedValue(detail); api.launchExternalMarkdownApp.mockRejectedValue(new Error(errorCode)); renderTicket(); await screen.findByRole("button", { name: "Edit summary" }); fireEvent.click(screen.getByRole("button", { name: "Edit Markdown in HASM App" })); expect(await screen.findByText(message)).toBeInTheDocument(); });
+  it("TC-05-REACT-009 renders the exact translated message surface for every documented launch error code", async () => {
+    // [REQ-05-FUNC-104][REQ-05-FUNC-107][REQ-05-FUNC-110][REQ-05-FUNC-112] exact
+    // error-surface contract: each typed code maps to its documented user text
+    // and the raw IPC code never leaks into the page.
+    const cases = [
+      ["ERR_ENTITY_DIRECTORY_NOT_FOUND", "Entity folder does not exist on disk."],
+      ["ERR_MARKDOWN_EXECUTABLE_NOT_FOUND", "hasm_markdown.exe application binary is missing."],
+      ["ERR_LAUNCH_TIMEOUT", "Launching HASM Markdown App timed out."],
+      ["ERR_PROCESS_SPAWN_FAILED", "Failed to launch hasm_markdown.exe process."],
+    ];
+    for (const [errorCode, message] of cases) {
+      api.loadEntityDetail.mockResolvedValue(detail);
+      api.launchExternalMarkdownApp.mockRejectedValue(new Error(errorCode));
+      renderTicket();
+      await screen.findByRole("button", { name: "Edit summary" });
+      fireEvent.click(screen.getByRole("button", { name: "Edit Markdown in HASM App" }));
+      const surfaced = await screen.findByText(message);
+      expect(surfaced.textContent.trim()).toBe(message);
+      expect(screen.queryByText(errorCode, { exact: false })).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+  it("TC-05-REACT-010 suppresses the refresh guidance toast when the launch invoke fails", async () => {
+    // [REQ-05-FUNC-114] negative path: guidance appears only after resolution.
+    api.loadEntityDetail.mockResolvedValue(detail);
+    api.launchExternalMarkdownApp.mockRejectedValue(new Error("ERR_PROCESS_SPAWN_FAILED"));
+    renderTicket();
+    await screen.findByRole("button", { name: "Edit summary" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit Markdown in HASM App" }));
+    await screen.findByText("Failed to launch hasm_markdown.exe process.");
+    expect(screen.queryByText("Opened HASM Markdown App. Click 'Refresh Markdown' after saving.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Markdown in HASM App" })).toBeEnabled();
+  });
 });

@@ -12,10 +12,14 @@ import { translateTicket } from "./ticketLanguage";
 import "./EntityCommitGraph.css";
 import { ExperienceBadge, experienceAtNode } from "../../hasm_visualizer/ExperienceBadge.jsx";
 import { buildExperienceColorMaps, positionKey } from "../../hasm_visualizer/threeCommitGraph.js";
+import { previewGraphEntity } from "./EntityInfoPreview";
 
 const logger = createLogger("entity-commit-graph");
 const FILTER = { timeScaleMode: "SequentialIndex", zScaleFactor: 1 };
 
+// [REQ-04-RULE-023] Compact entity extended commit graph rendered with the shared 2D renderer.
+// [REQ-04-RULE-024] Persistently emphasizes the addressed entity through the highlight API.
+// [REQ-04-RULE-025] SequentialIndex layout with the adjacent newest-first FACT title table.
 export function EntityCommitGraph({ entityType, entityId, detail, workspaceState, disabled, onSelect, language }) {
   const { activePatternId } = useTheme();
   const sceneRef = useRef(null);
@@ -81,7 +85,8 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
       // SEQ-MD-04: hover adds emphasis but never clears the addressed ticket.
       const renderer = createCommitGraph2D(
         sceneRef.current, layout, getPatternById(activePatternId).colors,
-        (node) => { if (!disabled) onSelect(node); }, (node) => {
+        disabled ? null : onSelect, (node, event) => {
+          previewGraphEntity(node, event, sceneRef.current);
           setHoveredNode(node);
           renderer.setHighlight({
             ...currentNode,
@@ -95,12 +100,13 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
           rowHeightPx: ROW_HEIGHT_PX,
           headerHeightPx: TABLE_HEADER_HEIGHT_PX,
           onScroll: syncScroll,
+          experienceLabel: (title) => t("Open {type}: {title}", { type: "EXPERIENCE", title }),
         },
       );
       renderer.setHighlight(currentNode);
       rendererRef.current = renderer;
       renderer.setScrollTop(factTableRef.current?.scrollTop ?? 0);
-      return () => { rendererRef.current = null; renderer(); };
+      return () => { previewGraphEntity(null); rendererRef.current = null; renderer(); };
     } catch (failure) {
       logger.error("[SEQ-MD-04][GRAPH] rendering failed", failure);
       setRenderError(failure?.message || String(failure));

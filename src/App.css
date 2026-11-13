@@ -46,6 +46,11 @@ p {
   letter-spacing: 0.03em;
 }
 
+/* Bootstrap's badge foreground must follow the picker theme, including light patterns. */
+.experience-multi .experience-multi-badge {
+  color: var(--theme-text);
+}
+
 .btn-hasm-primary {
   color: var(--theme-input-bg);
   background-color: var(--theme-text);

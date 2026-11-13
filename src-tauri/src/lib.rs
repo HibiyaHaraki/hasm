@@ -12,6 +12,9 @@ use crate::hasm::splash_commands::{start_splash_fallback, SplashState};
 use crate::logger::init_logger;
 use std::time::Instant;
 
+/// [REQ-01-FUNC-001][REQ-01-RULE-009] Builds and runs the Tauri app: initializes the
+/// shared logger, measures the splash minimum duration from process launch, registers
+/// plugins, and exposes every frontend-invokable command handler.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_logger();
@@ -43,6 +46,7 @@ pub fn run() {
             hasm::entity_creation_commands::create_experience,
             hasm::entity_creation_commands::create_fact,
             hasm::entity_creation_commands::create_link,
+            hasm::entity_deletion_commands::delete_entity,
             hasm::visualizer_commands::compute_visualizer_layout,
             hasm::entity_editor_commands::load_entity_detail,
             hasm::entity_editor_commands::check_entity_mtime,

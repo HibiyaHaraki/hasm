@@ -13,6 +13,10 @@ function isModelVerified(location) {
   return true;
 }
 
+// [SEQ-MD-07][REQ-07-RULE-001][REQ-07-RULE-002] Barrier 1 route protection implementing the Route
+// Protection Evaluation Matrix with redirection reason metadata in location.state.
+// [REQ-07-FUNC-101][REQ-07-FUNC-102] Unloaded workspace -> /select with a warning redirectReason.
+// [REQ-07-FUNC-103][REQ-07-FUNC-104] Unverified model -> /loading-model with returnTo and an info redirectReason.
 function ProtectedRoute({ requireVerified = false }) {
   const location = useLocation();
 
@@ -39,7 +43,7 @@ function ProtectedRoute({ requireVerified = false }) {
           ...location.state,
           path: location.state?.path || window.sessionStorage.getItem("hasm-active-workspace"),
           returnTo: location.pathname,
-          redirectReason: "モデルの検証が完了していません。再ロード・検証を実行します。",
+          redirectReason: "Reloading and verifying the workspace before returning to visualization.",
           redirectType: "info",
         }}
       />

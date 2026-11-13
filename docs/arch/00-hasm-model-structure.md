@@ -27,6 +27,7 @@ To achieve clean separation between human-readable content and structural metada
 ```
 my.hasm/
   |-- hasm.db
+  |-- .hasm/deleted/       (recoverable confirmed-deletion archives)
   |-- EXPERIENCE/
   |   `-- {UUID}/
   |       |-- main.md (HASM Markdown)
@@ -45,6 +46,11 @@ my.hasm/
           `-- assets/
 
 ```
+
+Confirmed entity deletion stores original entity folders, including Markdown and
+assets, and original database rows under a unique `.hasm/deleted/` operation
+directory. This archive is outside the synchronized entity directories and is
+not an automatic restore interface. See [SEQ-04](./13-SEQ-04_Entity_Editing.md#confirmed-deletion-and-archive).
 
 ---
 
@@ -172,6 +178,14 @@ Primary unit representing an individual. Every `PERSON` owns one mandatory root 
 * **`person_name`** (*TEXT*): Name or handle of the person.
 * **`person_description`** (*TEXT*): Short overview or summary.
 * **`security_level`** (*INTEGER*): Access control level ($0 \le \text{level} \le 5$).
+
+New-model initialization stores the required birth date in the implemented
+`person.birthday` field (`YYYY-MM-DD`). In the same creation transaction, it
+creates an owned Life EXPERIENCE through `experience.person_id` and a birth date
+FACT with `occurred_at` equal to the exact date, `experience_ids` containing the
+Life EXPERIENCE, and `person_ids` containing the PERSON. These existing
+`main.db` fields implement the bootstrap without a schema change; see
+[SEQ-08](./17-SEQ-08_EntityCreation.md) for confirmation and rollback behavior.
 
 #### EXPERIENCE
 

@@ -70,11 +70,17 @@ jobs:
       - name: EVAL-05 React and IPC tests
         run: npm run test:eval-05
 
+      - name: EVAL-06 React tests
+        run: npm run test:eval-06
+
       - name: EVAL-07 React tests
         run: npm run test:eval-07
 
       - name: EVAL-08 React and IPC tests
         run: npm run test:eval-08
+
+      - name: Requirement / test / code traceability check
+        run: npm run test:traceability
 
       - name: Build frontend
         run: npm run build
@@ -148,6 +154,11 @@ jobs:
         working-directory: src-tauri
         run: cargo test entity_editor_commands
 
+      - name: EVAL-04 Rust entity deletion IPC tests
+        timeout-minutes: 3
+        working-directory: src-tauri
+        run: cargo test --test entity_deletion_ipc
+
       - name: EVAL-05 Rust external editor tests
         working-directory: src-tauri
         run: cargo test external_editor_commands
@@ -159,3 +170,8 @@ jobs:
       - name: EVAL-08 Rust entity creation tests
         working-directory: src-tauri
         run: cargo test entity_creation_commands
+
+      - name: Full Rust test suite (traceability coverage, incl. eval0x integration tests)
+        timeout-minutes: 20
+        working-directory: src-tauri
+        run: cargo test

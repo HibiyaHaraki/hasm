@@ -48,6 +48,12 @@ on remount, without global browser storage or changes to serialized entities.
 Settings snapshots do not change renderer callback identity when a filter changes;
 failed layout changes must keep the previous scene intact.
 
+The EXPERIENCE scope uses the standalone `ExperienceMultiSelect`: an empty
+search displays every EXPERIENCE allowed by the PERSON scope; a trimmed,
+case-insensitive title query filters the list. Selected titles remain visible
+as removable badges while searches change. Scope IDs and layout IPC remain
+unchanged. Escape first closes the search list, then closes the scope panel.
+
 SequentialIndex rendering deduplicates FACT projections by UUID and XY EXPERIENCE
 position before creating SVG circles, preferring direct markers. Distinct branch
 placements and ancestor reflections remain intentional. Unique title rows prefer
@@ -61,6 +67,10 @@ Badges share the branch color, derive contrast-safe text,
 replace the table's redundant color-only dot without changing graph markers,
 and scale within the existing synchronized row height. Detail graphs reuse the
 same badge component without changing entity selection or serialized shapes.
+The 2D renderer also exposes each EXPERIENCE lane title as a keyboard-accessible
+button when a selection callback exists, including for empty timelines. It sends
+the original EXPERIENCE node through the same callback and view-state snapshot
+as graph selection. Without a callback the title remains noninteractive.
 
 `VisualizerPage` owns a page lifetime and the identity of the current layout
 request. Only a pending current request may consume progress or reset the
@@ -74,7 +84,7 @@ their existing error/filter-reversion behavior.
 Progress listeners resolving after cleanup are disposed immediately, including
 React StrictMode's setup/cleanup replay. Lifetime setup uses a layout effect
 because the shared visualizer starts layout in its child passive effect.
-The host does not modify the visualizer submodule or native event payloads.
+The host supplies callbacks without changing native event payloads.
 Node-to-ticket navigation preserves the full workspace route state, including
 read-only and warning information.
 

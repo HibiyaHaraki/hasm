@@ -39,8 +39,10 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
       initialEntries: [{ pathname: "/visualizer", state: { model, path: "fixture.hasm", isVerified: true } }],
     }, React.createElement(VisualizerPage)));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("compute_visualizer_layout", expect.any(Object)));
+    fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
     const select = screen.getByLabelText("EXPERIENCE scope");
-    fireEvent.mouseDown(select.options[1], { button: 0 });
+    fireEvent.focus(select);
+    fireEvent.click(screen.getByRole("option", { name: "Teaching" }));
     fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: "1.7" } });
     await waitFor(() => expect(invoke).toHaveBeenLastCalledWith("compute_visualizer_layout", {
       model: { ...model, experiences: [model.experiences[1]], facts: [model.facts[1]] },
@@ -213,5 +215,39 @@ describe("EVAL-03 Tauri IPC bridge contract", () => {
       .filter((node) => node.entityType === "FACT").findIndex((node) => node.id === "latest");
     fireEvent.click(circles()[latestIndex]);
     expect(await screen.findByText("FACT ticket opened")).toBeInTheDocument();
+  });
+
+  it("TC-03-IPC-006 preserves the previous 2D time axis when a mode switch fails", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => (
+      { left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400 }
+    ));
+    const model = {
+      people: [],
+      experiences: [{ experienceId: "exp-1", name: "Lane" }],
+      facts: [
+        { factId: "early", name: "Early", experienceIds: ["exp-1"], occurredAt: "2026-01-01" },
+        { factId: "late", name: "Late", experienceIds: ["exp-1"], occurredAt: "2026-03-01" },
+      ],
+      links: [],
+    };
+    invoke.mockImplementation((_command, args) => Promise.resolve(computeVisualizerLayoutJS(args.model, args.filter)));
+    const { container } = render(React.createElement(MemoryRouter, {
+      initialEntries: [{ pathname: "/visualizer", state: { model, path: "fixture.hasm", isVerified: true } }],
+    }, React.createElement(VisualizerPage)));
+    const graph = () => container.querySelector(".HasmVisualizer_GraphPane2D");
+    const circles = () => [...graph().querySelectorAll("circle")];
+    await waitFor(() => expect(circles()).toHaveLength(2));
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "Linear" } });
+    await waitFor(() => expect(graph().textContent).toContain("Time (Linear)"));
+    const linearYs = circles().map((circle) => circle.getAttribute("cy"));
+    invoke.mockRejectedValueOnce(new Error("Layout calculation stalled"));
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "SequentialIndex" } });
+    expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
+    // The failed switch leaves the Linear axis, geometry, and hidden table untouched,
+    // and no progress overlay may linger after the failure.
+    expect(container.querySelector("table")).toBeNull();
+    expect(graph().textContent).toContain("Time (Linear)");
+    expect(circles().map((circle) => circle.getAttribute("cy"))).toEqual(linearYs);
+    expect(container.querySelector(".graph-progress")).toBeNull();
   });
 });

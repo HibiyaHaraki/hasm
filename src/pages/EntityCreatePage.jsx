@@ -15,16 +15,14 @@ import { Button, Container, Form } from "react-bootstrap";
 import "../pages/PanelCard.css";
 import "./EntityFormPage.css";
 import { ExternalLinksEditor, isExternalUrl } from "../features/entityTicket/ExternalLinksEditor";
+import { createLogger } from "../hasm_logger/src/react/logger.js";
 
 const ENTITY_TYPES = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
+const logger = createLogger("entity-creation");
 
-function parseUuidList(raw) {
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
+// [REQ-04-RULE-010] [REQ-04-RULE-011] Entity creation page (SEQ-MD-08): collects the shared
+// external `link: string[]` array for every entity type and rejects invalid HTTP(S) URLs
+// before any creation invoke is issued.
 function EntityCreatePage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -38,33 +36,31 @@ function EntityCreatePage() {
   const [personForm, setPersonForm] = useState({
     link: [],
     name: "",
-    description: "",
     securityLevel: "1",
     createRootStream: true,
   });
   const [experienceForm, setExperienceForm] = useState({
     link: [],
     name: "",
-    description: "",
     securityLevel: "1",
-    parentExperienceIds: "",
+    parentExperienceIds: [],
   });
   const [factForm, setFactForm] = useState({
     link: [],
     name: "",
-    description: "",
     securityLevel: "1",
     startTime: "",
     endTime: "",
-    experienceIds: "",
+    experienceIds: [],
   });
   const [linkForm, setLinkForm] = useState({
     link: [],
     linkType: "references",
-    description: "",
     securityLevel: "1",
     origin: "",
     target: "",
+    originSearch: "",
+    targetSearch: "",
   });
 
   const entityOptions = useMemo(() => {
@@ -97,11 +93,12 @@ function EntityCreatePage() {
     setStatusMessage("");
 
     try {
+      logger.info(`[SEQ-MD-08][CREATE] creating ${entityType} with default Markdown`);
       if (entityType === "PERSON") {
         await createPerson(path, {
           link: personForm.link,
           personName: personForm.name,
-          personDescription: personForm.description,
+          personDescription: "",
           securityLevel: Number(personForm.securityLevel),
           createLifeExperience: Boolean(personForm.createRootStream),
         });
@@ -111,9 +108,9 @@ function EntityCreatePage() {
         await createExperience(path, {
           link: experienceForm.link,
           experienceName: experienceForm.name,
-          experienceDescription: experienceForm.description,
+          experienceDescription: "",
           securityLevel: Number(experienceForm.securityLevel),
-          parentExperienceIds: parseUuidList(experienceForm.parentExperienceIds),
+          parentExperienceIds: experienceForm.parentExperienceIds,
         });
       }
 
@@ -121,11 +118,11 @@ function EntityCreatePage() {
         await createFact(path, {
           link: factForm.link,
           factName: factForm.name,
-          factDescription: factForm.description,
+          factDescription: "",
           securityLevel: Number(factForm.securityLevel),
           startTime: factForm.startTime || null,
           endTime: factForm.endTime || null,
-          experienceIds: parseUuidList(factForm.experienceIds),
+          experienceIds: factForm.experienceIds,
         });
       }
 
@@ -135,7 +132,7 @@ function EntityCreatePage() {
         await createLink(path, {
           link: linkForm.link,
           linkType: linkForm.linkType,
-          linkDescription: linkForm.description,
+          linkDescription: "",
           securityLevel: Number(linkForm.securityLevel),
           originEntityType,
           originEntityId,
@@ -150,6 +147,7 @@ function EntityCreatePage() {
         state: { path, model: latestModel, isVerified: true },
       });
     } catch (error) {
+      logger.error(`[SEQ-MD-08][CREATE] ${entityType} creation or model reload failed`, error);
       setStatusMessage(error?.message || "Entity creation failed.");
     } finally {
       setSubmitting(false);
@@ -160,7 +158,7 @@ function EntityCreatePage() {
     <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
       <section className="panel-card panel-card--wide">
         <h1>Create New Entity</h1>
-        <p className="selection-copy">Use a dedicated creation page so each entity form can evolve independently.</p>
+        <p className="selection-copy">A default Markdown description is created automatically. Edit it in HASM Markdown after creation.</p>
 
         <div className="entity-type-row d-flex flex-wrap gap-2" role="tablist" aria-label="Entity creation type">
           {ENTITY_TYPES.map((type) => (
@@ -177,8 +175,8 @@ function EntityCreatePage() {
 
         <Form onSubmit={submit} noValidate>
           {entityType === "PERSON" ? <CreatePersonForm value={personForm} onChange={setPersonForm} /> : null}
-          {entityType === "EXPERIENCE" ? <CreateExperienceForm value={experienceForm} onChange={setExperienceForm} /> : null}
-          {entityType === "FACT" ? <CreateFactForm value={factForm} onChange={setFactForm} /> : null}
+          {entityType === "EXPERIENCE" ? <CreateExperienceForm value={experienceForm} onChange={setExperienceForm} experiences={model.experiences || []} /> : null}
+          {entityType === "FACT" ? <CreateFactForm value={factForm} onChange={setFactForm} experiences={model.experiences || []} /> : null}
           {entityType === "LINK" ? (
             <CreateLinkForm
               value={linkForm}
@@ -197,7 +195,7 @@ function EntityCreatePage() {
             </Button>
           </div>
 
-          {statusMessage ? <p className="validation-message">{statusMessage}</p> : null}
+          {statusMessage ? <p className="validation-message" role="alert">{statusMessage}</p> : null}
         </Form>
       </section>
     </Container>

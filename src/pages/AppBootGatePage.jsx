@@ -26,6 +26,13 @@ function reportLaunchComplete(outcome) {
     .catch((error) => logger.warn("[SEQ-MD-01][SPLASH] launch completion report failed", error));
 }
 
+// [SEQ-MD-01][REQ-01-RULE-001][REQ-01-RULE-002][REQ-01-RULE-003] Sequential boot gate: Check 1 -> Check 2 -> Check 3/4
+// with fatal failures routing to /error-app and path failures falling back to /select.
+// [REQ-01-FUNC-002] Reports boot completion once per terminal route via complete_app_launch.
+// [REQ-01-FUNC-201][REQ-01-FUNC-203][REQ-01-FUNC-205][REQ-01-FUNC-206] Check 1: HASM Markdown app validation with 5,000ms timeout.
+// [REQ-01-FUNC-301][REQ-01-FUNC-308][REQ-01-FUNC-309][REQ-01-FUNC-310] Check 2: app version / CLI launch path inspection.
+// [REQ-01-FUNC-401][REQ-01-FUNC-403][REQ-01-FUNC-404][REQ-01-FUNC-405][REQ-01-FUNC-406] Check 3: CLI path existence with 3,000ms timeout and graceful fallback.
+// [REQ-01-FUNC-502][REQ-01-FUNC-601][REQ-01-FUNC-602] Routes to /select or /loading-model transferring the verified path in route state.
 function AppBootGatePage() {
   const navigate = useNavigate();
   const [loadState, setLoadState] = useState(0);

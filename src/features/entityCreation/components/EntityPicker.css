@@ -1,0 +1,40 @@
+.entity-picker .entity-picker-toggle {
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.entity-picker .dropdown-menu {
+  width: 100%;
+  max-height: 16rem;
+  overflow-y: auto;
+  background-color: var(--theme-surface);
+  color: var(--theme-text);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+}
+
+.entity-picker .dropdown-item,
+.entity-picker .dropdown-item-text {
+  color: var(--theme-text);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.entity-picker .dropdown-item:hover,
+.entity-picker .dropdown-item:focus,
+.entity-picker .dropdown-item.active {
+  color: var(--theme-text);
+  background-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-surface));
+}
+
+.entity-picker .dropdown-item[aria-selected="true"] {
+  font-weight: 700;
+  border-inline-start: 3px solid var(--theme-text);
+}
+
+.entity-picker-retained {
+  display: block;
+  font-size: 0.8rem;
+}

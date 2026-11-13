@@ -1,5 +1,8 @@
 import { createEntityReferenceIndex, relatedLinkIds } from "./EntityReferences";
 
+// [REQ-04-RULE-023] Extracts the ticket-scoped graph model (FACT placements, ancestor
+// reflections, adjacent timeline events, LINK endpoints, descended PERSON EXPERIENCEs)
+// without mutating or reloading the workspace, terminating on cyclic ancestry.
 // SEQ-MD-04: extract relationships before layout; never expand LINKs transitively.
 export function extractEntityGraphModel(model, entityType, entityId, detail) {
   if (!model) return null;

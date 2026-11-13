@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import LoadingModelPage from "../src/pages/LoadingModelPage";
 import App from "../src/App";
 import * as api from "../src/features/hasm/api";
+import { getThemeVariables } from "../src/hasm_color_pattern/src/index.js";
 
 vi.mock("../src/features/hasm/api", () => ({
   browseWorkspaceDirectory: vi.fn(),
@@ -254,6 +255,150 @@ describe("SEQ-02 model loading and storage verification", () => {
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });
 
+  it("TC-02-REACT-006 shows no stale-recovery or read-only notice when the lock is clean", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockReturnValue(new Promise(() => {}));
+
+    renderLoading();
+
+    await vi.waitFor(() => expect(api.loadHasmModelDb).toHaveBeenCalled());
+    expect(screen.queryByText("Recovered stale lock file from previous process crash.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Opened in Read-Only Mode")).not.toBeInTheDocument();
+  });
+
+  it("TC-02-REACT-007 keeps a read-only workspace lock untouched on the close event", async () => {
+    let closeHandler;
+    api.subscribeToTauriEvent.mockImplementation((eventName, handler) => {
+      if (eventName === "tauri://close-requested") closeHandler = handler;
+      return Promise.resolve(() => {});
+    });
+    api.validateHasmMarkdownApp.mockResolvedValue();
+    api.validateAppVersion.mockResolvedValue({ isModelSelected: false, path: null });
+    api.releaseWorkspaceLock.mockResolvedValue();
+    window.history.pushState({}, "", "/select");
+
+    render(<App />);
+    await vi.waitFor(() => expect(closeHandler).toBeTypeOf("function"));
+    window.sessionStorage.setItem("hasm-active-workspace", "C:/fixture.hasm");
+    window.sessionStorage.setItem("hasm-workspace-read-only", "true");
+    await closeHandler();
+
+    expect(api.releaseWorkspaceLock).not.toHaveBeenCalled();
+  });
+
+  it("TC-02-REACT-008 routes a corrupted database load failure to the model error page", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockRejectedValue(new Error("ERR_DB_CORRUPTED: file is not a database"));
+
+    renderLoading();
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-model");
+    expect(JSON.parse(screen.getByTestId("route-state").textContent)).toEqual({
+      error: "ERR_DB_CORRUPTED: file is not a database",
+    });
+    expect(api.verifyHasmStorage).not.toHaveBeenCalled();
+  });
+
+  it("TC-02-REACT-009 keeps loading alive while events reset the load and verify watchdogs", async () => {
+    vi.useFakeTimers();
+    const handlers = {};
+    let loaded;
+    let verified;
+    api.subscribeToTauriEvent.mockImplementation(async (name, handler) => {
+      handlers[name] = handler;
+      return () => {};
+    });
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockReturnValue(new Promise((resolve) => { loaded = resolve; }));
+    api.verifyHasmStorage.mockReturnValue(new Promise((resolve) => { verified = resolve; }));
+    renderLoading();
+    await act(async () => { for (let index = 0; index < 15; index += 1) await Promise.resolve(); });
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+
+    // REQ-02-FUNC-203/204/205: each valid event restarts the 10,000ms database watchdog.
+    await act(async () => vi.advanceTimersByTimeAsync(9000));
+    await act(async () => handlers["model-load-progress"]({
+      payload: { step: "DB_LOAD_PERSON", current: 1, total: 2, percentage: 50, message: "Loading PERSON records" },
+    }));
+    await act(async () => vi.advanceTimersByTimeAsync(9000));
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+
+    await act(async () => loaded(fixtureModel));
+    await act(async () => { for (let index = 0; index < 15; index += 1) await Promise.resolve(); });
+    expect(api.verifyHasmStorage).toHaveBeenCalledTimes(1);
+
+    // REQ-02-FUNC-302: the storage verification stage owns the same watchdog protection.
+    await act(async () => vi.advanceTimersByTimeAsync(9000));
+    await act(async () => handlers["model-verify-progress"]({
+      payload: { percentage: 40, message: "Verifying workspace storage" },
+    }));
+    await act(async () => vi.advanceTimersByTimeAsync(9000));
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+
+    await act(async () => verified({ missingEntities: [], unreferencedEntities: [] }));
+    expect(screen.getByRole("heading", { name: "Workspace ready" })).toBeInTheDocument();
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-02-REACT-010 keeps the error route terminal after a load watchdog expiry", async () => {
+    vi.useFakeTimers();
+    let loaded;
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: false });
+    api.loadHasmModelDb.mockReturnValue(new Promise((resolve) => { loaded = resolve; }));
+    renderLoading();
+    await act(async () => { for (let index = 0; index < 15; index += 1) await Promise.resolve(); });
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(10001));
+    expect(screen.getByTestId("location")).toHaveTextContent("/error-model");
+    expect(JSON.parse(screen.getByTestId("route-state").textContent)).toEqual({ error: "DB loading stalled" });
+
+    // REQ-02-RULE-011/014: the abandoned attempt must not start new IPC or leave the error page.
+    await act(async () => loaded(fixtureModel));
+    await act(async () => vi.advanceTimersByTimeAsync(20000));
+    expect(screen.getByTestId("location")).toHaveTextContent("/error-model");
+    expect(screen.queryByRole("button", { name: "Go to visualization" })).not.toBeInTheDocument();
+    expect(api.verifyHasmStorage).not.toHaveBeenCalled();
+    expect(api.loadHasmModelDb).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-02-REACT-011 subscribes before any IPC and disposes listeners on unmount, including late subscriptions", async () => {
+    const unlistens = [];
+    let resolveSecond;
+    api.subscribeToTauriEvent.mockImplementation((name) => {
+      const unlisten = vi.fn();
+      unlistens.push(unlisten);
+      if (name === "model-load-progress") return Promise.resolve(unlisten);
+      return new Promise((resolve) => { resolveSecond = () => resolve(unlisten); });
+    });
+    api.checkWorkspaceLock.mockReturnValue(new Promise(() => {}));
+
+    const { unmount } = renderLoading();
+    await vi.waitFor(() => expect(api.subscribeToTauriEvent).toHaveBeenCalledTimes(2));
+    // REQ-02-FUNC-201: no lock or load command may run before both listeners resolve.
+    expect(api.checkWorkspaceLock).not.toHaveBeenCalled();
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+
+    unmount();
+    await act(async () => resolveSecond());
+    expect(unlistens[0]).toHaveBeenCalled();
+    expect(unlistens[1]).toHaveBeenCalled();
+    expect(api.checkWorkspaceLock).not.toHaveBeenCalled();
+  });
+
+  it("TC-02-REACT-012 routes a failed progress listener subscription to the model error page", async () => {
+    api.subscribeToTauriEvent.mockRejectedValue(new Error("Event bridge unavailable"));
+
+    renderLoading();
+
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-model");
+    expect(api.checkWorkspaceLock).not.toHaveBeenCalled();
+    expect(api.loadHasmModelDb).not.toHaveBeenCalled();
+  });
+
   it("TC-02-REACT-001 displays stale-lock recovery while the populated model loads", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
     api.checkWorkspaceLock.mockResolvedValue({ isReadOnly: false, isStaleRecovered: true });
@@ -380,5 +525,21 @@ describe("SEQ-02 model loading and storage verification", () => {
     await closeHandler();
 
     expect(api.releaseWorkspaceLock).toHaveBeenCalledWith("C:/fixture.hasm");
+  });
+
+  it("TC-02-REACT-THEME-001 applies and updates theme variables on the document root for portals", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    window.localStorage.setItem("hasm-theme-pattern", "classic-light");
+    window.history.pushState({}, "", "/select");
+    const { unmount } = render(<App />);
+
+    expect(document.documentElement.style.getPropertyValue("--theme-surface")).toBe(getThemeVariables("classic-light")["--theme-surface"]);
+    expect(document.documentElement.style.getPropertyValue("--theme-text")).toBe(getThemeVariables("classic-light")["--theme-text"]);
+    fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "classic" } });
+    expect(document.documentElement.style.getPropertyValue("--theme-surface")).toBe(getThemeVariables("classic")["--theme-surface"]);
+    expect(document.documentElement.style.getPropertyValue("--theme-text")).toBe(getThemeVariables("classic")["--theme-text"]);
+    unmount();
+    expect(document.documentElement.style.getPropertyValue("--theme-surface")).toBe("");
+    window.localStorage.removeItem("hasm-theme-pattern");
   });
 });

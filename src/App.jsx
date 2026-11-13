@@ -7,7 +7,7 @@
 // Description : Mounts the HASM model flow experience.
 // ###################################################
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import GlobalNavbar from "./features/navigation/GlobalNavbar";
 import ProtectedRoute from "./features/navigation/ProtectedRoute";
@@ -22,6 +22,7 @@ import ErrorModelPage from "./pages/ErrorModelPage";
 import LoadingModelPage from "./pages/LoadingModelPage";
 import SelectModelPage from "./pages/SelectModelPage";
 import VisualizerPage from "./pages/VisualizerPage";
+import EntityInfoPreview from "./features/entityTicket/EntityInfoPreview";
 import { releaseWorkspaceLock, subscribeToTauriEvent, withTimeout } from "./features/hasm/api";
 import { createLogger } from "./hasm_logger/src/react/logger.js";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -45,6 +46,11 @@ function CloseLockListener() {
   return null;
 }
 
+// [SEQ-MD-07][REQ-07-RULE-001][REQ-07-FUNC-301] Root router shell: wires ProtectedRoute guards,
+// the catch-all unknown-route redirect to /select, and applies the active hasm_color_pattern
+// theme as CSS custom properties on the document root.
+// [REQ-02-RULE-003][REQ-02-FUNC-108][REQ-02-FUNC-109] Mounts the close-requested workspace lock
+// release listener (CloseLockListener) for graceful lock cleanup on window close.
 function App() {
   const [activePatternId, setActivePatternId] = useState(DEFAULT_COLOR_PATTERN);
 
@@ -61,12 +67,25 @@ function App() {
 
   const themeStyle = useMemo(() => getThemeVariables(activePatternId), [activePatternId]);
 
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previous = Object.keys(themeStyle).map((name) => [
+      name, root.style.getPropertyValue(name), root.style.getPropertyPriority(name),
+    ]);
+    Object.entries(themeStyle).forEach(([name, value]) => root.style.setProperty(name, value));
+    return () => previous.forEach(([name, value, priority]) => {
+      if (value) root.style.setProperty(name, value, priority);
+      else root.style.removeProperty(name);
+    });
+  }, [themeStyle]);
+
   return (
-    <div className="app-shell" style={themeStyle}>
+    <div className="app-shell">
       <BrowserRouter>
         <ThemeProvider value={{ activePatternId, setActivePatternId }}>
           <CloseLockListener />
           <GlobalNavbar />
+          <EntityInfoPreview />
           <Routes>
             <Route path="/" element={<AppBootGatePage />} />
             <Route path="/select" element={<SelectModelPage />} />

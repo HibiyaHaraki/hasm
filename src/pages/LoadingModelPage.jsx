@@ -33,21 +33,33 @@ function initialSteps() {
   }));
 }
 
+// [SEQ-MD-02][REQ-02-FUNC-101][REQ-02-FUNC-102][REQ-02-FUNC-104][REQ-02-FUNC-106] Lock check on mount with
+// 3,000ms timeout, read-only banner, and stale lock recovery notice.
+// [REQ-02-FUNC-201][REQ-02-FUNC-203][REQ-02-FUNC-204][REQ-02-FUNC-205][REQ-02-FUNC-302] Progress stream
+// subscriptions and the 10,000ms load/verify watchdog routing stalls to /error-model.
+// [REQ-02-FUNC-306][REQ-02-FUNC-407][REQ-02-RULE-014] Single DB load per open; explicit Go to visualization
+// after verification, retaining the verified model in route state; empty workspaces go to /initialize-model.
+// [REQ-02-RULE-011][REQ-02-RULE-013] Load attempt lifetime ownership plus the four-stage stepper and
+// optional nine-bar loading detail view.
+// [REQ-07-FUNC-105] Shows the redirect reason only while loading and clears it from router state.
 function LoadingModelPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.state?.path;
   const redirectReason = location.state?.redirectReason || "";
-  const [state, setState] = useState(() => ({ steps: initialSteps(), notice: "", result: null }));
+  const deletionWarning = location.state?.deletionWarning || "";
+  const [state, setState] = useState(() => ({
+    steps: initialSteps(), notice: "", deletionWarning, redirectNotice: "", result: null,
+  }));
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => {
-    if (!redirectReason) {
+    if (!redirectReason && !deletionWarning) {
       return;
     }
-    setState((current) => ({ ...current, notice: redirectReason }));
-    navigate("/loading-model", { replace: true, state: { ...location.state, redirectReason: "", path } });
-  }, [navigate, path, redirectReason]);
+    setState((current) => ({ ...current, redirectNotice: redirectReason, deletionWarning }));
+    navigate("/loading-model", { replace: true, state: { ...location.state, redirectReason: "", deletionWarning: "", path } });
+  }, [navigate, path, redirectReason, deletionWarning]);
 
   useEffect(() => {
     if (!path) {
@@ -74,7 +86,7 @@ function LoadingModelPage() {
     const completeStep = (id, message) => {
       updateStep(id, { status: "Complete", progress: 100, message, current: null, total: null });
     };
-    setState((current) => ({ ...current, steps: initialSteps(), result: null }));
+    setState((current) => ({ ...current, steps: initialSteps(), redirectNotice: redirectReason, deletionWarning, result: null }));
     setShowDetail(false);
     startStep("SUBSCRIPTIONS", "Connecting to workspace progress events...");
     const stop = () => {
@@ -181,9 +193,12 @@ function LoadingModelPage() {
           }
 
           logger.info("[SEQ-MD-02][LOAD] workspace loaded and verified");
+          const resultState = { ...location.state };
+          delete resultState.redirectReason;
+          delete resultState.deletionWarning;
           setState((current) => ({
             ...current,
-            result: { ...location.state, path, model, isVerified: true, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities },
+            result: { ...resultState, path, model, isVerified: true, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities },
           }));
         }
       } catch (error) {
@@ -242,6 +257,8 @@ function LoadingModelPage() {
           </ol>
         </div>
         {state.result?.path === path ? <p role="status">Loading complete. Choose Go to visualization when you are ready.</p> : null}
+        {state.result?.path !== path && state.redirectNotice ? <p className="model-notice" role="status">{state.redirectNotice}</p> : null}
+        {state.deletionWarning ? <p className="model-notice" role="alert">{state.deletionWarning}</p> : null}
         {state.notice ? <p className="model-notice">{state.notice}</p> : null}
       </section>
     </Container>

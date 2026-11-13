@@ -1,5 +1,7 @@
 import { Form } from "react-bootstrap";
 
+// [REQ-08-010][REQ-08-014][REQ-08-018] Dedicated PERSON creation form: required name,
+// security level 0-5, optional root EXPERIENCE stream toggle, no description input.
 function CreatePersonForm({ value, onChange }) {
   return (
     <>
@@ -9,13 +11,6 @@ function CreatePersonForm({ value, onChange }) {
           value={value.name}
           onChange={(event) => onChange({ ...value, name: event.target.value })}
           required
-        />
-      </Form.Group>
-      <Form.Group className="mb-2" controlId="person-description">
-        <Form.Label>Description</Form.Label>
-        <Form.Control
-          value={value.description}
-          onChange={(event) => onChange({ ...value, description: event.target.value })}
         />
       </Form.Group>
       <Form.Group className="mb-2" controlId="person-security-level">

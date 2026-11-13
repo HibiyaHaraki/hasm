@@ -7,6 +7,8 @@ const ENTITY_COLLECTIONS = {
   LINK: "links",
 };
 
+// [REQ-04-RULE-018] [REQ-04-RULE-019] Builds the id->entity title lookup and the
+// LINK-endpoint reverse index from the already loaded model, without another workspace load.
 export function createEntityReferenceIndex(model) {
   const entities = new Map();
   const linksByEntity = new Map();
@@ -25,6 +27,8 @@ export function createEntityReferenceIndex(model) {
   return { entities, linksByEntity, available: Boolean(model) };
 }
 
+// [REQ-04-RULE-018] Resolves a human-readable entity title with explicit
+// unavailable/untitled fallbacks instead of opaque UUIDs.
 export function entityReferenceTitle(index, id, type, ticket, t = translateTicket) {
   if (ticket?.entityId === id && (!type || type === ticket.entityType)) return ticket.name || t("Untitled {type}", { type: ticket.entityType });
   const match = index.entities.get(id);
@@ -41,6 +45,8 @@ const REFERENCE_TYPES = {
   linkIds: "LINK",
 };
 
+// [REQ-04-RULE-018] [REQ-04-RULE-020] Maps a typed detail field to its resolved entity
+// references (id, type, title) used for readable labels and ticket navigation links.
 export function detailEntityReferences(index, field, detail, ticket, t = translateTicket) {
   const { key, list } = field;
   if (!REFERENCE_TYPES[key] && key !== "relatedIds") return null;
@@ -56,6 +62,8 @@ export function detailEntityReferences(index, field, detail, ticket, t = transla
   });
 }
 
+// [REQ-04-RULE-018] Reading-mode display value showing titles (never raw UUIDs) with
+// explicit None/Not set fallbacks.
 export function detailDisplayValue(index, field, detail, ticket) {
   const references = detailEntityReferences(index, field, detail, ticket);
   return references
@@ -63,6 +71,8 @@ export function detailDisplayValue(index, field, detail, ticket) {
     : detail[field.key] || "Not set";
 }
 
+// [REQ-04-RULE-019] [REQ-04-RULE-028] Deduplicated union of explicit linkIds and LINKs
+// referencing the entity in either endpoint position.
 export function relatedLinkIds(index, entityId, detail) {
   return [...new Set([...(detail.linkIds ?? []), ...(index.linksByEntity.get(entityId) ?? [])])];
 }

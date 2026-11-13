@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { checkEntityMtime, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
+import { checkEntityMtime, deleteEntity, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
 import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
 import { Button, Container, Form } from "react-bootstrap";
@@ -11,6 +11,7 @@ import { createLogger } from "../hasm_logger/src/react/logger.js";
 import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitle, relatedLinkIds } from "../features/entityTicket/EntityReferences";
 import { translateTicket } from "../features/entityTicket/ticketLanguage";
 import { EntityCommitGraph } from "../features/entityTicket/EntityCommitGraph";
+import { EntityDeleteDialog } from "../features/entityTicket/EntityDeleteDialog";
 
 const logger = createLogger("entity-detail");
 
@@ -40,11 +41,19 @@ function formatOccurrence(value, language, t) {
   }).format(date);
 }
 
+// [REQ-04-FUNC-101] [REQ-04-FUNC-102] [REQ-04-FUNC-115] Mounts the entity ticket route,
+// initializes loading state, and renders the ticket view from the loaded payload (SEQ-MD-04).
+// [REQ-04-FUNC-501] Attaches the window focus mtime check for external Markdown changes.
+// [REQ-04-RULE-013] [REQ-04-RULE-015] Keeps abandoned-ticket responses inert and presents
+// reader-first content before any section editor is activated.
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
   const [ticket, setTicket] = useState(null); const [form, setForm] = useState(null); const [saving, setSaving] = useState(false); const [changed, setChanged] = useState(false); const [deleted, setDeleted] = useState(false); const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [language, setLanguage] = useState("en");
   const [textSize, setTextSize] = useState("medium");
   const t = (text, values) => translateTicket(text, values, language);
@@ -82,6 +91,9 @@ function EntityDetailPage() {
     setSaving(false);
     setEditing(null);
     setRefreshing(false);
+    setDeleting(false);
+    setShowDelete(false);
+    setDeleteError("");
     setChanged(false);
     setDeleted(false);
     setMessage("");
@@ -251,6 +263,30 @@ function EntityDetailPage() {
       setMessage(text.includes("EXECUTABLE_NOT_FOUND") ? "hasm_markdown.exe application binary is missing." : text.includes("DIRECTORY_NOT_FOUND") ? "Entity folder does not exist on disk." : text.includes("LAUNCH_TIMEOUT") ? "Launching HASM Markdown App timed out." : text.includes("PROCESS_SPAWN_FAILED") ? "Failed to launch hasm_markdown.exe process." : text); 
     } 
   };
+  const confirmDelete = async (request) => {
+    const lifecycle = lifecycleRef.current;
+    if (lifecycle.saving || lifecycle.refreshing || lifecycle.deleting) return;
+    lifecycle.deleting = true;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const result = await deleteEntity(root, request);
+      if (!lifecycle.active) return;
+      logger.info("[SEQ-MD-04][DELETE] entity archived and removed");
+      navigate("/loading-model", { replace: true, state: {
+        ...workspaceState, path: root, isVerified: false,
+        redirectReason: "Reloading and verifying the workspace after deletion.",
+        deletionWarning: result.warning,
+      } });
+    } catch (error) {
+      if (!lifecycle.active) return;
+      logger.error("[SEQ-MD-04][DELETE] entity deletion failed", error);
+      setDeleteError(error?.message || String(error));
+    } finally {
+      lifecycle.deleting = false;
+      if (lifecycle.active) setDeleting(false);
+    }
+  };
   const currentEntity = { ...ticket, entityType, entityId };
   const relationshipIds = relatedLinkIds(referenceIndex, entityId, ticket.detail);
   const navigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
@@ -305,6 +341,13 @@ function EntityDetailPage() {
       <header className="ticket-header">
         <div className="ticket-toolbar">
           <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>{t("Back to Visualizer")}</Button>
+          {entityType !== "PERSON" ? (
+            <Button className="btn-hasm-outline" variant="outline-secondary"
+              disabled={Boolean(editing) || saving || refreshing || deleting || workspaceState?.isReadOnly || workspaceState?.isVerified === false || !referenceIndex.available}
+              onClick={() => { setDeleteError(""); setShowDelete(true); }}>
+              {t("Delete {type}", { type: entityType })}
+            </Button>
+          ) : null}
           <Form.Group controlId="ticket-language" className="ticket-preference">
             <Form.Label>{t("Language")}</Form.Label>
             <Form.Select value={language} onChange={(event) => {
@@ -354,7 +397,7 @@ function EntityDetailPage() {
             </div>
             {workspaceState?.isVerified === false ? <p>{t("Return to Visualizer to re-verify before opening referenced entities.")}</p> : null}
             {editing === "details" ? (
-              <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
+              <TicketForm field="details" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} experiences={workspaceState?.model?.experiences ?? []} t={t} />
             ) : (
               <dl className="mb-0">
                 {DETAIL_FIELDS[entityType].map((field) => (
@@ -381,6 +424,7 @@ function EntityDetailPage() {
                       <li key={id}>
                         {relationship ? (
                           <Button className="ticket-content-trigger" disabled={Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false}
+                            data-entity-type="LINK" data-entity-id={id}
                             aria-label={t("Open {type}: {title}", { type: "LINK", title })}
                             onClick={() => navigate(`/entity-detail/LINK/${id}`, { state: workspaceState })}>
                             <span className="ticket-relationship-title">{title}</span>
@@ -425,6 +469,9 @@ function EntityDetailPage() {
       <EntityCommitGraph entityType={entityType} entityId={entityId} detail={ticket.detail}
         workspaceState={workspaceState} disabled={graphNavigationDisabled}
         onSelect={openGraphEntity} language={language} />
+      {showDelete ? <EntityDeleteDialog entityType={entityType} entityId={entityId} ticket={ticket}
+        model={workspaceState.model} referenceIndex={referenceIndex} busy={deleting} error={deleteError}
+        onCancel={() => setShowDelete(false)} onConfirm={confirmDelete} t={t} /> : null}
     </Container>
   );
 }

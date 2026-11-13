@@ -10,6 +10,12 @@ import { translateTicket } from "./ticketLanguage";
 const renderer = new MarkdownIt({ html: false, linkify: true });
 const logger = createLogger("markdown-preview");
 
+// [REQ-04-RULE-014] Rendered read-only Markdown preview (escaped raw HTML, OS opener for
+// HTTP(S) links) with Edit and Refresh actions in the header.
+// [REQ-04-FUNC-505] [REQ-04-FUNC-506] [REQ-04-FUNC-507] Highlights the Refresh button on
+// external modification (alert) or deletion (danger) and triggers the manual refresh.
+// [REQ-05-FUNC-101] Clicking non-link content or activating the focused preview launches
+// the external HASM Markdown editor through the `edit` callback.
 export function MarkdownPanel({ markdown, refresh, edit, deleted, changed, loading, t = translateTicket }) {
   const html = useMemo(() => renderer.render(markdown), [markdown]);
   const [linkError, setLinkError] = useState("");

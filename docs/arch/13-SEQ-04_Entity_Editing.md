@@ -10,6 +10,107 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### Confirmed deletion and archive
+
+The detail ticket offers Delete for EXPERIENCE, FACT and LINK, not PERSON.
+An accessible confirmation lists the affected FACTs, child EXPERIENCEs and
+related LINKs. One selected FACT replacement applies to all listed FACTs and
+is mandatory if any would otherwise have no existing EXPERIENCE. Every child
+requires its own replacement parent. Each related LINK has a delete checkbox;
+unchecked LINKs retain their other endpoints. LINK deletion needs only the
+confirmation. Read-only and unverified tickets cannot initiate deletion.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Ticket as Entity detail
+    participant IPC as delete_entity
+    participant DB as SQLite
+    participant Archive as .hasm/deleted
+    participant Loader as SEQ-02 loader
+    User->>Ticket: Choose Delete and review consequences
+    User->>Ticket: Select replacements and LINK choices; confirm
+    Ticket->>IPC: Typed target, affected IDs and choices
+    IPC->>DB: Verify lock and recheck relationships in transaction
+    IPC->>DB: Validate parents and update references
+    IPC->>Archive: Write recovery manifest and move entity folders
+    IPC->>DB: Delete rows and commit
+    IPC-->>Ticket: Archive path and any finalization warning
+    Ticket->>Loader: Reload and re-verify updated workspace
+    Loader-->>User: Workspace ready; explicit visualization action
+```
+
+`delete_entity` runs on a blocking worker, rejects stale or invalid choices,
+and removes references to deleted LINKs from PERSON/EXPERIENCE/FACT `linkIds`
+and all LINK endpoints. It archives the original rows in the manifest and
+preserves each entity's Markdown and assets in the same operation directory.
+The `pending.json` manifest is written before folder moves and becomes
+`complete.json` after commit. On a normal failure, folder moves are reversed and
+the database transaction rolls back. Before opening the database for subsequent
+work, pending manifests are reconciled against committed rows under a SQLite
+write transaction: original rows cause folder restoration; absent rows cause
+archive finalization. Mixed states or failed restoration are explicit errors.
+Folder synchronization uses a consistent database snapshot and rechecks missing
+folders before bootstrap, avoiding resurrection from a stale directory scan.
+Archived records are not automatically restorable through the UI.
+
+### Shared entity information hover card
+
+`EntityInfoPreview` is mounted once inside the router and themed app shell.
+It delegates pointer/focus events for same-origin typed
+`/entity-detail/{TYPE}/{UUID}` links on every route, including EXPERIENCE badge
+links in the main visualizer. Host-owned related-LINK buttons expose typed data
+attributes; `EntityCommitGraph` forwards its existing SVG hover callback through
+`previewGraphEntity`. Neither mechanism changes click/navigation guards.
+
+After a 200ms dwell, the component displays a theme-aware Bootstrap Card, using
+the route model for initial identity and the existing `load_entity_detail`
+invoke for fresh metadata/Markdown. It shows the type/UUID, title, type-specific
+dates or relationship names, and a text-only Markdown excerpt capped at 400
+characters (identity FrontMatter omitted). It does not interpret HTML, open the
+editor, save metadata, scan folders, or reload the workspace. Native failures and
+the 3-second read timeout are visible and sequence-logged. No cross-hover cache
+is used, so edits are not hidden by cached descriptions. Abandoned-request
+results are ignored when the entity, workspace, route, or mounted layer changes.
+
+Keyboard focus uses the same preview with `aria-describedby`; Escape dismisses
+it and restores the trigger's previous description relationship. Leaving the
+trigger dismisses it after a 150ms grace. Route changes, scroll, resize and
+unmount also dismiss it. Pointer previews are offset from the pointer, choosing
+another side or narrowing the card at viewport edges; keyboard focus anchors to
+the source element. The card does not receive pointer events, so it cannot block
+entity clicks, but its contents are not pointer-selectable or scrollable. The
+fixed card stays within viewport bounds, limits its height, wraps long text, and
+inherits active HASM theme variables.
+
+**Submodule boundary:** The preview does not alter `src/hasm_visualizer`. Its main 2D/3D canvas
+hover remains the existing submodule tooltip because there is no public hover
+callback/render slot. Only its actual entity hyperlinks use the shared card.
+Creation-page EXPERIENCE and LINK choices use the host-owned Bootstrap
+`EntityPicker` dropdown instead of native options. Each choice exposes typed
+data attributes for this same hover/focus card. Closing a picker, replacing its
+results, or unmounting it immediately dismisses the card and abandons pending reads.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Link as Entity link / host graph
+    participant Preview as EntityInfoPreview
+    participant IPC as load_entity_detail
+    User->>Link: Hover or keyboard focus
+    Link->>Preview: Typed entity identity
+    Preview->>Preview: Wait 200ms, cancel transient hovers
+    Preview->>IPC: Read single entity
+    alt Current request succeeds
+        IPC-->>Preview: Metadata and Markdown
+        Preview-->>User: Shared themed information card
+    else Read fails or exceeds 3 seconds
+        Preview-->>User: Explicit preview error
+    end
+    User->>Preview: Escape, leave, outer scroll, or navigate
+    Preview->>Preview: Dismiss and ignore abandoned results
+```
+
 ### Compact entity Extended Commit Graph
 
 Every loaded ticket ends with `EntityCommitGraph`, a 300px-high, horizontally
@@ -167,14 +268,23 @@ changing the calendar day; timestamps use the user's local time zone. Editing
 and save payloads retain the original date/time representation. Changing a
 display preference neither reloads nor saves a ticket and preserves open drafts.
 
+Birthday, date of death, and FACT occurrence editors use native calendar controls
+only. Selecting a calendar date replaces the date portion while preserving and
+displaying an existing `T` time/offset suffix; it never converts time zones.
+Invalid legacy text is shown as a warning, preserved until a replacement is chosen.
+
 Page-local `--base-font-size` values are 14px, 16px, and 18px. Relative typography
 scales the summary, metadata, Markdown preview, and controls together without
 changing the global navigation or other pages. Wrapping controls, labels, and
 content keep the sidebar and toolbar usable on narrow windows. Changes log
 `[SEQ-MD-04][DISPLAY]` without document or asset contents.
 
-Relationship UUID arrays are edited as comma-separated UUIDs and converted
-back to arrays only on Save; empty arrays remain `[]`. Invalid UUIDs, empty
+EXPERIENCE parent and FACT experience relationships use the shared searchable
+multi-picker; selected titles appear as removable badges. Unresolved existing
+relationships remain removable as `Unavailable EXPERIENCE` without revealing
+their UUID or silently discarding them. Other relationship UUID arrays are
+edited as comma-separated UUIDs; all arrays are sent on Save, with `[]` for
+empty arrays. Invalid UUIDs, empty
 summaries/relationship types, self-links, and unsafe URLs are displayed before
 dispatch. Existing native validation remains authoritative.
 

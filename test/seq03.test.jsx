@@ -57,10 +57,17 @@ function selectOptions(select, values) {
   Array.from(select.options).forEach((option) => { option.selected = values.includes(option.value); });
   fireEvent.change(select);
 }
+function chooseExperience(title) {
+  const scopeButton = screen.getByRole("button", { name: /^Scope:/ });
+  if (scopeButton.getAttribute("aria-expanded") !== "true") fireEvent.click(scopeButton);
+  const input = screen.getByLabelText("EXPERIENCE scope");
+  if (input.getAttribute("aria-expanded") !== "true") fireEvent.focus(input);
+  fireEvent.click(screen.getByRole("option", { name: title }));
+}
 
 function LocationProbe() {
   const location = useLocation();
-  return <output data-testid="location">{location.pathname}{location.state?.model ? ":model" : ""}</output>;
+  return <output data-testid="location">{location.pathname}{location.state?.model ? ":model" : ""}{location.state?.returnTo ? `:${location.state.returnTo}` : ""}</output>;
 }
 
 function renderVisualizer(state = { model, path: "C:/fixture.hasm", isVerified: true }) {
@@ -90,15 +97,15 @@ describe("SEQ-03 visualizer lifecycle", () => {
     const panel = screen.getByRole("region", { name: "Scope selection" });
     expect(panel).toBeVisible();
     expect(scopeButton).toHaveAttribute("aria-controls", panel.id);
-    expect(within(panel).getAllByRole("listbox")).toHaveLength(2);
-    selectOptions(within(panel).getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    expect(within(panel).getAllByRole("listbox")).toHaveLength(1);
+    chooseExperience("Teaching");
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(2));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(scopeButton).toHaveFocus();
     expect(scopeButton).toHaveAttribute("aria-expanded", "false");
     expect(scopeButton).toHaveTextContent("1 selected");
     fireEvent.click(scopeButton);
-    expect(within(screen.getByRole("region", { name: "Scope selection" })).getByLabelText("EXPERIENCE scope")).toHaveValue(["exp-2"]);
+    expect(within(screen.getByRole("region", { name: "Scope selection" })).getByRole("button", { name: "Remove Teaching" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(scopeButton).toHaveFocus();
     fireEvent.click(scopeButton);
@@ -189,7 +196,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
     renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
 
-    selectOptions(screen.getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    chooseExperience("Teaching");
 
     await vi.waitFor(() => {
       const scoped = api.computeVisualizerLayout.mock.calls.at(-1)[0];
@@ -231,13 +238,185 @@ describe("SEQ-03 visualizer lifecycle", () => {
     renderVisualizer({ model: scopedFixture, path: "C:/fixture.hasm", isVerified: true });
     await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
     selectOptions(screen.getByLabelText("PERSON scope"), ["person-1"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Scope:/ }));
     const select = screen.getByLabelText("EXPERIENCE scope");
-    fireEvent.mouseDown(select.options[1], { button: 0 });
+    fireEvent.focus(select);
+    expect(within(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).getAllByRole("option")).toHaveLength(2);
+    fireEvent.change(select, { target: { value: "teac" } });
+    expect(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).toHaveTextContent("Teaching");
+    expect(screen.queryByRole("option", { name: "Research" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Teaching" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-2"]));
-    fireEvent.mouseDown(select.options[0], { button: 0 });
+    fireEvent.change(select, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("option", { name: "Research" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts).toHaveLength(2));
-    fireEvent.mouseDown(select.options[1], { button: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Remove Teaching" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-1"]));
+  });
+
+  it("TC-03-REACT-005 recovers the scene with a fresh overlay after a failed filter update", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    let resolveRetry;
+    api.computeVisualizerLayout
+      .mockResolvedValueOnce(payload)
+      .mockRejectedValueOnce(new Error("Layout calculation stalled"))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRetry = resolve; }));
+    renderVisualizer();
+    switchTo3D();
+    await vi.waitFor(() => expect(createCommitGraph).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "Linear" } });
+    expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
+    expect(createCommitGraph).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: "2" } });
+    expect(await screen.findByText("Calculating 3D layout...")).toBeInTheDocument();
+    await act(async () => resolveRetry({ ...payload }));
+    await vi.waitFor(() => expect(createCommitGraph).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Filter update timed out. Reverting view.")).not.toBeInTheDocument();
+  });
+
+  it("TC-03-REACT-006 routes documented error payloads to their recovery pages", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockRejectedValue(new Error("ERR_NO_ACTIVE_MODEL"));
+    renderVisualizer();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/select");
+    cleanup();
+    api.computeVisualizerLayout.mockRejectedValue(new Error("ERR_MODEL_NOT_VERIFIED"));
+    renderVisualizer();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model:model:/visualizer");
+  });
+
+  it("TC-03-REACT-007 disposes progress subscriptions on unmount including late registration", async () => {
+    const lateUnlisten = vi.fn();
+    let resolveSubscription;
+    api.subscribeToTauriEvent.mockImplementation(() => new Promise((resolve) => { resolveSubscription = resolve; }));
+    api.computeVisualizerLayout.mockReturnValue(new Promise(() => {}));
+    const first = renderVisualizer();
+    await act(async () => { await Promise.resolve(); });
+    first.unmount();
+    // A subscription resolving after unmount must be disposed immediately (StrictMode replay).
+    await act(async () => { resolveSubscription(lateUnlisten); await Promise.resolve(); });
+    expect(lateUnlisten).toHaveBeenCalledTimes(1);
+
+    const earlyUnlisten = vi.fn();
+    api.subscribeToTauriEvent.mockResolvedValue(earlyUnlisten);
+    const second = renderVisualizer();
+    await vi.waitFor(() => expect(api.subscribeToTauriEvent).toHaveBeenCalledTimes(2));
+    second.unmount();
+    expect(earlyUnlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-03-REACT-008 never requests layout for an unscoped large package even after filter changes", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: largeFixtureModel(2400), path: "C:/fixture.hasm", isVerified: true });
+    expect(await screen.findByText(/Select a PERSON or EXPERIENCE scope/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "Linear" } });
+    fireEvent.change(screen.getByLabelText("Z scale"), { target: { value: "2" } });
+    await act(async () => { await Promise.resolve(); });
+    expect(api.computeVisualizerLayout).not.toHaveBeenCalled();
+    expect(screen.queryByText(/of \d+ entities/)).not.toBeInTheDocument();
+  });
+
+  it("TC-03-REACT-009 keeps an active layout alive while progress streams and stays quiet after completion", async () => {
+    vi.useFakeTimers();
+    let progressHandler;
+    api.subscribeToTauriEvent.mockImplementation((_event, handler) => { progressHandler = handler; return Promise.resolve(() => {}); });
+    let resolveLayout;
+    api.computeVisualizerLayout.mockReturnValue(new Promise((resolve) => { resolveLayout = resolve; }));
+    renderVisualizer();
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    // 18 simulated seconds with progress every 6s: the watchdog must keep resetting.
+    for (let step = 1; step <= 3; step += 1) {
+      await act(async () => vi.advanceTimersByTimeAsync(6000));
+      await act(async () => progressHandler({ payload: { percentage: 20 * step, message: "Positioning EXPERIENCE branches" } }));
+    }
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    await act(async () => resolveLayout(payload));
+    await act(async () => vi.advanceTimersByTimeAsync(30000));
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+  });
+
+  it("TC-03-REACT-010 keeps the 3D scene and node navigation alive through a failed filter update", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    const dispose = vi.fn();
+    createCommitGraph.mockImplementation(() => dispose);
+    api.computeVisualizerLayout.mockResolvedValueOnce(payload).mockRejectedValueOnce(new Error("Layout calculation stalled"));
+    renderVisualizer();
+    switchTo3D();
+    await vi.waitFor(() => expect(createCommitGraph).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Time scale"), { target: { value: "Linear" } });
+    expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
+    expect(createCommitGraph).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
+    selectNode.mock.calls.at(-1)[0]({ entityType: "FACT", id: "fact-1" });
+    expect(await screen.findByTestId("location")).toHaveTextContent("/entity-detail/FACT/fact-1:model");
+  });
+
+  it("TC-03-REACT-011 renders no warning banner when the payload carries no warnings", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    const { container } = renderVisualizer();
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    await vi.waitFor(() => expect(container.querySelector(".graph-progress")).toBeNull());
+    expect(container.querySelector(".graph-warning")).toBeNull();
+  });
+
+  it("TC-03-REACT-SCOPE-006 drops an out-of-set EXPERIENCE when the PERSON scope changes", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    chooseExperience("Teaching");
+    await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].experiences.map((experience) => experience.experienceId)).toEqual(["exp-2"]));
+    selectOptions(screen.getByLabelText("PERSON scope"), ["person-1"]);
+    await vi.waitFor(() => {
+      const scoped = api.computeVisualizerLayout.mock.calls.at(-1)[0];
+      expect(scoped.experiences.map((experience) => experience.experienceId)).toEqual(["exp-1"]);
+      expect(scoped.facts.map((fact) => fact.factId)).toEqual(["fact-1"]);
+    });
+    expect(screen.queryByRole("button", { name: "Remove Teaching" })).not.toBeInTheDocument();
+  });
+
+  it("TC-03-REACT-TOOLBAR-002 opens and dismisses the scope panel without requesting layout", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(1));
+    const scopeButton = screen.getByRole("button", { name: /^Scope:/ });
+    fireEvent.click(scopeButton);
+    const input = screen.getByLabelText("EXPERIENCE scope");
+    fireEvent.focus(input);
+    expect(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).toBeInTheDocument();
+    // Escape first closes the open EXPERIENCE list, keeping the panel itself open.
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox", { name: "EXPERIENCE scope" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Scope selection" })).toBeVisible();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(scopeButton).toHaveAttribute("aria-expanded", "false");
+    expect(scopeButton).toHaveFocus();
+    fireEvent.click(scopeButton);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(scopeButton).toHaveAttribute("aria-expanded", "false");
+    expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("TC-03-REACT-2D-003 keeps the previous lane-based width when a layout update fails", async () => {
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue({
+      ...payload,
+      nodes3d: [
+        { id: "exp-1", entityType: "EXPERIENCE", x: 0, y: 0, z: 0 },
+        { id: "exp-2", entityType: "EXPERIENCE", x: 0, y: 4, z: 0 },
+      ],
+    });
+    const { container } = renderVisualizer({ model: scopeFixtureModel, path: "C:/fixture.hasm", isVerified: true });
+    const graph = container.querySelector(".HasmVisualizer_GraphPane2D");
+    await vi.waitFor(() => expect(graph.style.width).toBe(`${graphWidthForLaneCount(2)}px`));
+    api.computeVisualizerLayout.mockRejectedValueOnce(new Error("Layout calculation stalled"));
+    chooseExperience("Teaching");
+    expect(await screen.findByText("Filter update timed out. Reverting view.")).toBeInTheDocument();
+    expect(graph.style.width).toBe(`${graphWidthForLaneCount(2)}px`);
+    expect(graph.querySelector("svg")?.getAttribute("width")).toBe(String(graphWidthForLaneCount(2)));
   });
 
   it("TC-03-REACT-2D-001 sizes the graph from lane count after EXPERIENCE selection", async () => {
@@ -257,7 +436,7 @@ describe("SEQ-03 visualizer lifecycle", () => {
       ...payload,
       nodes3d: [{ id: "exp-2", entityType: "EXPERIENCE", x: 0, y: 4, z: 0 }],
     });
-    selectOptions(screen.getByLabelText("EXPERIENCE scope"), ["exp-2"]);
+    chooseExperience("Teaching");
     await vi.waitFor(() => expect(graph.style.width).toBe(`${graphWidthForLaneCount(1)}px`));
     await vi.waitFor(() => expect(graph.querySelector("svg")?.getAttribute("width")).toBe(String(graphWidthForLaneCount(1))));
   });

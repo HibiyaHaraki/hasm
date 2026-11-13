@@ -20,6 +20,8 @@ pub struct CreatePersonRequest {
     pub person_description: String,
     pub security_level: i32,
     pub create_life_experience: bool, // If true, auto-generates a root EXPERIENCE stream
+    #[serde(default)]
+    pub birth_date: Option<String>, // YYYY-MM-DD; bootstrap creates the associated birth FACT
 }
 
 // Payload for create_experience command
@@ -168,18 +170,104 @@ sequenceDiagram
 
 ```
 
-After workspace creation, if `load_hasm_model_db` returns zero entities (`PERSON+EXPERIENCE+FACT+LINK == 0`), the frontend routes to `/initialize-model` before `/visualizer`. The initialization page collects the minimum required input (`person_name`) and invokes `create_person` with:
+After workspace creation, if `load_hasm_model_db` returns zero entities (`PERSON+EXPERIENCE+FACT+LINK == 0`), the frontend routes to `/initialize-model` before `/visualizer`. The initialization page requires a PERSON name and birth date. **Review model** opens a theme-aware confirmation dialog showing the trimmed name, date, and generated entity names. **Back to edit** preserves the inputs without creating entities. Only **Confirm and create model** invokes `create_person` with:
 
 - `security_level = 1`
 - `create_life_experience = true`
+- `birth_date = YYYY-MM-DD` (IPC key: `birthDate`)
 
-This guarantees a non-empty model for first visualizer load.
+Rust validates the calendar date (including leap years, years 0001 through 9999)
+before persistence. Supplying a birth date requires `create_life_experience=true`.
+In one SQLite transaction, the command creates:
+
+1. PERSON, storing the date in the existing `birthday` field.
+2. `{personName} Life` EXPERIENCE, owned through `experience.person_id`.
+3. `{personName} Birth date` FACT, storing the date without timezone conversion
+   in `occurred_at`, with `experience_ids=[lifeExperienceId]` and
+   `person_ids=[personId]`.
+
+All three receive Markdown and assets directories. Failure rolls back all three
+rows and removes generated directories, including partially written scaffolds.
+Missing `birthDate` retains ordinary PERSON creation behavior for older callers.
+No new database columns or serialized entity fields are introduced.
+
+The dialog blocks duplicate submissions and editing while creation is pending.
+Failures are displayed inside the dialog and logged with `[SEQ-MD-08]`.
+After a committed creation, a failed model reload offers **Retry opening
+visualizer**, which reloads without creating duplicate entities.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Init as ModelInitializationPage
+    participant Dialog as Confirmation dialog
+    participant IPC as create_person
+    participant Storage as SQLite and entity folders
+    User->>Init: Enter PERSON name and birth date
+    User->>Init: Review model
+    Init->>Dialog: Show name, date, Life EXPERIENCE and birth date FACT
+    alt Back to edit
+        User->>Dialog: Back to edit
+        Dialog-->>Init: Preserve inputs; no creation invoke
+    else Confirm
+        User->>Dialog: Confirm and create model
+        Dialog->>IPC: create_person(path, payload with birthDate)
+        IPC->>IPC: Validate PERSON and calendar date
+        IPC->>Storage: Transaction: PERSON, owned Life EXPERIENCE, linked birth FACT
+        alt Persistence failure
+            IPC->>Storage: Roll back rows and clean entity folders
+            IPC-->>Dialog: Visible error; allow retry or editing
+        else Success
+            IPC-->>Init: PERSON creation payload
+            Init->>Init: Load model; navigate to visualizer
+            Note over Init: A reload retry must not repeat creation
+        end
+    end
+```
 
 ---
 
 ### Chapter 2: Entity Creation & File Scaffolding (`create_person / experience / fact`)
 
 Triggered from a **dedicated Entity Creation page** (`/entity-create`) opened by the **"Create New Entity"** button on the Visualizer (`/visualizer`). Each entity type uses a split frontend component so form design can evolve independently. The backend validates input, writes SQLite records, scaffolds `{ENTITY_TYPE}/{UUID}/main.md`, updates Rust memory, and invalidates verification state (`is_verified = false`).
+
+The FACT **Belonging EXPERIENCE** and EXPERIENCE **Parent EXPERIENCE** controls
+are multi-select lists backed by the complete `model.experiences` collection
+already loaded by `load_hasm_model_db` and passed through visualizer navigation.
+They do not use the visualizer's filtered/visible graph nodes or issue a second
+database load. Each option and selected badge shows only the EXPERIENCE title;
+unnamed entries use `Untitled EXPERIENCE`. The model has no separate human-readable
+EXPERIENCE ID, so no identifier is invented or UUID displayed in the picker.
+The shared `features/entityCreation/components/ExperienceSelect.jsx` component
+owns accessible Bootstrap labels and selection behavior. No existing-child
+selector is offered: the new EXPERIENCE becomes a child of the selected parent.
+
+Relationship selection remains optional: no selection sends `[]`, and selected
+UUIDs are sent in the existing `experienceIds` / `parentExperienceIds`
+IPC arrays. An empty model collection displays a disabled
+**No EXPERIENCE available** control. Switching entity types retains selections.
+The backend's array contracts and existing multiple-relationship metadata remain
+unchanged. The searchable picker exposes a labeled listbox with selected-state
+options. An empty query shows all options; a trimmed, case-insensitive title query
+shows only matching options. Click or Enter/Space toggles each EXPERIENCE without
+modifier keys; selected badges have individual remove buttons and Clear removes all.
+Hover or keyboard focus on a choice opens the shared entity information
+card through the existing single-entity read invoke (see
+[SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card)).
+Arrow keys move through choices; Escape closes the dropdown and preview.
+Enter in the search field toggles the first match rather than submitting the form.
+
+FACT start and end fields use native calendar controls without ISO text inputs.
+Picking a date preserves any existing `T` time/offset suffix;
+the existing `startTime` / `endTime` creation payload remains unchanged. Model
+initialization already uses a native birth-date calendar.
+
+PERSON, EXPERIENCE, FACT, and LINK creation forms do not accept descriptions.
+They send the existing description request field as an empty string, using the
+backend's shared Markdown template to generate YAML FrontMatter (`entity_type`,
+`entity_id`, `name`) and the default body `Write notes here.` plus an `assets/`
+directory. Content is edited later through HASM Markdown, not creation forms.
+Existing non-UI callers retain their description request contracts.
 
 ```mermaid
 sequenceDiagram
@@ -193,9 +281,10 @@ sequenceDiagram
     participant FS as File System ({UUID}/main.md)
 
     User->>React: Fill Modal Form & Click "Create Entity"
+    Note over User,React: Select zero or more existing EXPERIENCEs; no description input
     React->>React: Set State { isSubmitting: true }
 
-    React->>Bridge: invoke('create_person', payload) // Or create_experience / create_fact
+    React->>Bridge: invoke creation command (selected UUID array; empty description)
     Bridge->>Rust: IPC: create_person(payload)
 
     rect rgb(15, 23, 42)
@@ -248,6 +337,27 @@ sequenceDiagram
 ### Chapter 3: Interactive Link Graph Binding Flow (`create_link`)
 
 Triggered when connecting two nodes in 3D space or via the **"Create LINK"** modal. Enforces strict graph constraints (prevents self-loops and orphan edge creations).
+
+On the dedicated creation page, Origin and Target each have an independent
+**Search origin/target entities** input above their selection dropdown.
+`LinkEntitySelect.jsx` filters the full loaded PERSON, EXPERIENCE, and FACT
+options locally using a trimmed, case-insensitive substring match against the
+display name, entity type, and UUID. Search does not invoke IPC, create an entity,
+or automatically choose an endpoint. Empty search displays all available options;
+zero matches displays **No matching entities.** in an accessible live status.
+Option labels include type, name, and UUID to distinguish duplicate names.
+Editing a query opens the matching `EntityPicker` dropdown. Each result supports
+the same hover/focus information card as EXPERIENCE choices; previewing does not
+select, create, or navigate to an entity. Closing the dropdown or replacing
+results dismisses the preview and ignores late read responses.
+
+Changing the search preserves an already selected endpoint. If it no longer
+matches, it is shown as a previewable choice prefixed **Current selection (outside
+search results)**, with a retention notice, rather than silently changing the LINK.
+Selecting the placeholder clears that endpoint. Both search drafts and endpoint
+selections survive switching entity types. Creation still sends only the
+selected typed UUIDs through the existing `create_link` contract; queries remain
+UI-only state. Backend self-loop and orphan validation is unchanged.
 
 ```mermaid
 sequenceDiagram

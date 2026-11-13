@@ -17,6 +17,9 @@ const ENTITY_TYPES: [&str; 4] = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 const MAIN_DB_FILENAME: &str = "main.db";
 const LEGACY_DB_FILENAME: &str = "hasm.db";
 
+/// [REQ-02-RULE-009] [REQ-02-FUNC-403] [REQ-02-FUNC-405] Opens a workspace snapshot:
+/// idempotently bootstraps folder-only entities into main.db, then reads the ordered
+/// per-type summary sections and counts for the frontend.
 pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
     init_logger();
     info!("open_hasm_model start: model_root={}", model_root);
@@ -70,10 +73,13 @@ pub fn open_hasm_model(model_root: &str) -> Result<ModelWorkspace, String> {
 pub type ProgressFn<'a> = dyn FnMut(usize, usize, &str) + 'a;
 pub type StageProgressFn<'a> = dyn FnMut(&str, usize, usize, &str) + 'a;
 
+/// [REQ-02-FUNC-206] [REQ-02-FUNC-207] Full model read (including Markdown bodies)
+/// used by callers that need the complete serialized package.
 pub fn read_model_database(model_root: &str) -> Result<ModelDatabase, String> {
     read_model_database_with_progress(model_root, true, &mut |_, _, _| {})
 }
 
+/// [REQ-02-FUNC-206] [REQ-02-FUNC-406] [REQ-02-RULE-008] Progress-streaming model read.
 /// `include_markdown = false` skips one `fs::read_to_string` per entity and keeps the
 /// whole-package Markdown corpus out of the IPC payload; the SEQ-02 browse view only
 /// needs metadata, and SEQ-04 re-reads the body for the single opened entity.
@@ -87,6 +93,9 @@ pub fn read_model_database_with_progress(
     })
 }
 
+/// [REQ-02-FUNC-206] [REQ-02-FUNC-410] [REQ-02-RULE-013] Loads PERSON, EXPERIENCE,
+/// FACT, and LINK records sequentially, emitting per-stage (DB_SYNC /
+/// DB_LOAD_{TYPE}) progress callbacks for the detailed loading stepper.
 pub fn read_model_database_with_stage_progress(
     model_root: &str,
     include_markdown: bool,
@@ -152,6 +161,9 @@ fn load_metadata_stage<T>(
     Ok(records)
 }
 
+/// [REQ-04-RULE-003] [REQ-04-RULE-010] [REQ-04-RULE-011] Persists the whole model in
+/// one explicit transaction after validating every entity's external URL array, so
+/// link arrays round-trip through whole-model read/save.
 pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<SaveResult, String> {
     init_logger();
     info!(
@@ -203,6 +215,8 @@ pub fn save_model_database(model_root: &str, model: &ModelDatabase) -> Result<Sa
     })
 }
 
+/// [REQ-04-FUNC-103] [REQ-04-RULE-008] [REQ-04-RULE-010] Single-PERSON detail read:
+/// bootstraps/queries only the requested row and returns metadata plus Markdown body.
 pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, String> {
     init_logger();
     info!("get_person_detail start: model_root={}, entity_id={}", model_root, entity_id);
@@ -255,6 +269,8 @@ pub fn get_person_detail(model_root: &str, entity_id: &str) -> Result<Person, St
     Err(format!("PERSON not found: {entity_id}"))
 }
 
+/// [REQ-04-FUNC-103] [REQ-04-RULE-008] [REQ-04-RULE-010] Single-EXPERIENCE detail read:
+/// bootstraps/queries only the requested row and returns metadata plus Markdown body.
 pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experience, String> {
     init_logger();
     info!(
@@ -321,6 +337,8 @@ pub fn get_experience_detail(model_root: &str, entity_id: &str) -> Result<Experi
     Err(format!("EXPERIENCE not found: {entity_id}"))
 }
 
+/// [REQ-04-FUNC-103] [REQ-04-RULE-008] [REQ-04-RULE-010] Single-FACT detail read:
+/// bootstraps/queries only the requested row and returns metadata plus Markdown body.
 pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String> {
     init_logger();
     info!("get_fact_detail start: model_root={}, entity_id={}", model_root, entity_id);
@@ -377,6 +395,8 @@ pub fn get_fact_detail(model_root: &str, entity_id: &str) -> Result<Fact, String
     Err(format!("FACT not found: {entity_id}"))
 }
 
+/// [REQ-04-FUNC-103] [REQ-04-RULE-008] [REQ-04-RULE-010] Single-LINK detail read:
+/// bootstraps/queries only the requested row and returns metadata plus Markdown body.
 pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String> {
     init_logger();
     info!("get_link_detail start: model_root={}, entity_id={}", model_root, entity_id);
@@ -427,6 +447,8 @@ pub fn get_link_detail(model_root: &str, entity_id: &str) -> Result<Link, String
     Err(format!("LINK not found: {entity_id}"))
 }
 
+/// [REQ-04-RULE-008] [REQ-04-RULE-010] [REQ-04-RULE-011] Typed PERSON save backing
+/// `save_person_detail` IPC: validates external URLs, then upserts only this row.
 pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResult, String> {
     crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
@@ -451,6 +473,8 @@ pub fn save_person_detail(model_root: &str, detail: &Person) -> Result<SaveResul
     })
 }
 
+/// [REQ-04-RULE-008] [REQ-04-RULE-010] [REQ-04-RULE-011] Typed EXPERIENCE save backing
+/// `save_experience_detail` IPC: validates external URLs, then upserts only this row.
 pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<SaveResult, String> {
     crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
@@ -475,6 +499,8 @@ pub fn save_experience_detail(model_root: &str, detail: &Experience) -> Result<S
     })
 }
 
+/// [REQ-04-RULE-008] [REQ-04-RULE-010] [REQ-04-RULE-011] Typed FACT save backing
+/// `save_fact_detail` IPC: validates external URLs, then upserts only this row.
 pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, String> {
     crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
@@ -499,6 +525,8 @@ pub fn save_fact_detail(model_root: &str, detail: &Fact) -> Result<SaveResult, S
     })
 }
 
+/// [REQ-04-RULE-008] [REQ-04-RULE-010] [REQ-04-RULE-011] Typed LINK save backing
+/// `save_link_detail` IPC: validates external URLs, then upserts only this row.
 pub fn save_link_detail(model_root: &str, detail: &Link) -> Result<SaveResult, String> {
     crate::hasm::definitions::validate_external_links(&detail.link)?;
     init_logger();
@@ -551,7 +579,10 @@ fn validate_model_root(model_root: &str) -> Result<PathBuf, String> {
     Ok(root)
 }
 
-fn open_connection(model_root: &Path) -> Result<Connection, String> {
+/// [REQ-02-FUNC-202] [REQ-02-FUNC-404] [REQ-02-FUNC-411] Opens the tuned main.db
+/// connection (WAL/NORMAL/MEMORY/negative cache, foreign keys off), bootstrapping
+/// from legacy hasm.db when needed, and ensures the schema before returning.
+pub(super) fn open_connection(model_root: &Path) -> Result<Connection, String> {
     init_logger();
     debug!("open_connection start: {}", model_root.display());
 
@@ -594,10 +625,14 @@ fn open_connection(model_root: &Path) -> Result<Connection, String> {
 
     // Step 4. Ensure required schema exists.
     ensure_schema(&connection)?;
+    crate::hasm::entity_deletion_commands::recover_pending_archives(model_root, &connection)?;
     debug!("open_connection success: {}", main_db_path.display());
     Ok(connection)
 }
 
+/// [REQ-01-RULE-008] [REQ-02-FUNC-405] [REQ-02-FUNC-411] Creates the entity tables
+/// without a person_id foreign key, applies the idempotent transactional `link`
+/// column migration, and builds the ORDER BY expression indexes.
 pub(super) fn ensure_schema(connection: &Connection) -> Result<(), String> {
     connection
         .execute_batch(
@@ -681,6 +716,16 @@ fn sync_directories_to_db(connection: &Connection, model_root: &Path) -> Result<
     sync_directories_to_db_with_progress(connection, model_root, &mut |_, _, _| {})
 }
 
+fn entity_directory_exists(root: &Path, entity_type: &str, id: &Uuid) -> Result<bool, String> {
+    let path = root.join(entity_type).join(id.to_string());
+    match fs::metadata(&path) {
+        Ok(metadata) if metadata.is_dir() => Ok(true),
+        Ok(_) => Err(format!("Entity path is no longer a directory: {}", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("Cannot inspect entity directory {}: {error}", path.display())),
+    }
+}
+
 /// Bootstraps folder-only entities into `main.db`.
 ///
 /// Runs inside a single transaction and issues an INSERT only for folders that are
@@ -701,15 +746,15 @@ fn sync_directories_to_db_with_progress(
     let link_ids = read_entity_directories(model_root, "LINK")?;
     let total = (person_ids.len() + experience_ids.len() + fact_ids.len() + link_ids.len()).max(1);
 
-    let existing_people = read_existing_ids(connection, "person", "person_id")?;
-    let existing_experiences = read_existing_ids(connection, "experience", "experience_id")?;
-    let existing_facts = read_existing_ids(connection, "fact", "fact_id")?;
-    let existing_links = read_existing_ids(connection, "link", "link_id")?;
+    // SEQ-MD-04: read all IDs from one snapshot and recheck missing folders
+    // before insertion, so a concurrent archive cannot resurrect an entity.
+    let transaction = connection.unchecked_transaction().map_err(|error| error.to_string())?;
+    let existing_people = read_existing_ids(&transaction, "person", "person_id")?;
+    let existing_experiences = read_existing_ids(&transaction, "experience", "experience_id")?;
+    let existing_facts = read_existing_ids(&transaction, "fact", "fact_id")?;
+    let existing_links = read_existing_ids(&transaction, "link", "link_id")?;
 
     // Step 2. Insert only the missing rows, batched into one transaction.
-    let transaction = connection
-        .unchecked_transaction()
-        .map_err(|error| error.to_string())?;
     let mut processed = 0usize;
     let mut inserted = 0usize;
 
@@ -721,7 +766,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &person_ids {
-            if !existing_people.contains(entity_id) {
+            if !existing_people.contains(entity_id) && entity_directory_exists(model_root, "PERSON", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Person::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -740,7 +785,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &experience_ids {
-            if !existing_experiences.contains(entity_id) {
+            if !existing_experiences.contains(entity_id) && entity_directory_exists(model_root, "EXPERIENCE", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Experience::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -759,7 +804,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &fact_ids {
-            if !existing_facts.contains(entity_id) {
+            if !existing_facts.contains(entity_id) && entity_directory_exists(model_root, "FACT", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Fact::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -778,7 +823,7 @@ fn sync_directories_to_db_with_progress(
             )
             .map_err(|error| error.to_string())?;
         for entity_id in &link_ids {
-            if !existing_links.contains(entity_id) {
+            if !existing_links.contains(entity_id) && entity_directory_exists(model_root, "LINK", entity_id)? {
                 statement
                     .execute(params![entity_id.to_string(), Link::default_markdown_path(entity_id)])
                     .map_err(|error| error.to_string())?;
@@ -1472,6 +1517,97 @@ mod external_link_tests {
             assert_eq!(links, &urls);
         }
         fs::remove_dir_all(demo.path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod workspace_overview_tests {
+    use super::*;
+    use serde_json::json;
+
+    /// Builds a minimal workspace with two folder-only PERSON entities.
+    fn overview_fixture() -> (PathBuf, Uuid, Uuid) {
+        let root = std::env::temp_dir().join(format!("hasm-seq-02-overview-{}", Uuid::new_v4()));
+        for entity_type in ENTITY_TYPES {
+            fs::create_dir_all(root.join(entity_type)).unwrap();
+        }
+        let named = Uuid::from_u128(0xA1);
+        let unnamed = Uuid::from_u128(0xA2);
+        for id in [named, unnamed] {
+            let folder = root.join("PERSON").join(id.to_string());
+            fs::create_dir_all(&folder).unwrap();
+            fs::write(folder.join("main.md"), "# Overview fixture").unwrap();
+        }
+        (root, named, unnamed)
+    }
+
+    // TC-02-RUST-007: [REQ-02-DATA-006][REQ-02-DATA-007] open_hasm_model returns per-type
+    // sections/counts and EntitySummary rows whose title falls back to the UUID.
+    #[test]
+    fn returns_sections_counts_and_uuid_fallback_titles() {
+        let (root, named, unnamed) = overview_fixture();
+        {
+            let connection = open_connection(&root).unwrap();
+            sync_directories_to_db(&connection, &root).unwrap();
+            connection
+                .execute(
+                    "UPDATE person SET person_name = 'Ada', birthday = '1815-12-10' WHERE person_id = ?1",
+                    [named.to_string()],
+                )
+                .unwrap();
+        }
+
+        let workspace = open_hasm_model(&root.to_string_lossy()).unwrap();
+        assert_eq!(workspace.model_root, root.to_string_lossy().to_string());
+        assert_eq!(workspace.sections.len(), 4);
+        for entity_type in ENTITY_TYPES {
+            assert!(workspace.sections.contains_key(entity_type), "missing section {entity_type}");
+        }
+        assert_eq!(workspace.counts.get("PERSON"), Some(&2));
+        for entity_type in ["EXPERIENCE", "FACT", "LINK"] {
+            assert_eq!(workspace.counts.get(entity_type), Some(&0), "{entity_type} count");
+            assert!(workspace.sections.get(entity_type).unwrap().is_empty());
+        }
+
+        let people = workspace.sections.get("PERSON").unwrap();
+        let ada = people.iter().find(|entry| entry.id == named.to_string()).unwrap();
+        assert_eq!(ada.title, "Ada");
+        assert_eq!(ada.subtitle, "1815-12-10");
+        // [REQ-02-DATA-007] unnamed entities fall back to the UUID for title and subtitle.
+        let anonymous = people.iter().find(|entry| entry.id == unnamed.to_string()).unwrap();
+        assert_eq!(anonymous.title, unnamed.to_string());
+        assert_eq!(anonymous.subtitle, unnamed.to_string());
+
+        // Serialized payload contract: camelCase keys for the frontend.
+        let value = serde_json::to_value(&workspace).unwrap();
+        assert!(value.get("modelRoot").is_some());
+        assert!(value.get("sections").is_some());
+        assert!(value.get("counts").is_some());
+        let row = &value["sections"]["PERSON"][0];
+        for key in ["id", "title", "subtitle"] {
+            assert!(row.get(key).is_some(), "EntitySummary row missing key {key}");
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-008: [REQ-02-DATA-006][REQ-02-DATA-007] invalid roots are refused and
+    // malformed overview payloads never deserialize into partially valid structures.
+    #[test]
+    fn refuses_invalid_roots_and_malformed_overview_payloads() {
+        let missing = std::env::temp_dir().join(format!("hasm-seq-02-overview-missing-{}", Uuid::new_v4()));
+        let error = open_hasm_model(&missing.to_string_lossy()).unwrap_err();
+        assert!(error.contains("does not exist"), "{error}");
+
+        // A root lacking a required entity folder is refused before any DB work.
+        let partial = std::env::temp_dir().join(format!("hasm-seq-02-overview-partial-{}", Uuid::new_v4()));
+        fs::create_dir_all(partial.join("PERSON")).unwrap();
+        let error = open_hasm_model(&partial.to_string_lossy()).unwrap_err();
+        assert!(error.contains("Missing required folder"), "{error}");
+        fs::remove_dir_all(partial).unwrap();
+
+        assert!(serde_json::from_value::<EntitySummary>(json!({ "id": 7 })).is_err());
+        assert!(serde_json::from_value::<EntitySummary>(json!({ "id": "x", "title": "y" })).is_err());
+        assert!(serde_json::from_value::<ModelWorkspace>(json!({ "modelRoot": "x", "sections": {} })).is_err());
     }
 }
 

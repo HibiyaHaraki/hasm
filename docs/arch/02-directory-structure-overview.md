@@ -18,9 +18,32 @@ The overall application architecture, lifecycle, and sequence flows referenced b
 Entity-ticket graph ownership: `src/features/entityTicket/entityGraphModel.js`
 extracts related in-memory metadata, and `EntityCommitGraph.jsx` /
 `EntityCommitGraph.css` host the compact page-bottom graph. They reuse the existing
-`features/hasm/api.js` layout invoke and `hasm_visualizer/twoCommitGraph.js` renderer
-without changing submodules. See [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
+`features/hasm/api.js` layout invoke and `hasm_visualizer/twoCommitGraph.js` renderer.
+The shared renderer owns the selectable EXPERIENCE lane labels. See
+[SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
 
+`src/features/entityTicket/EntityDeleteDialog.jsx` owns confirmation and
+relationship choices; `src-tauri/src/hasm/entity_deletion_commands.rs` owns
+validated transactional deletion, archives and interrupted-operation recovery.
+The host uses `delete_entity` through `features/hasm/api.js`.
+
+`src/features/entityTicket/EntityInfoPreview.jsx` and its co-located CSS own the
+shared entity hover/focus information card. Mounted once in `App.jsx`, it covers
+typed entity hyperlinks across routes, related-LINK buttons, and host ticket
+graph callbacks through the existing single-entity read invoke. The preview
+does not change the visualizer canvas tooltip; see
+[SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card).
+
+`src/hasm_visualizer/ExperienceMultiSelect.jsx` and its co-located CSS provide
+the standalone searchable EXPERIENCE multi-picker, reused by creation and ticket
+editing through `ExperienceSelect.jsx`. `EntityPicker.jsx` remains the LINK
+endpoint picker. Host EXPERIENCE choices supply typed IDs for the shared preview
+layer; picker lifecycle dismisses previews without changing IPC contracts.
+`App.css` overrides Bootstrap's badge foreground for this picker to match the
+active theme without changing the visualizer submodule.
+
+`src/components/DateInput.jsx` provides accessible native calendar-only controls
+while preserving existing serialized time/offset suffixes.
 
 ```
 

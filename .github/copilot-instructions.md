@@ -24,6 +24,7 @@
 - Maintain existing public interfaces and serialized data shapes unless the requirement explicitly changes them.
 - Handle errors explicitly; avoid panics, unchecked assumptions, and silent failure for filesystem, archive, IPC, and workspace-lock operations.
 - Add concise comments to relate non-obvious logic to the relevant `SEQ-MD-*` architecture flow.
+- Follow [`docs/traceability.md`](../docs/traceability.md): every exported JS function/class/component, Rust `pub` item, and Tauri command MUST carry at least one `[REQ-xx-...]` requirement tag in the comment block directly above its declaration, and every requirement MUST keep at least one positive and one negative test case in [`docs/eval/`](../docs/eval/). `npm run test:traceability` enforces this; regenerate [`docs/traceability-matrix.md`](../docs/traceability-matrix.md) with `npm run build:traceability` whenever requirements, tests, or tags change.
 - Add sequence-tagged logs at important operation boundaries so execution can be compared with [`docs/arch/`](docs/arch/), for example `[SEQ-MD-01][IMPORT]`.
 - Always use the shared `hasm_logger` functions for application logging. Use the JavaScript logger in `src/hasm_logger`, the Rust logger in `src-tauri/src/hasm_logger`, and the Python logger when working in Python. Do not add ad hoc logging frameworks or raw `console` logging for application events.
 - Never log secrets, credentials, or unnecessary full document/asset contents.
@@ -37,6 +38,7 @@
   - `npm run test:eval-03`
   - `npm run test:eval-04`
   - `npm run test:eval-05`
+  - `npm run test:traceability` (requirement / test / code traceability gate)
   - `npm run tauri:build`
   - `npm run build:frontend`
   - `npm run test:seq-md`

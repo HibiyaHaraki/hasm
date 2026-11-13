@@ -1,5 +1,8 @@
 import { Form } from "react-bootstrap";
+import LinkEntitySelect from "./LinkEntitySelect";
 
+// [REQ-08-013][REQ-08-014][REQ-08-018][REQ-08-019] Dedicated LINK creation form: required
+// link type and independently searchable Origin/Target endpoints serialized as typed UUIDs.
 function CreateLinkForm({ value, onChange, entityOptions }) {
   return (
     <>
@@ -9,13 +12,6 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
           value={value.linkType}
           onChange={(event) => onChange({ ...value, linkType: event.target.value })}
           required
-        />
-      </Form.Group>
-      <Form.Group className="mb-2" controlId="link-description">
-        <Form.Label>Description</Form.Label>
-        <Form.Control
-          value={value.description}
-          onChange={(event) => onChange({ ...value, description: event.target.value })}
         />
       </Form.Group>
       <Form.Group className="mb-2" controlId="link-security-level">
@@ -28,36 +24,12 @@ function CreateLinkForm({ value, onChange, entityOptions }) {
           onChange={(event) => onChange({ ...value, securityLevel: event.target.value })}
         />
       </Form.Group>
-      <Form.Group className="mb-2" controlId="link-origin">
-        <Form.Label>Origin</Form.Label>
-        <Form.Select
-          value={value.origin}
-          onChange={(event) => onChange({ ...value, origin: event.target.value })}
-          required
-        >
-          <option value="">Select origin</option>
-          {entityOptions.map((option) => (
-            <option key={`origin-${option.value}`} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Form.Select>
-      </Form.Group>
-      <Form.Group className="mb-2" controlId="link-target">
-        <Form.Label>Target</Form.Label>
-        <Form.Select
-          value={value.target}
-          onChange={(event) => onChange({ ...value, target: event.target.value })}
-          required
-        >
-          <option value="">Select target</option>
-          {entityOptions.map((option) => (
-            <option key={`target-${option.value}`} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Form.Select>
-      </Form.Group>
+      {["origin", "target"].map((endpoint) => (
+        <LinkEntitySelect key={endpoint} endpoint={endpoint} value={value[endpoint]}
+          query={value[`${endpoint}Search`]} entityOptions={entityOptions}
+          onChange={(selected) => onChange({ ...value, [endpoint]: selected })}
+          onSearch={(query) => onChange({ ...value, [`${endpoint}Search`]: query })} />
+      ))}
     </>
   );
 }

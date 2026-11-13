@@ -18,6 +18,9 @@ const LOCK_DIRECTORY: &str = ".hasm";
 const LOCK_FILENAME: &str = "lock";
 const ENTITY_TYPES: [&str; 4] = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 
+/// [REQ-02-FUNC-103][REQ-02-FUNC-105][REQ-02-FUNC-107][REQ-02-FUNC-110][REQ-02-FUNC-409]
+/// [REQ-02-RULE-002][REQ-02-RULE-010][REQ-02-RULE-015] Checks, acquires, or stale-recovers the
+/// `.hasm/lock` file on a blocking worker so the WebView stays responsive.
 #[tauri::command]
 pub async fn check_workspace_lock(path: String) -> Result<LockStatus, String> {
     tauri::async_runtime::spawn_blocking(move || check_workspace_lock_blocking(path))
@@ -71,6 +74,8 @@ fn check_workspace_lock_blocking(path: String) -> Result<LockStatus, String> {
     Ok(unlocked_status(true))
 }
 
+/// [REQ-02-RULE-003][REQ-02-FUNC-109] Deletes `.hasm/lock` so the workspace is released
+/// on window close or clean workspace switching.
 #[tauri::command]
 pub fn release_workspace_lock(path: String) -> Result<(), String> {
     let lock_path = workspace_root(&path)?.join(LOCK_DIRECTORY).join(LOCK_FILENAME);
@@ -81,6 +86,8 @@ pub fn release_workspace_lock(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// [REQ-07-RULE-003][REQ-07-FUNC-203] Releases the active workspace lock (unless read-only)
+/// before the frontend clears its stores and navigates back to `/select`.
 #[tauri::command]
 pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) -> Result<(), String> {
     if !is_read_only {
@@ -90,6 +97,9 @@ pub fn switch_workspace_cleanly(current_model_path: String, is_read_only: bool) 
     Ok(())
 }
 
+/// [REQ-02-FUNC-202][REQ-02-FUNC-206][REQ-02-FUNC-406][REQ-02-FUNC-410][REQ-02-RULE-008]
+/// [REQ-02-RULE-015] Loads `hasm.db` metadata (no Markdown bodies) on a blocking worker,
+/// streaming throttled per-entity-type progress events.
 #[tauri::command]
 pub async fn load_hasm_model_db<R: Runtime>(app: AppHandle<R>, path: String) -> Result<ModelDatabase, String> {
     // SEQ-MD-02: filesystem/SQLite work must not block WebView input or scrolling.
@@ -137,6 +147,9 @@ fn load_hasm_model_db_blocking<R: Runtime>(app: AppHandle<R>, path: String) -> R
     Ok(model)
 }
 
+/// [REQ-02-FUNC-301][REQ-02-FUNC-303][REQ-02-FUNC-304][REQ-02-FUNC-408][REQ-02-RULE-006]
+/// [REQ-02-RULE-015] Verifies every loaded entity's `main.md` exists (fatal when missing)
+/// and reports unreferenced folders, streaming `model-verify-progress` on a blocking worker.
 #[tauri::command]
 pub async fn verify_hasm_storage<R: Runtime>(
     app: AppHandle<R>,
@@ -488,7 +501,229 @@ mod tests {
                 .unwrap();
             assert_eq!(distinct as usize, per_type, "{table} gained duplicate bootstrap rows");
         }
+        // [REQ-02-FUNC-411] Folder-only EXPERIENCE bootstrap must succeed with the
+        // nil-UUID owner placeholder because no SQL foreign key blocks it.
+        let nil_owners: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM experience WHERE person_id = '00000000-0000-0000-0000-000000000000'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(nil_owners as usize, per_type, "bootstrapped EXPERIENCE rows must carry the nil-UUID owner placeholder");
         drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-011 / TC-02-RUST-012: [REQ-02-FUNC-409] targeted holder-PID liveness probe.
+    #[test]
+    fn inspects_only_the_recorded_holder_pid_for_liveness() {
+        assert!(process_is_active(std::process::id()).unwrap(), "the current process must be reported alive");
+        assert!(!process_is_active(999_999).unwrap(), "a dead holder PID must be reported inactive");
+    }
+
+    // TC-02-RUST-013: [REQ-02-DATA-001][REQ-02-DATA-002][REQ-02-DATA-003][REQ-02-DATA-004]
+    // invalid workspace roots and malformed payloads are refused with descriptive errors.
+    #[test]
+    fn surfaces_descriptive_errors_for_invalid_roots_and_malformed_payloads() {
+        let missing = std::env::temp_dir().join(format!(
+            "hasm-seq-02-missing-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        let missing_string = missing.to_string_lossy().to_string();
+        let error = check_workspace_lock_blocking(missing_string.clone()).unwrap_err();
+        assert!(error.contains("does not exist"), "{error}");
+        assert!(!missing.exists(), "an invalid workspace must not gain lock scaffolding");
+        let error = release_workspace_lock(missing_string).unwrap_err();
+        assert!(error.contains("does not exist"), "{error}");
+
+        // Malformed IPC payloads must be refused instead of silently defaulted.
+        assert!(serde_json::from_value::<LockStatus>(json!({ "isLocked": "yes" })).is_err());
+        assert!(serde_json::from_value::<LockStatus>(json!({ "holderPid": 42 })).is_err());
+        assert!(serde_json::from_value::<ProgressPayload>(json!({ "step": "DB_LOAD" })).is_err());
+        assert!(serde_json::from_value::<ProgressPayload>(json!({
+            "step": "DB_LOAD", "current": "two", "total": 4, "percentage": 50.0, "message": ""
+        }))
+        .is_err());
+    }
+
+    // TC-02-RUST-014: [REQ-02-RULE-008][REQ-02-FUNC-406] metadata-only loads never read
+    // entity Markdown bodies, so a deleted body surfaces at storage verification instead.
+    #[test]
+    fn loads_metadata_without_touching_markdown_bodies() {
+        let root = fixture_workspace();
+        fs::remove_file(root.join("PERSON").join(PERSON_ID).join("main.md")).unwrap();
+
+        let model = service::read_model_database_with_progress(&root.to_string_lossy(), false, &mut |_, _, _| {}).unwrap();
+        assert_eq!((model.people.len(), model.experiences.len(), model.facts.len(), model.links.len()), (1, 1, 1, 1));
+        assert!(model.people.iter().all(|entity| entity.markdown.is_empty() && !entity.markdown_path.is_empty()));
+        assert!(model.facts.iter().all(|entity| entity.markdown.is_empty() && !entity.markdown_path.is_empty()));
+
+        let missing: Vec<String> = expected_markdown_paths(&model)
+            .into_iter()
+            .filter(|path| !root.join(path).is_file())
+            .collect();
+        assert_eq!(missing, vec![format!("PERSON/{PERSON_ID}/main.md")]);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-015: [REQ-02-RULE-009][REQ-02-FUNC-403] reopening an unchanged package
+    // must not commit any write to main.db (observed via PRAGMA data_version).
+    #[test]
+    fn reopens_unchanged_package_without_database_writes() {
+        let per_type = 25;
+        let root = scale_fixture_workspace(per_type);
+        let root_string = root.to_string_lossy().to_string();
+        service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+
+        let observer = Connection::open(root.join("main.db")).unwrap();
+        let before: i64 = observer.query_row("PRAGMA data_version", [], |row| row.get(0)).unwrap();
+        let reloaded = service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+        let after: i64 = observer.query_row("PRAGMA data_version", [], |row| row.get(0)).unwrap();
+
+        assert_eq!(before, after, "reopening an unchanged package must not write to main.db");
+        assert_eq!(reloaded.people.len(), per_type);
+        drop(observer);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-016: [REQ-02-FUNC-402] bootstrap runs in one transaction, so a failing
+    // insert rolls back every previously inserted row instead of leaving autocommit debris.
+    #[test]
+    fn rolls_back_the_entire_bootstrap_when_one_insert_fails() {
+        let root = scale_fixture_workspace(5);
+        let root_string = root.to_string_lossy().to_string();
+        {
+            let connection = Connection::open(root.join("main.db")).unwrap();
+            service::ensure_schema(&connection).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TRIGGER abort_bootstrap BEFORE INSERT ON fact BEGIN SELECT RAISE(ABORT, 'bootstrap insert aborted'); END;",
+                )
+                .unwrap();
+        }
+
+        let error = service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap_err();
+        assert!(error.contains("bootstrap insert aborted"), "{error}");
+
+        let connection = Connection::open(root.join("main.db")).unwrap();
+        for table in ["person", "experience", "fact", "link"] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0))
+                .unwrap();
+            assert_eq!(count, 0, "{table} kept rows from the aborted single-transaction bootstrap");
+        }
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-017: [REQ-02-FUNC-404][REQ-02-FUNC-405][REQ-02-FUNC-411] tuning pragmas,
+    // index-backed list ordering without temporary sort B-trees, and relaxed ownership.
+    #[test]
+    fn keeps_tuning_pragmas_and_relaxed_ownership_on_every_connection() {
+        let root = scale_fixture_workspace(2);
+        let root_string = root.to_string_lossy().to_string();
+        service::read_model_database_with_progress(&root_string, false, &mut |_, _, _| {}).unwrap();
+
+        let connection = service::open_connection(&root).unwrap();
+        let synchronous: i64 = connection.query_row("PRAGMA synchronous", [], |row| row.get(0)).unwrap();
+        assert_eq!(synchronous, 1, "synchronous must be NORMAL");
+        let temp_store: i64 = connection.query_row("PRAGMA temp_store", [], |row| row.get(0)).unwrap();
+        assert_eq!(temp_store, 2, "temp_store must be MEMORY");
+        let cache_size: i64 = connection.query_row("PRAGMA cache_size", [], |row| row.get(0)).unwrap();
+        assert!(cache_size < 0, "cache_size must stay negative (KiB-based), got {cache_size}");
+        let foreign_keys: i64 = connection.query_row("PRAGMA foreign_keys", [], |row| row.get(0)).unwrap();
+        assert_eq!(foreign_keys, 0, "foreign key enforcement must stay disabled");
+
+        // The experience table must not declare a SQL foreign key on person_id, so an
+        // owner-less EXPERIENCE row can be stored before its PERSON exists.
+        let declared_foreign_keys: i64 = {
+            let mut statement = connection.prepare("PRAGMA foreign_key_list(experience)").unwrap();
+            let rows = statement.query_map([], |_| Ok(())).unwrap();
+            rows.count() as i64
+        };
+        assert_eq!(declared_foreign_keys, 0, "experience.person_id must not carry a SQL foreign key");
+        connection
+            .execute(
+                "INSERT INTO experience (experience_id, person_id) VALUES ('99999999-9999-9999-9999-999999999999', '88888888-8888-8888-8888-888888888888')",
+                [],
+            )
+            .unwrap();
+
+        // No entity list ordering may materialize a temporary sort B-tree.
+        for (table, name_column, id_column) in [
+            ("person", "person_name", "person_id"),
+            ("experience", "experience_name", "experience_id"),
+            ("fact", "fact_name", "fact_id"),
+            ("link", "link_name", "link_id"),
+        ] {
+            let mut statement = connection
+                .prepare(&format!(
+                    "EXPLAIN QUERY PLAN SELECT {id_column} FROM {table} ORDER BY COALESCE(NULLIF({name_column}, ''), {id_column})"
+                ))
+                .unwrap();
+            let details: Vec<String> = statement
+                .query_map([], |row| row.get::<_, String>(3))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            assert!(
+                details.iter().all(|detail| !detail.to_uppercase().contains("TEMP B-TREE")),
+                "{table} list ordering used a temporary sort B-tree: {details:?}"
+            );
+        }
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // TC-02-RUST-018 / TC-02-RUST-019: [REQ-02-RULE-005][REQ-02-RULE-007][REQ-02-FUNC-206]
+    // [REQ-02-FUNC-401][REQ-02-FUNC-408][REQ-02-FUNC-410] ordered stage streaming with real
+    // per-type totals, no watchdog-length silence, and a linear folder scan at scale.
+    #[test]
+    fn streams_ordered_stage_progress_without_watchdog_gaps_at_scale() {
+        let per_type = 500;
+        let root = scale_fixture_workspace(per_type);
+        let root_string = root.to_string_lossy().to_string();
+
+        let mut events: Vec<(Instant, String, usize, usize)> = Vec::new();
+        let model = service::read_model_database_with_stage_progress(&root_string, false, &mut |step, current, total, _| {
+            events.push((Instant::now(), step.to_string(), current, total));
+        })
+        .unwrap();
+        assert_eq!(model.people.len(), per_type);
+
+        // Stages must run strictly sequentially: folder sync then per-type loads.
+        let mut stage_sequence: Vec<String> = Vec::new();
+        for (_, step, _, _) in &events {
+            if stage_sequence.last() != Some(step) {
+                stage_sequence.push(step.clone());
+            }
+        }
+        assert_eq!(
+            stage_sequence,
+            ["DB_SYNC", "DB_LOAD_PERSON", "DB_LOAD_EXPERIENCE", "DB_LOAD_FACT", "DB_LOAD_LINK"],
+            "stages must stream in sequential order exactly once"
+        );
+        for stage in ["DB_LOAD_PERSON", "DB_LOAD_EXPERIENCE", "DB_LOAD_FACT", "DB_LOAD_LINK"] {
+            assert!(
+                events.iter().any(|(_, step, _, total)| step == stage && *total == per_type),
+                "{stage} must report the real per-type total"
+            );
+        }
+
+        // [REQ-02-RULE-005] no silent gap may approach the 10,000ms watchdog threshold.
+        let max_gap = events
+            .windows(2)
+            .map(|window| window[1].0.duration_since(window[0].0))
+            .max()
+            .unwrap();
+        assert!(max_gap < Duration::from_secs(10), "progress stalled for {max_gap:?}");
+
+        // [REQ-02-FUNC-408][REQ-02-RULE-007] hash-set folder scan stays linear at scale.
+        let started = Instant::now();
+        assert!(find_unreferenced_entity_folders::<tauri::Wry>(None, &root, &expected_markdown_paths(&model)).unwrap().is_empty());
+        assert!(started.elapsed() < Duration::from_secs(10), "folder scan exceeded the linear-time budget");
+
         fs::remove_dir_all(root).unwrap();
     }
 

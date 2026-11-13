@@ -6,6 +6,11 @@ import { switchWorkspaceCleanly } from "../hasm/api";
 import { useTheme } from "../theme/ThemeContext";
 import "./GlobalNavbar.css";
 
+// [SEQ-MD-07][REQ-07-RULE-004][REQ-07-FUNC-201][REQ-07-FUNC-401] Persistent global navigation bar rendering
+// workspace path, lock/verification status, and warning badges synchronously without IPC.
+// [REQ-07-RULE-003][REQ-07-FUNC-203][REQ-07-FUNC-204] Switch Model invokes switch_workspace_cleanly, clears
+// frontend workspace state, and navigates to /select.
+// [REQ-07-RULE-005][REQ-07-FUNC-301] Theme selector updates the active hasm_color_pattern palette.
 function GlobalNavbar() {
   const location = useLocation();
   const navigate = useNavigate();

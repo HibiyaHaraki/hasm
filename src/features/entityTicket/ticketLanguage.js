@@ -1,4 +1,21 @@
 const japanese = {
+  "Delete {type}": "{type}を削除",
+  "Delete {type}?": "{type}を削除しますか？",
+  "Are you sure you want to delete {name}?": "{name}を削除してもよろしいですか？",
+  "Markdown and assets will be preserved in the workspace deletion archive.": "Markdownとアセットはワークスペースの削除アーカイブに保存されます。",
+  "Belonging FACTs": "所属するFACT",
+  "Replacement EXPERIENCE (required)": "移動先のEXPERIENCE（必須）",
+  "Replacement EXPERIENCE (optional)": "移動先のEXPERIENCE（任意）",
+  "Select an EXPERIENCE": "EXPERIENCEを選択",
+  "The selected EXPERIENCE is added to all listed FACTs; their other EXPERIENCES are retained.": "選択したEXPERIENCEを一覧のすべてのFACTに追加します。他のEXPERIENCEは保持されます。",
+  "Create another EXPERIENCE before deleting this one.": "削除する前に別のEXPERIENCEを作成してください。",
+  "Replacement parents for child EXPERIENCES": "子EXPERIENCEの新しい親",
+  "Create another EXPERIENCE to use as a replacement parent.": "新しい親として使用する別のEXPERIENCEを作成してください。",
+  "Parent for {name}": "{name}の親",
+  "Select LINKs to delete. Unselected LINKs are kept with their remaining endpoints.": "削除するLINKを選択してください。選択しないLINKは残りの接続先とともに保持されます。",
+  "Repair missing LINK references before deleting.": "削除する前に存在しないLINK参照を修復してください。",
+  "Confirm deletion": "削除を確定",
+  "Deleting...": "削除中...",
   "Extended commit graph": "拡張コミットグラフ",
   "Loading graph...": "グラフを読み込み中...",
   "Could not display graph:": "グラフを表示できません:",
@@ -23,11 +40,20 @@ const japanese = {
   "Details": "詳細",
   "Birthday": "生年月日",
   "Date of death": "没年月日",
+  "Saved date cannot be shown in the calendar: {value}. Select a date to replace it.": "保存された日付をカレンダーに表示できません: {value}。置き換える日付を選択してください。",
+  "Existing time and timezone retained: {time}": "既存の時刻とタイムゾーンを保持します: {time}",
   "Graph links": "グラフのリンク",
   "Owner person": "所有者",
   "Parent experiences": "親の体験",
   "Occurred at": "発生日時",
   "Experiences": "体験",
+  "Untitled EXPERIENCE": "無題のEXPERIENCE",
+  "Unavailable EXPERIENCE": "利用できないEXPERIENCE",
+  "No EXPERIENCE available": "利用可能なEXPERIENCEはありません",
+  "No matching experiences.": "一致する体験はありません。",
+  "Search experiences, then select or remove them. Hover or focus a choice for entity information.": "体験を検索して選択または削除できます。候補にマウスを合わせるかフォーカスすると情報を表示します。",
+  "Remove {title}": "{title}を削除",
+  "Clear {label}": "{label}をクリア",
   "People": "人物",
   "Relationship type": "関係の種類",
   "Related entities": "関連エンティティ",
@@ -90,6 +116,8 @@ const japanese = {
   "Launching HASM Markdown App timed out.": "HASM Markdown Appの起動がタイムアウトしました。",
 };
 
+// [REQ-04-RULE-021] English/Japanese ticket translation for application-authored messages;
+// raw diagnostics, entity names, and user content stay verbatim.
 export function translateTicket(text, values = {}, language = "en") {
   // Native diagnostics and user content stay verbatim if they are not UI messages.
   const template = language === "ja" ? japanese[text] ?? text : text;

@@ -11,6 +11,7 @@ This specification defines the functional, data, route protection evaluation mat
 * **[REQ-07-RULE-003] Atomic Workspace Switching:** Triggering a model switch (`switch_workspace_cleanly`) MUST cleanly release the active workspace lock (`release_workspace_lock`), flush SQLite connection pools, and reset the in-memory Rust `HasmModel` instance to `None` before clearing frontend global stores and navigating to `/select`.
 * **[REQ-07-RULE-004] Zero-IPC Status Inspection:** Global workspace status, active model path, lock status, and storage warnings displayed in `GlobalNavbar.jsx` MUST be rendered synchronously (0ms IPC latency) by referencing the React global state (`useWorkspaceStore.js`).
 * **[REQ-07-RULE-005] Dynamic Theme Synchronization:** Selecting a preset 3-color palette MUST simultaneously update document root CSS custom properties (`--color-primary`, `--color-secondary`, `--color-accent`) and emit theme updates to the Three.js viewport (`useThreeCanvas.js`) to dynamically update 3D material colors without triggering scene re-renders.
+* **[REQ-07-RULE-006] Readable Dialogs and EXPERIENCE Selections:** Active HASM theme variables MUST reach body-portal confirmation dialogs, which MUST use an opaque theme surface. Selected EXPERIENCE badge text and removal controls MUST use a readable theme foreground in light and dark patterns.
 
 ---
 
@@ -45,7 +46,7 @@ This matrix defines the strict evaluation rules executed by `<ProtectedRoute>` w
 | Target Route Request | Evaluated State Variables (`useWorkspaceStore`) | Protection Action | Destination Route | Passed Router State (`location.state`) | Toast Notification Behavior |
 | --- | --- | --- | --- | --- | --- |
 | **Protected Route**(`/visualizer` or `/entity-detail/...`) | `activeModelPath == null`OR `isModelLoaded == false` | **REDIRECT** | **`/select`** | `from: requestedPath``redirectReason: "HASMモデルが選択されていません。先にワークスペースを選択してください。"``redirectType: "warning"` | Displays Amber Warning Toast on `SelectModelPage`. Router state is immediately cleared after toast triggers. |
-| **Protected Route**(`/visualizer` or `/entity-detail/...`) | `activeModelPath != null``isModelLoaded == true``isVerified == false` | **REDIRECT** | **`/loading-model`** | `returnTo: requestedPath``redirectReason: "モデルの検証が完了していません。再ロード・検証を実行します。"``redirectType: "info"` | Displays Info Toast on `LoadingModelPage`. Triggers storage re-verification (`SEQ-02`). |
+| **Protected Route**(`/visualizer` or `/entity-detail/...`) | `activeModelPath != null``isModelLoaded == true``isVerified == false` | **REDIRECT** | **`/loading-model`** | `returnTo: requestedPath``redirectReason: "Reloading and verifying the workspace before returning to visualization."``redirectType: "info"` | Displays the reason while `LoadingModelPage` reloads and verifies storage (`SEQ-02`); removes it on completion. |
 | **Protected Route**(`/visualizer` or `/entity-detail/...`) | `activeModelPath != null``isModelLoaded == true``isVerified == true` | **ALLOW** | Target Route | None | Renders target page component smoothly. |
 | **Unknown Route**(Catch-all `*`) | Any State Combination | **REDIRECT** | **`/select`** | `redirectReason: "指定されたページが存在しません。"``redirectType: "warning"` | Displays Amber Warning Toast on `SelectModelPage`. |
 | **Public Route**(`/select`, `/loading-model`, `/error-*`) | Any State Combination | **ALLOW** | Target Route | Preserved if provided | Renders public/system recovery view directly. |
@@ -59,8 +60,8 @@ This matrix defines the strict evaluation rules executed by `<ProtectedRoute>` w
 * **[REQ-07-FUNC-101] Unloaded Model Guard Interception:** If a user requests a protected route when `activeModelPath` is `null` or `isModelLoaded` is `false`, `<ProtectedRoute>` MUST navigate to `/select` replacing current history.
 * **[REQ-07-FUNC-102] Unloaded Model Redirection Payload:** Upon interception under `REQ-07-FUNC-101`, `<ProtectedRoute>` MUST supply `redirectReason = "HASMモデルが選択されていません。先にワークスペースを選択してください。"` and `redirectType = "warning"` in `location.state`.
 * **[REQ-07-FUNC-103] Unverified Model Guard Interception:** If a user requests a protected route requiring verification when `isVerified` is `false`, `<ProtectedRoute>` MUST navigate to `/loading-model` with `state = { returnTo: location.pathname }`.
-* **[REQ-07-FUNC-104] Unverified Model Redirection Payload:** Upon interception under `REQ-07-FUNC-103`, `<ProtectedRoute>` MUST supply `redirectReason = "モデルの検証が完了していません。再ロード・検証を実行します。"` and `redirectType = "info"` in `location.state`.
-* **[REQ-07-FUNC-105] Toast Rendering & State Clearance:** Destination pages (`SelectModelPage.jsx`, `LoadingModelPage.jsx`) receiving `redirectReason` MUST render a Toast notification and invoke `navigate(location.pathname, { replace: true, state: {} })` to clear state.
+* **[REQ-07-FUNC-104] Unverified Model Redirection Payload:** Upon interception under `REQ-07-FUNC-103`, `<ProtectedRoute>` MUST supply `redirectReason = "Reloading and verifying the workspace before returning to visualization."` and `redirectType = "info"` in `location.state`.
+* **[REQ-07-FUNC-105] Redirection Notice & State Clearance:** Destination pages receiving `redirectReason` MUST display the reason and clear it from router state. `LoadingModelPage` MUST preserve the workspace context, show the reason only while loading, and keep it independent of lock notices.
 
 ### Chapter 2: Global Navigation & Clean Workspace Switching
 
@@ -79,3 +80,7 @@ This matrix defines the strict evaluation rules executed by `<ProtectedRoute>` w
 * **[REQ-07-FUNC-401] Synchronous Status Display:** Renders for active path, read-only status, verification state, and warning lists in `GlobalNavbar.jsx` MUST read directly from `useWorkspaceStore.js` without issuing Tauri IPC requests (0ms latency).
 * **[REQ-07-FUNC-402] Metadata Save Status Invalidation:** Successful execution of `save_entity_metadata` (`SEQ-04`) MUST automatically update `useWorkspaceStore` setting `isVerified = false`, immediately updating the status badge in `GlobalNavbar.jsx` to reflect that re-verification is required.
 * **[REQ-07-FUNC-403] Storage Repair Warning Clearance:** Successful execution of `repair_missing_entity_folders` (`SEQ-06`) MUST update `useWorkspaceStore` removing repaired UUIDs from the active `warnings` list.
+
+### Chapter 5: Evaluation Support
+
+* **[REQ-07-FUNC-501] Deterministic Test Workspace Fixture:** Rust MUST provide a test-only command (`create_test_workspace_fixture`) that scaffolds a deterministic, populated temporary workspace and returns its path together with the loaded model, so evaluation suites can run without relying on local absolute paths. The fixture command MUST NOT be reachable from production UI flows.

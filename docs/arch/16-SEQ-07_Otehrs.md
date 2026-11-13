@@ -18,6 +18,11 @@ This document provides the detailed technical sequence and specifications for cr
 4. **Synchronous Workspace Status Monitor:** Displays the current loaded HASM path and active verification warnings directly from `useWorkspaceStore.js` (0ms IPC latency).
 5. **Global Route Protection (Barrier 1):** Centrally guarded by `ProtectedRoute.jsx` wrapping operational views (`/visualizer`, `/entity-detail/...`). Intercepts direct URL navigation or state violations, redirects users to safe recovery routes, and passes human-readable explanation messages for Toast rendering.
 
+`App.jsx` applies the selected theme variables to the document root so that
+Bootstrap dialogs rendered through body portals inherit the same colors as the
+app shell. Confirmation dialogs use the opaque theme surface; EXPERIENCE picker
+badges use the theme text color instead of Bootstrap's default white.
+
 ---
 
 ## 2. Data Contracts & IPC Specifications
@@ -174,8 +179,8 @@ flowchart TD
     CheckModel -- True --> CheckVerified{Evaluated State 2:<br/>Is requireVerified == true<br/>AND isVerified == false?}
     
     CheckVerified -- True (Unverified) --> RedirectLoading[Redirect to /loading-model<br/>replace = true]
-    RedirectLoading --> PassReason2["Set location.state:<br/>returnTo: targetPath<br/>redirectReason: 'モデルの検証が完了していません...'<br/>redirectType: 'info'"]
-    PassReason2 --> RenderToast2[Render LoadingModelPage & Display Toast Popup]
+    RedirectLoading --> PassReason2["Set location.state:<br/>returnTo: targetPath<br/>redirectReason: 'Reloading and verifying the workspace before returning to visualization.'<br/>redirectType: 'info'"]
+    PassReason2 --> RenderToast2[Display reason while loading; remove it on completion]
     
     CheckVerified -- False (All Clear) --> MountPage[Mount Target Page Component & Execute Normal View]
 
@@ -190,7 +195,7 @@ The following table explicitly defines every combination of requested routes, ev
 | Request Route Target | Evaluated State Variables (`useWorkspaceStore`) | Protection Decision | Destination Route | Passed Router State (`location.state`) | User Toast / UI Behavior |
 | --- | --- | --- | --- | --- | --- |
 | **`/visualizer`** or **`/entity-detail/:type/:id`** | `activeModelPath == null`OR `isModelLoaded == false` | **BLOCKED**(No Workspace) | **`/select`** | `from: requestedPath``redirectReason: "HASMモデルが選択されていません。先にワークスペースを選択してください。"``redirectType: "warning"` | Displays Amber Warning Toast on `SelectModelPage`. Clears router state immediately to prevent re-display on page refresh. |
-| **`/visualizer`** or **`/entity-detail/:type/:id`** | `activeModelPath != null``isModelLoaded == true``isVerified == false` | **BLOCKED**(Unverified State) | **`/loading-model`** | `returnTo: requestedPath``redirectReason: "モデルの検証が完了していません。再ロード・検証を実行します。"``redirectType: "info"` | Displays Info Toast on `LoadingModelPage`. Automatically re-triggers storage verification (`SEQ-02`). |
+| **`/visualizer`** or **`/entity-detail/:type/:id`** | `activeModelPath != null``isModelLoaded == true``isVerified == false` | **BLOCKED**(Unverified State) | **`/loading-model`** | `returnTo: requestedPath``redirectReason: "Reloading and verifying the workspace before returning to visualization."``redirectType: "info"` | Displays the reason while loading and removes it on completion. Automatically re-triggers storage verification (`SEQ-02`). |
 | **`/visualizer`** or **`/entity-detail/:type/:id`** | `activeModelPath != null``isModelLoaded == true``isVerified == true` | **ALLOWED** | Requested Target Route | None | Renders requested target page component smoothly without interruption. |
 | **Unknown / Invalid Route** (e.g., `/unknown-page`) | Any State Combination | **BLOCKED**(Fallback Guard) | **`/select`** | `redirectReason: "指定されたページが存在しません。"``redirectType: "warning"` | Displays Amber Warning Toast on `SelectModelPage`. |
 | **`/select`**, **`/loading-model`**, **`/error-*`** | Any State Combination | **ALLOWED**(Unprotected Route) | Requested Route | Preserved if provided | Renders public/system page component directly. |
