@@ -10,6 +10,69 @@ This document provides the complete detailed architectural specification for loa
 
 ## 1. Data Contracts & Time Constraints
 
+### FACT / EXPERIENCE conversion
+
+FACT and EXPERIENCE tickets offer **Convert to EXPERIENCE / FACT** in verified,
+writable reading mode. `EntityConvertDialog` reviews the destination's parent/
+membership UUID array with the existing `ExperienceSelect` badge/search picker,
+an optional PERSON owner for EXPERIENCE or native calendar date for FACT, and
+the default-checked **Keep original entity** option. Confirmation uses the real
+`convertEntity` wrapper and registered `convert_entity` command; cancellation
+does not invoke it. Busy operations disable modal dismissal, navigation and
+other persistence, and abandoned-ticket responses cannot update the route.
+
+| Source | Target metadata |
+| --- | --- |
+| FACT | Same title; `experienceIds` become reviewed `parentExperienceIds`; first `personIds` entry initializes optional reviewed owner. |
+| EXPERIENCE | Same title; `parentExperienceIds` become reviewed `experienceIds`; non-nil owner becomes `personIds`; optional occurrence date starts empty. |
+| Both | Full Markdown body, custom FrontMatter, complete assets/folder contents, `link` external URLs and explicit `linkIds` are retained. Target FrontMatter identity is rewritten, or added when absent. Metadata without a corresponding field remains in the unchanged original or its archive. |
+
+Keeping the source creates a fresh UUID and extends related LINK endpoint arrays
+with it. Archiving retains the source UUID in the opposite type, so LINK endpoints
+remain unchanged. Archiving an EXPERIENCE is forbidden if current FACT memberships,
+child parent references or direct PERSON ownership depend on it; only copying is
+offered and accepted in that case. The native worker rechecks dependencies, lock,
+source Markdown mtime/location, metadata, target references/date and collisions.
+Malformed source folders (including missing `assets`) and symlinks are rejected.
+Conversion is a separate multi-entity operation, not constant-cost metadata save.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Ticket as Entity detail / conversion dialog
+    participant IPC as convert_entity worker
+    participant DB as SQLite transaction
+    participant Files as Workspace / recovery archive
+    participant Loader as SEQ-02 loader
+    User->>Ticket: Review target metadata and keep/archive; confirm
+    Ticket->>IPC: Target choices and loadedMtimeMs
+    IPC->>DB: BEGIN IMMEDIATE; recheck lock, source and dependencies
+    IPC->>Files: Publish pending journal; copy source into staged target
+    IPC->>DB: Insert target; extend LINKs or delete source row
+    opt Archive original
+        IPC->>Files: Move original folder into archive
+    end
+    IPC->>Files: Install staged target folder
+    IPC->>DB: COMMIT
+    IPC->>Files: Finalize complete.json
+    IPC-->>Ticket: Destination identity, optional archive path/warning
+    Ticket->>Loader: Reload and re-verify updated workspace
+    Loader-->>User: Open converted entity / Go to visualization
+```
+
+The command owns row/LINK changes in one database transaction and reuses
+`entity_deletion_commands.rs` archive staging/recovery. The journal's optional
+`conversion` object records target type/UUID and `keep_original`, alongside the
+complete original row; old deletion journals without it remain valid. Before
+folder synchronization, recovery inspects source and target rows under a write
+transaction. An uncommitted conversion removes staged/installed target folders
+and restores an archived source; committed conversion requires an installed
+target and finalizes its journal. Inconsistent states fail explicitly. Ordinary
+SQL/filesystem failures roll back and recover immediately. A committed operation
+whose final journal rename fails returns an explicit warning for later recovery.
+Copy journals also live under `.hasm/deleted/`, but their successful result has
+no source archive path. Logging uses `[SEQ-MD-04][CONVERT]`.
+
 ### Confirmed deletion and archive
 
 The detail ticket offers Delete for EXPERIENCE, FACT and LINK, not PERSON.
@@ -289,7 +352,11 @@ content keep the sidebar and toolbar usable on narrow windows. Changes log
 `[SEQ-MD-04][DISPLAY]` without document or asset contents.
 
 EXPERIENCE parent and FACT experience relationships use the shared searchable
-multi-picker; selected titles appear as removable badges. Unresolved existing
+multi-picker; selected titles appear as removable badges inside one field.
+Clicking the field opens a dropdown with focused search in its first row,
+followed by the filtered choices. Search is not mounted outside the dropdown.
+Escape closes it and restores field-trigger focus without canceling the editor.
+Unresolved existing
 relationships remain removable as `Unavailable EXPERIENCE` without revealing
 their UUID or silently discarding them. Other relationship UUID arrays are
 edited as comma-separated UUIDs; all arrays are sent on Save, with `[]` for

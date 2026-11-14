@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { checkEntityMtime, deleteEntity, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
+import { checkEntityMtime, convertEntity, deleteEntity, launchExternalMarkdownApp, loadEntityDetail, reloadEntityMarkdown, saveEntityDetail } from "../features/hasm/api";
 import { createDetailsDraft, DETAIL_FIELDS, TicketForm } from "../features/entityTicket/TicketForm";
 import { MarkdownPanel } from "../features/entityTicket/MarkdownPanel";
 import { Button, Container, Form } from "react-bootstrap";
@@ -12,6 +12,7 @@ import { createEntityReferenceIndex, detailEntityReferences, entityReferenceTitl
 import { translateTicket } from "../features/entityTicket/ticketLanguage";
 import { EntityCommitGraph } from "../features/entityTicket/EntityCommitGraph";
 import { EntityDeleteDialog } from "../features/entityTicket/EntityDeleteDialog";
+import { EntityConvertDialog } from "../features/entityTicket/EntityConvertDialog";
 import { formatOccurrence } from "../features/entityTicket/formatOccurrence";
 
 const logger = createLogger("entity-detail");
@@ -21,6 +22,7 @@ const logger = createLogger("entity-detail");
 // [REQ-04-FUNC-501] Attaches the window focus mtime check for external Markdown changes.
 // [REQ-04-RULE-013] [REQ-04-RULE-015] Keeps abandoned-ticket responses inert and presents
 // reader-first content before any section editor is activated.
+// [REQ-04-RULE-030] Confirmed keep/archive conversion with guarded IPC and post-operation verification.
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
   const [ticket, setTicket] = useState(null); const [form, setForm] = useState(null); const [saving, setSaving] = useState(false); const [changed, setChanged] = useState(false); const [deleted, setDeleted] = useState(false); const [message, setMessage] = useState("");
@@ -29,6 +31,9 @@ function EntityDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [converting, setConverting] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
+  const [convertError, setConvertError] = useState("");
   const [language, setLanguage] = useState("en");
   const [textSize, setTextSize] = useState("medium");
   const t = (text, values) => translateTicket(text, values, language);
@@ -37,7 +42,7 @@ function EntityDetailPage() {
   const [workspaceState, setWorkspaceState] = useState(state);
   const referenceIndex = useMemo(() => createEntityReferenceIndex(workspaceState?.model), [workspaceState?.model]);
   const lifecycleRef = useRef(null);
-  const graphNavigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
+  const graphNavigationDisabled = Boolean(editing) || saving || refreshing || deleting || converting || showConvert || showDelete || workspaceState?.isVerified === false;
   const openGraphEntity = useCallback((node) => {
     if (graphNavigationDisabled) return;
     navigate(`/entity-detail/${node.entityType}/${node.id}`, { state: workspaceState });
@@ -69,6 +74,9 @@ function EntityDetailPage() {
     setDeleting(false);
     setShowDelete(false);
     setDeleteError("");
+    setConverting(false);
+    setShowConvert(false);
+    setConvertError("");
     setChanged(false);
     setDeleted(false);
     setMessage("");
@@ -116,7 +124,7 @@ function EntityDetailPage() {
     );
   }
   const beginEdit = (field, event) => {
-    if (editing || saving || refreshing) return;
+    if (editing || saving || refreshing || deleting || converting || showConvert || showDelete) return;
     editTriggerRef.current = event.currentTarget.id;
     setForm({ name: ticket.name, link: [...(ticket.detail.link ?? [])], details: createDetailsDraft(ticket.detail, entityType) });
     setMessage("");
@@ -131,7 +139,7 @@ function EntityDetailPage() {
   const save = async (event) => { 
     const lifecycle = lifecycleRef.current;
     event.preventDefault();
-    if (lifecycle.saving || lifecycle.refreshing) return;
+    if (lifecycle.saving || lifecycle.refreshing || lifecycle.converting || lifecycle.deleting) return;
     if (editing === "summary" && !form.name.trim()) {
       setMessage("Summary must not be empty.");
       return;
@@ -198,7 +206,7 @@ function EntityDetailPage() {
   };
   const refresh = async () => { 
     const lifecycle = lifecycleRef.current;
-    if (lifecycle.saving || lifecycle.refreshing) return;
+    if (lifecycle.saving || lifecycle.refreshing || lifecycle.converting || lifecycle.deleting) return;
     lifecycle.refreshing = true;
     setRefreshing(true);
     try { 
@@ -240,7 +248,7 @@ function EntityDetailPage() {
   };
   const confirmDelete = async (request) => {
     const lifecycle = lifecycleRef.current;
-    if (lifecycle.saving || lifecycle.refreshing || lifecycle.deleting) return;
+    if (lifecycle.saving || lifecycle.refreshing || lifecycle.deleting || lifecycle.converting) return;
     lifecycle.deleting = true;
     setDeleting(true);
     setDeleteError("");
@@ -262,9 +270,35 @@ function EntityDetailPage() {
       if (lifecycle.active) setDeleting(false);
     }
   };
+  const confirmConvert = async (request) => {
+    const lifecycle = lifecycleRef.current;
+    if (lifecycle.saving || lifecycle.refreshing || lifecycle.deleting || lifecycle.converting) return;
+    lifecycle.converting = true;
+    setConverting(true);
+    setConvertError("");
+    try {
+      const result = await convertEntity(root, request);
+      if (!lifecycle.active) return;
+      logger.info("[SEQ-MD-04][CONVERT] conversion completed; re-verifying workspace");
+      navigate("/loading-model", { replace: true, state: {
+        ...workspaceState, path: root, isVerified: false,
+        redirectReason: "Reloading and verifying the workspace after conversion.",
+        conversionWarning: result.warning,
+        conversionTarget: { entityType: result.entityType, entityId: result.entityId },
+        conversionArchivePath: result.archivePath,
+      } });
+    } catch (error) {
+      if (!lifecycle.active) return;
+      logger.error("[SEQ-MD-04][CONVERT] entity conversion failed", error);
+      setConvertError(error?.message || String(error));
+    } finally {
+      lifecycle.converting = false;
+      if (lifecycle.active) setConverting(false);
+    }
+  };
   const currentEntity = { ...ticket, entityType, entityId };
   const relationshipIds = relatedLinkIds(referenceIndex, entityId, ticket.detail);
-  const navigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
+  const navigationDisabled = graphNavigationDisabled;
   const renderDetailValue = (field) => {
     if (["occurredAt", "birthday", "die"].includes(field.key)) return formatOccurrence(ticket.detail[field.key], language, t);
     const references = detailEntityReferences(referenceIndex, field, ticket.detail, currentEntity, t);
@@ -315,10 +349,19 @@ function EntityDetailPage() {
     <Container as="main" fluid lang={language} className={`ticket-page ticket-text-${textSize}`}>
       <header className="ticket-header">
         <div className="ticket-toolbar">
-          <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => navigate("/visualizer", { state: workspaceState })}>{t("Back to Visualizer")}</Button>
+          <Button className="btn-hasm-outline" variant="outline-secondary" disabled={deleting || converting}
+            onClick={() => navigate("/visualizer", { state: workspaceState })}>{t("Back to Visualizer")}</Button>
+          {entityType === "FACT" || entityType === "EXPERIENCE" ? (
+            <Button className="btn-hasm-outline" variant="outline-secondary"
+              disabled={Boolean(editing) || saving || refreshing || deleting || converting || showDelete || showConvert
+                || workspaceState?.isReadOnly || workspaceState?.isVerified === false || !referenceIndex.available}
+              onClick={() => { setConvertError(""); setShowConvert(true); }}>
+              {t("Convert to {type}", { type: entityType === "FACT" ? "EXPERIENCE" : "FACT" })}
+            </Button>
+          ) : null}
           {entityType !== "PERSON" ? (
             <Button className="btn-hasm-outline" variant="outline-secondary"
-              disabled={Boolean(editing) || saving || refreshing || deleting || workspaceState?.isReadOnly || workspaceState?.isVerified === false || !referenceIndex.available}
+              disabled={Boolean(editing) || saving || refreshing || deleting || converting || showConvert || workspaceState?.isReadOnly || workspaceState?.isVerified === false || !referenceIndex.available}
               onClick={() => { setDeleteError(""); setShowDelete(true); }}>
               {t("Delete {type}", { type: entityType })}
             </Button>
@@ -447,6 +490,9 @@ function EntityDetailPage() {
       {showDelete ? <EntityDeleteDialog entityType={entityType} entityId={entityId} ticket={ticket}
         model={workspaceState.model} referenceIndex={referenceIndex} busy={deleting} error={deleteError}
         onCancel={() => setShowDelete(false)} onConfirm={confirmDelete} t={t} /> : null}
+      {showConvert ? <EntityConvertDialog entityType={entityType} entityId={entityId} ticket={ticket}
+        model={workspaceState.model} busy={converting} error={convertError}
+        onCancel={() => setShowConvert(false)} onConfirm={confirmConvert} t={t} /> : null}
     </Container>
   );
 }

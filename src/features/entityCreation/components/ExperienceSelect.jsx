@@ -17,6 +17,8 @@ function ExperienceSelect({ controlId, label, value, onChange, experiences, disa
     <>
       <ExperienceMultiSelect id={controlId} label={label} options={options} value={value} onChange={onChange}
         disabled={disabled} entityPreview onDismiss={dismissEntityPreview}
+        searchLabel={t("Search {label}", { label })}
+        searchPlaceholder={t("Search experiences")} placeholder={t("Select experiences")}
         emptyLabel={t("No EXPERIENCE available")} noMatchesLabel={t("No matching experiences.")}
         unavailableLabel={t("Unavailable EXPERIENCE")}
         removeLabel={(title) => t("Remove {title}", { title })} />

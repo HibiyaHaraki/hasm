@@ -1,4 +1,4 @@
-//! SEQ-04 entity deletion, relationship updates, and recoverable storage.
+//! SEQ-04 entity deletion/conversion, relationship updates, and recoverable storage.
 
 use log::{info, warn};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
@@ -56,6 +56,247 @@ struct ArchiveEntry {
 #[derive(Serialize, Deserialize)]
 struct ArchiveManifest {
     entries: Vec<ArchiveEntry>,
+    #[serde(default)]
+    conversion: Option<ConversionState>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ConversionState {
+    target_type: String,
+    target_id: Uuid,
+    keep_original: bool,
+}
+
+/// [REQ-04-RULE-030] Reviewed FACT/EXPERIENCE conversion with optional source
+/// retention, target memberships/owner/date, and source Markdown freshness.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertRequest {
+    entity_type: String,
+    entity_id: Uuid,
+    keep_original: bool,
+    experience_ids: Vec<Uuid>,
+    person_id: Option<Uuid>,
+    occurred_at: Option<String>,
+    loaded_mtime_ms: u64,
+}
+
+/// [REQ-04-RULE-030] Conversion destination and recoverable archive information.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertResult {
+    entity_type: String,
+    entity_id: Uuid,
+    archive_path: Option<String>,
+    warning: Option<String>,
+}
+
+/// [REQ-04-RULE-030] Converts FACT/EXPERIENCE on a worker with atomic database
+/// changes and recoverable folder staging; dependent EXPERIENCES require copying.
+#[tauri::command]
+pub async fn convert_entity(path: String, request: ConvertRequest) -> Result<ConvertResult, String> {
+    let result = tauri::async_runtime::spawn_blocking(move || convert_entity_inner(&path, request))
+        .await.map_err(|error| format!("Conversion worker failed: {error}"))?;
+    match &result {
+        Ok(_) => info!("[SEQ-MD-04][CONVERT] entity conversion committed"),
+        Err(error) => warn!("[SEQ-MD-04][CONVERT] entity conversion failed: {error}"),
+    }
+    result
+}
+
+fn convert_entity_inner(path: &str, request: ConvertRequest) -> Result<ConvertResult, String> {
+    let root = PathBuf::from(path);
+    plain_directory(&root)?;
+    require_owned_lock(&root)?;
+    let target_type = match request.entity_type.as_str() {
+        "FACT" => "EXPERIENCE",
+        "EXPERIENCE" => "FACT",
+        _ => return Err("Only FACT and EXPERIENCE can be converted.".into()),
+    };
+    let (source_table, source_key) = entity_table(&request.entity_type)?;
+    let (target_table, target_key) = entity_table(target_type)?;
+    plain_directory(&root.join(target_type))?;
+    let mut connection = crate::hasm::service::open_connection(&root)?;
+    let transaction = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    require_owned_lock(&root)?;
+    let entry = archive_entry(&transaction, &request.entity_type, request.entity_id)?;
+    let source_dir = root.join(&request.entity_type).join(request.entity_id.to_string());
+    plain_directory(&source_dir)?;
+    plain_directory(&source_dir.join("assets"))?;
+    let description_key = format!("{source_table}_description_path");
+    let stored_path = metadata_text(&entry, &description_key)?;
+    let markdown_path = if stored_path.is_empty() { source_dir.join("main.md") } else { root.join(stored_path) };
+    let canonical = fs::canonicalize(&markdown_path).map_err(|error| format!("Cannot read source Markdown: {error}"))?;
+    if !canonical.starts_with(fs::canonicalize(&source_dir).map_err(|error| error.to_string())?) {
+        return Err("Source Markdown must be inside its entity folder before conversion.".into());
+    }
+    let metadata = fs::metadata(&markdown_path).map_err(|error| error.to_string())?;
+    let mtime = metadata.modified().map_err(|error| error.to_string())?
+        .duration_since(std::time::UNIX_EPOCH).map_err(|error| error.to_string())?.as_millis();
+    if mtime != u128::from(request.loaded_mtime_ms) {
+        return Err("Markdown changed; refresh the ticket before converting.".into());
+    }
+    let name = metadata_text(&entry, &format!("{source_table}_name"))?;
+    if name.trim().is_empty() { return Err("Entity name must not be empty.".into()); }
+    let external_links: Vec<String> = metadata_array(&entry, "link")?;
+    crate::hasm::definitions::validate_external_links(&external_links)?;
+    let link_ids: Vec<Uuid> = metadata_array(&entry, "link_ids")?;
+    let links = read_references(&transaction, "link", "link_id", "related_ids")?;
+    if link_ids.iter().any(|id| !links.contains_key(id)) {
+        return Err("A referenced LINK is missing; repair the workspace before converting.".into());
+    }
+    let source_relationships = if request.entity_type == "FACT" { "experience_ids" } else { "parent_experience_ids" };
+    let _: Vec<Uuid> = metadata_array(&entry, source_relationships)?;
+    let memberships = unique_set(request.experience_ids.clone())
+        .map_err(|error| format!("Invalid conversion EXPERIENCE choices: {error}"))?;
+    for id in &memberships {
+        if !row_exists(&transaction, "experience", "experience_id", *id)? {
+            return Err("Choose existing EXPERIENCE relationships.".into());
+        }
+        if !request.keep_original && *id == request.entity_id {
+            return Err("A converted entity cannot belong to its archived EXPERIENCE.".into());
+        }
+    }
+    let source_people: Vec<Uuid> = if request.entity_type == "FACT" {
+        metadata_array(&entry, "person_ids")?
+    } else {
+        let owner = Uuid::parse_str(metadata_text(&entry, "person_id")?).map_err(|error| error.to_string())?;
+        if owner.is_nil() { Vec::new() } else { vec![owner] }
+    };
+    let people = if target_type == "EXPERIENCE" {
+        request.person_id.filter(|id| !id.is_nil()).into_iter().collect::<Vec<_>>()
+    } else { source_people };
+    for id in &people {
+        if !row_exists(&transaction, "person", "person_id", *id)? {
+            return Err("Choose an existing PERSON owner.".into());
+        }
+    }
+    if !request.keep_original && request.entity_type == "EXPERIENCE" {
+        let facts = read_references(&transaction, "fact", "fact_id", "experience_ids")?;
+        let parents = read_references(&transaction, "experience", "experience_id", "parent_experience_ids")?;
+        let owner = Uuid::parse_str(metadata_text(&entry, "person_id")?).map_err(|error| error.to_string())?;
+        if !owner.is_nil() || facts.values().any(|ids| ids.contains(&request.entity_id))
+            || parents.values().any(|ids| ids.contains(&request.entity_id)) {
+            return Err("This EXPERIENCE has dependent FACTs, children, or PERSON ownership. Keep the original to create a FACT.".into());
+        }
+    }
+    let occurred_at = request.occurred_at.as_deref().unwrap_or("");
+    if target_type == "FACT" && !occurred_at.is_empty() {
+        crate::hasm::entity_creation_commands::validate_birth_date(occurred_at)
+            .map_err(|error| format!("Invalid FACT occurrence date: {error}"))?;
+    }
+    let target_id = if request.keep_original { Uuid::new_v4() } else { request.entity_id };
+    for (table, key) in [("person", "person_id"), ("experience", "experience_id"), ("fact", "fact_id"), ("link", "link_id")] {
+        if (request.keep_original || table != source_table) && row_exists(&transaction, table, key, target_id)? {
+            return Err("Conversion target UUID already exists.".into());
+        }
+    }
+    let destination = root.join(target_type).join(target_id.to_string());
+    if destination.exists() { return Err("Conversion target folder already exists.".into()); }
+    let markdown = fs::read_to_string(&markdown_path).map_err(|error| format!("Cannot read source Markdown: {error}"))?;
+    let converted_markdown = conversion_markdown(&markdown, target_type, target_id, name)?;
+    let conversion = ConversionState { target_type: target_type.into(), target_id, keep_original: request.keep_original };
+    let archive = prepare_archive(&root, std::slice::from_ref(&entry), Some(conversion))?;
+    let operation = (|| -> Result<(), String> {
+        let staged = archive.join("target");
+        copy_entity_directory(&source_dir, &staged)?;
+        fs::write(staged.join("main.md"), converted_markdown).map_err(|error| error.to_string())?;
+        let relative_path = format!("{target_type}/{target_id}/main.md");
+        let relationships = serde_json::to_string(&request.experience_ids).map_err(|error| error.to_string())?;
+        let serialized_links = serde_json::to_string(&link_ids).map_err(|error| error.to_string())?;
+        let urls = serde_json::to_string(&external_links).map_err(|error| error.to_string())?;
+        if target_type == "EXPERIENCE" {
+            transaction.execute(
+                "INSERT INTO experience (experience_id, person_id, experience_name, experience_description_path, parent_experience_ids, link_ids, link) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![target_id.to_string(), people.first().copied().unwrap_or_else(Uuid::nil).to_string(), name, relative_path, relationships, serialized_links, urls],
+            ).map_err(|error| error.to_string())?;
+        } else {
+            transaction.execute(
+                "INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![target_id.to_string(), name, occurred_at, relative_path, relationships, serde_json::to_string(&people).map_err(|error| error.to_string())?, serialized_links, urls],
+            ).map_err(|error| error.to_string())?;
+        }
+        if request.keep_original {
+            for (id, endpoints) in &links {
+                if endpoints.contains(&request.entity_id) || link_ids.contains(id) {
+                    let mut next = endpoints.clone();
+                    if !next.contains(&target_id) { next.push(target_id); }
+                    write_references(&transaction, "link", "link_id", "related_ids", *id, &next)?;
+                }
+            }
+        } else {
+            transaction.execute(&format!("DELETE FROM {source_table} WHERE {source_key} = ?1"), [request.entity_id.to_string()])
+                .map_err(|error| error.to_string())?;
+            move_to_archive(&root, &archive, std::slice::from_ref(&entry))?;
+        }
+        require_owned_lock(&root)?;
+        fs::rename(staged, &destination).map_err(|error| format!("Cannot install converted folder: {error}"))?;
+        Ok(())
+    })();
+    if let Err(error) = operation {
+        transaction.rollback().map_err(|rollback| format!("{error}; database rollback failed: {rollback}"))?;
+        recover_pending_archives(&root, &connection)
+            .map_err(|recovery| format!("{error}; conversion recovery required: {recovery}"))?;
+        return Err(error);
+    }
+    let mut warning = None;
+    if let Err(error) = transaction.commit() {
+        recover_pending_archives(&root, &connection)
+            .map_err(|recovery| format!("Conversion commit failed: {error}; recovery required: {recovery}"))?;
+        if !row_exists(&connection, target_table, target_key, target_id)? {
+            return Err(format!("Conversion rolled back after commit failure: {error}"));
+        }
+        warning = Some(format!("Conversion committed after a database error; verify the workspace: {error}"));
+    } else if let Err(error) = fs::rename(archive.join("pending.json"), archive.join("complete.json")) {
+        warning = Some(format!("Conversion succeeded, but archive finalization needs recovery: {error}"));
+    }
+    if let Some(message) = &warning { warn!("[SEQ-MD-04][CONVERT] {message}"); }
+    Ok(ConvertResult {
+        entity_type: target_type.into(), entity_id: target_id,
+        archive_path: (!request.keep_original).then(|| archive.to_string_lossy().to_string()), warning,
+    })
+}
+
+fn metadata_text<'a>(entry: &'a ArchiveEntry, key: &str) -> Result<&'a str, String> {
+    entry.metadata.get(key).and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("Invalid source metadata: {key}"))
+}
+
+fn metadata_array<T: serde::de::DeserializeOwned>(entry: &ArchiveEntry, key: &str) -> Result<T, String> {
+    serde_json::from_str(metadata_text(entry, key)?).map_err(|error| format!("Invalid source {key}: {error}"))
+}
+
+fn copy_entity_directory(source: &Path, destination: &Path) -> Result<(), String> {
+    plain_directory(source)?;
+    fs::create_dir(destination).map_err(|error| format!("Cannot stage conversion: {error}"))?;
+    for item in fs::read_dir(source).map_err(|error| error.to_string())? {
+        let item = item.map_err(|error| error.to_string())?;
+        let kind = item.file_type().map_err(|error| error.to_string())?;
+        let target = destination.join(item.file_name());
+        if kind.is_dir() { copy_entity_directory(&item.path(), &target)?; }
+        else if kind.is_file() { fs::copy(item.path(), target).map_err(|error| error.to_string())?; }
+        else { return Err("Conversion cannot copy symlinks or special files.".into()); }
+    }
+    Ok(())
+}
+
+fn conversion_markdown(markdown: &str, entity_type: &str, id: Uuid, name: &str) -> Result<String, String> {
+    let identity = format!("entity_type: {entity_type}\nentity_id: {id}\n");
+    let mut lines = markdown.split_inclusive('\n');
+    if lines.next().map(str::trim) != Some("---") {
+        return Ok(format!("---\n{identity}name: {}\n---\n\n{markdown}", serde_json::to_string(name).map_err(|error| error.to_string())?));
+    }
+    let mut result = format!("---\n{identity}");
+    for line in lines.by_ref() {
+        if line.trim() == "---" {
+            result.push_str(line);
+            result.extend(lines);
+            return Ok(result);
+        }
+        if !line.starts_with("entity_type:") && !line.starts_with("entity_id:") { result.push_str(line); }
+    }
+    Err("Source Markdown has an unterminated FrontMatter block.".into())
 }
 
 /// [REQ-04-RULE-028][REQ-04-RULE-029] Deletes an EXPERIENCE, FACT, or LINK
@@ -209,7 +450,7 @@ fn delete_entity_inner(path: &str, request: DeleteRequest) -> Result<DeleteResul
     }
 
     require_owned_lock(&root)?;
-    let archive = prepare_archive(&root, &entries)?;
+    let archive = prepare_archive(&root, &entries, None)?;
     if let Err(error) = move_to_archive(&root, &archive, &entries) {
         let rollback = restore_entries(&root, &archive, &entries);
         return Err(match rollback {
@@ -338,7 +579,7 @@ fn plain_directory(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn prepare_archive(root: &Path, entries: &[ArchiveEntry]) -> Result<PathBuf, String> {
+fn prepare_archive(root: &Path, entries: &[ArchiveEntry], conversion: Option<ConversionState>) -> Result<PathBuf, String> {
     plain_directory(&root.join(".hasm"))?;
     for entry in entries {
         plain_directory(&root.join(&entry.entity_type))?;
@@ -351,7 +592,7 @@ fn prepare_archive(root: &Path, entries: &[ArchiveEntry]) -> Result<PathBuf, Str
     fs::create_dir(&archive).map_err(|error| format!("Cannot create archive: {error}"))?;
     let manifest = serde_json::to_vec(&ArchiveManifest { entries: entries.iter().map(|entry| ArchiveEntry {
         entity_type: entry.entity_type.clone(), entity_id: entry.entity_id, metadata: entry.metadata.clone(),
-    }).collect() }).map_err(|error| error.to_string())?;
+    }).collect(), conversion }).map_err(|error| error.to_string())?;
     let mut file = File::create(archive.join("pending.tmp")).map_err(|error| format!("Cannot write archive manifest: {error}"))?;
     file.write_all(&manifest).and_then(|_| file.sync_all()).map_err(|error| format!("Cannot write archive manifest: {error}"))?;
     fs::rename(archive.join("pending.tmp"), archive.join("pending.json"))
@@ -385,6 +626,38 @@ fn restore_entries(root: &Path, archive: &Path, entries: &[ArchiveEntry]) -> Res
     Ok(())
 }
 
+fn recover_conversion(root: &Path, archive: &Path, connection: &Connection, entries: &[ArchiveEntry], conversion: &ConversionState) -> Result<(), String> {
+    if entries.len() != 1 || !matches!(conversion.target_type.as_str(), "FACT" | "EXPERIENCE")
+        || !matches!(entries[0].entity_type.as_str(), "FACT" | "EXPERIENCE")
+        || entries[0].entity_type == conversion.target_type
+        || (conversion.keep_original && entries[0].entity_id == conversion.target_id)
+        || (!conversion.keep_original && entries[0].entity_id != conversion.target_id) {
+        return Err("Invalid conversion recovery manifest.".into());
+    }
+    let source = &entries[0];
+    let (table, key) = entity_table(&source.entity_type)?;
+    let source_exists = row_exists(connection, table, key, source.entity_id)?;
+    let (table, key) = entity_table(&conversion.target_type)?;
+    let target_exists = row_exists(connection, table, key, conversion.target_id)?;
+    let destination = root.join(&conversion.target_type).join(conversion.target_id.to_string());
+    if target_exists && source_exists == conversion.keep_original {
+        plain_directory(&destination)?;
+        if !destination.join("main.md").is_file() { return Err("Converted Markdown missing; manual recovery required.".into()); }
+        return fs::rename(archive.join("pending.json"), archive.join("complete.json")).map_err(|error| error.to_string());
+    }
+    if source_exists && !target_exists {
+        for path in [destination, archive.join("target")] {
+            if path.exists() {
+                plain_directory(&path)?;
+                fs::remove_dir_all(&path).map_err(|error| format!("Cannot roll back converted folder: {error}"))?;
+            }
+        }
+        if conversion.keep_original {
+            fs::rename(archive.join("pending.json"), archive.join("rolled-back.json")).map_err(|error| error.to_string())
+        } else { restore_entries(root, archive, entries) }
+    } else { Err("Inconsistent conversion archive; manual recovery is required.".into()) }
+}
+
 pub(super) fn recover_pending_archives(root: &Path, connection: &Connection) -> Result<(), String> {
     let archive_root = root.join(".hasm").join("deleted");
     if !archive_root.exists() { return Ok(()); }
@@ -401,11 +674,15 @@ pub(super) fn recover_pending_archives(root: &Path, connection: &Connection) -> 
         if manifest.entries.is_empty() { return Err("Empty deletion archive manifest.".into()); }
         connection.execute_batch("BEGIN IMMEDIATE").map_err(|error| format!("Cannot lock deletion recovery: {error}"))?;
         let recovery = (|| {
+            if let Some(conversion) = &manifest.conversion {
+                return recover_conversion(root, &archive, connection, &manifest.entries, conversion);
+            }
             let mut remaining = 0;
             for entry in &manifest.entries {
                 let (table, key) = entity_table(&entry.entity_type)?;
                 if row_exists(connection, table, key, entry.entity_id)? { remaining += 1; }
             }
+
             if remaining == manifest.entries.len() {
                 restore_entries(root, &archive, &manifest.entries)
             } else if remaining == 0 {
@@ -417,7 +694,11 @@ pub(super) fn recover_pending_archives(root: &Path, connection: &Connection) -> 
         let rollback = connection.execute_batch("ROLLBACK").map_err(|error| error.to_string());
         recovery?;
         rollback?;
-        info!("[SEQ-MD-04][DELETE] recovered pending deletion archive");
+        if manifest.conversion.is_some() {
+            info!("[SEQ-MD-04][CONVERT] recovered pending conversion archive");
+        } else {
+            info!("[SEQ-MD-04][DELETE] recovered pending deletion archive");
+        }
     }
     Ok(())
 }

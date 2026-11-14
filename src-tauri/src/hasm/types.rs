@@ -219,7 +219,7 @@ pub struct CreatePersonRequest {
 }
 
 /// [REQ-04-RULE-010] [REQ-08-011] [REQ-08-017] EXPERIENCE creation request with
-/// shared external URL array and parent EXPERIENCE UUID selections.
+/// [REQ-08-023] Shared external URLs, parent EXPERIENCE UUIDs, and optional existing FACT UUIDs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateExperienceRequest {
@@ -229,6 +229,8 @@ pub struct CreateExperienceRequest {
     pub experience_description: String,
     pub security_level: i32,
     pub parent_experience_ids: Vec<Uuid>,
+    #[serde(default)]
+    pub fact_ids: Vec<Uuid>,
 }
 
 /// [REQ-04-RULE-010] [REQ-08-012] FACT creation request with shared external URL

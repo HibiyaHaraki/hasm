@@ -12,6 +12,14 @@ EXPERIENCE, FACT and LINK tickets support confirmed deletion with relationship
 choices and recoverable content archives, followed by SEQ-02 re-verification.
 PERSON deletion is not offered. See [SEQ-04 deletion](./13-SEQ-04_Entity_Editing.md#confirmed-deletion-and-archive).
 
+FACT and EXPERIENCE tickets also offer confirmed conversion between these types.
+Keeping the original creates a new UUID; archiving it preserves the UUID, original
+content/metadata and LINK connections. Dependent or directly owned EXPERIENCEs
+are copy-only. Destination relationships use the existing searchable badge
+picker; success follows SEQ-02 re-verification before opening the converted
+ticket or visualization. See
+[SEQ-04 conversion](./13-SEQ-04_Entity_Editing.md#fact--experience-conversion).
+
 Typed entity hyperlinks across pages, including visualizer badge links, and the
 host-owned ticket graph share a Bootstrap information hover/focus card. It reads
 one entity without navigating or reloading the workspace. The main visualizer
@@ -105,7 +113,7 @@ flowchart TB
     %% ----------------------------------------------------
     subgraph CreationPhase["2. Interactive Entity & Link Creation"]
         VisualizePage --> ClickCreate(["Click Create PERSON / EXP / FACT / LINK"]):::action
-        ClickCreate --> CreateModal["Entity Creation Page: EXPERIENCE dropdowns, no description input"]:::page
+        ClickCreate --> CreateModal["Entity Creation Page: EXPERIENCE dropdowns, optional existing FACT multi-select, no description input"]:::page
         
         CreateModal --> SubmitCreate(["Submit Form"]):::action
         SubmitCreate --> ExecCreate[["Tauri: create_person / experience / fact / link (SEQ-08)"]]:::tauri

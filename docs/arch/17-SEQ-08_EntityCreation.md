@@ -33,6 +33,8 @@ pub struct CreateExperienceRequest {
     pub experience_description: String,
     pub security_level: i32,
     pub parent_experience_ids: Vec<Uuid>, // Parent branches in EXPERIENCE_TREE
+    #[serde(default)]
+    pub fact_ids: Vec<Uuid>, // Existing FACTs to associate with the new EXPERIENCE
 }
 
 // Payload for create_fact command
@@ -252,15 +254,45 @@ UUIDs are sent in the existing `experienceIds` / `parentExperienceIds`
 IPC arrays. An empty model collection displays a disabled
 **No EXPERIENCE available** control. Switching entity types retains selections.
 The backend's array contracts and existing multiple-relationship metadata remain
-unchanged. The searchable picker exposes a labeled listbox with selected-state
+unchanged. Both entity multi-selects reuse `hasm_visualizer/ExperienceMultiSelect`.
+Each presents one field containing individually removable Bootstrap-style
+badges and a dropdown trigger. Clicking the field opens the dropdown and focuses
+its first row, a labeled search input; filtered options follow in a scrollable
+labeled listbox. Search is not a separate field on the page. Closing the dropdown
+keeps badges visible and removable, including selections outside the query.
+The searchable picker exposes a labeled listbox with selected-state
 options. An empty query shows all options; a trimmed, case-insensitive title query
 shows only matching options. Click or Enter/Space toggles each EXPERIENCE without
 modifier keys; selected badges have individual remove buttons and Clear removes all.
 Hover or keyboard focus on a choice opens the shared entity information
 card through the existing single-entity read invoke (see
 [SEQ-04](./13-SEQ-04_Entity_Editing.md#shared-entity-information-hover-card)).
-Arrow keys move through choices; Escape closes the dropdown and preview.
+ArrowDown in search focuses the first choice. Arrow keys move through choices;
+Escape closes the dropdown and preview and returns focus to the field trigger.
 Enter in the search field toggles the first match rather than submitting the form.
+
+EXPERIENCE creation additionally offers an optional **Belonging FACT** control
+using all loaded `model.facts`. The host-owned `CreateExperienceForm` reuses
+the same `ExperienceMultiSelect` as EXPERIENCE selection, supplying
+`entityType="FACT"` for previews and a host-owned search draft.
+The search at the top of the dropdown matches trimmed, case-insensitive name,
+type, or UUID; choice labels include the UUID to distinguish duplicate and
+unnamed FACTs. Editing the query filters results without selecting.
+Selected FACTs outside the query remain visible as removable field badges;
+**Clear Belonging FACT** removes all selections. Choices use the existing
+shared hover/focus preview. Search and selection drafts live in the creation
+page state so type switches preserve them. Empty lists show disabled controls
+and explain that creation without FACTs is permitted.
+
+The new optional `factIds` IPC array defaults to `[]` for legacy callers.
+Within the EXPERIENCE creation transaction, Rust reads and strictly validates
+each selected FACT's stored `experience_ids`, inserts the EXPERIENCE, and
+appends its UUID to those arrays without replacing existing associations.
+Duplicate selected FACT UUIDs do not duplicate memberships. Missing FACTs,
+malformed arrays, SQL errors, and scaffold failures roll back the EXPERIENCE
+and all FACT updates; partially generated EXPERIENCE folders are cleaned up.
+This uses the existing JSON-array persistence, with no schema or entity-shape
+change. The model reload after successful creation exposes the memberships.
 
 FACT start and end fields use native calendar controls without ISO text inputs.
 Picking a date preserves any existing `T` time/offset suffix;
@@ -286,7 +318,7 @@ sequenceDiagram
     participant FS as File System ({UUID}/main.md)
 
     User->>React: Fill Modal Form & Click "Create Entity"
-    Note over User,React: Select zero or more existing EXPERIENCEs; no description input
+    Note over User,React: Select optional parents and existing FACTs for EXPERIENCE; no description input
     React->>React: Set State { isSubmitting: true }
 
     React->>Bridge: invoke creation command (selected UUID array; empty description)
@@ -307,7 +339,13 @@ sequenceDiagram
 
         Note over Rust,FS: 2. Begin SQLite Transaction & Filesystem Scaffolding
         Rust->>DB: BEGIN SQLite Transaction
+        opt EXPERIENCE with selected factIds
+            Rust->>DB: Read and validate existing FACT experience_ids
+        end
         Rust->>DB: INSERT INTO PERSON / EXPERIENCE / FACT & Junction Tables
+        opt EXPERIENCE with selected factIds
+            Rust->>DB: Append new EXPERIENCE UUID to selected FACT experience_ids
+        end
         
         Rust->>FS: Create directory: {workspace}/{ENTITY_TYPE}/{UUID}/
         Rust->>FS: Create assets/ subdirectory

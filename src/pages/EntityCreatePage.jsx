@@ -20,7 +20,7 @@ import { createLogger } from "../hasm_logger/src/react/logger.js";
 const ENTITY_TYPES = ["PERSON", "EXPERIENCE", "FACT", "LINK"];
 const logger = createLogger("entity-creation");
 
-// [REQ-04-RULE-010] [REQ-04-RULE-011] Entity creation page (SEQ-MD-08): collects the shared
+// [REQ-04-RULE-010] [REQ-04-RULE-011] [REQ-08-023] Entity creation page (SEQ-MD-08): collects the shared
 // external `link: string[]` array for every entity type and rejects invalid HTTP(S) URLs
 // before any creation invoke is issued.
 function EntityCreatePage() {
@@ -44,6 +44,8 @@ function EntityCreatePage() {
     name: "",
     securityLevel: "1",
     parentExperienceIds: [],
+    factIds: [],
+    factSearch: "",
   });
   const [factForm, setFactForm] = useState({
     link: [],
@@ -111,6 +113,7 @@ function EntityCreatePage() {
           experienceDescription: "",
           securityLevel: Number(experienceForm.securityLevel),
           parentExperienceIds: experienceForm.parentExperienceIds,
+          factIds: experienceForm.factIds,
         });
       }
 
@@ -175,7 +178,7 @@ function EntityCreatePage() {
 
         <Form onSubmit={submit} noValidate>
           {entityType === "PERSON" ? <CreatePersonForm value={personForm} onChange={setPersonForm} /> : null}
-          {entityType === "EXPERIENCE" ? <CreateExperienceForm value={experienceForm} onChange={setExperienceForm} experiences={model.experiences || []} /> : null}
+          {entityType === "EXPERIENCE" ? <CreateExperienceForm value={experienceForm} onChange={setExperienceForm} experiences={model.experiences || []} facts={model.facts || []} /> : null}
           {entityType === "FACT" ? <CreateFactForm value={factForm} onChange={setFactForm} experiences={model.experiences || []} /> : null}
           {entityType === "LINK" ? (
             <CreateLinkForm

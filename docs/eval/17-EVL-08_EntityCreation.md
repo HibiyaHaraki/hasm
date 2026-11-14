@@ -38,6 +38,19 @@ This document defines the comprehensive test matrix, acceptance criteria, and tr
 
 ## 4. Automated Coverage Inventory (Implemented)
 
+Existing FACT selection during EXPERIENCE creation (`REQ-08-023`) is covered
+through both the real React form/JS API (only native transport mocked) and
+registered native Tauri command dispatch with temporary SQLite workspaces.
+Run `npx vitest run test/experience-picker-ipc.test.jsx` and
+`cargo test --manifest-path src-tauri/Cargo.toml --test model_initialization_ipc experience_fact`
+plus the positive native selector `experience_creation_binds_existing_facts`.
+Browser acceptance additionally checks modifier-free multi-selection,
+keyboard choice activation, shared FACT previews, and theme contrast. Check
+long selected badge titles at 375px and 1200px in light/dark themes: neither
+the document nor badge text may overflow horizontally. Opening each FACT or
+EXPERIENCE field must focus the first-row dropdown search; Escape must restore
+field focus while retaining badges.
+
 External URLs (`REQ-08-016`) are covered by `TC-08-REACT-LINK-001` in
 `test/seq08.test.jsx` (all four creation payloads include the editor's array) and
 `creates_person_experience_fact_and_link_in_real_workspace` (all four arrays
@@ -130,6 +143,14 @@ to the requirements it verifies, with its Positive/Negative classification.
 
 | Test ID | Trace Requirement ID | Test Type | Automated Target | Expected Result |
 | --- | --- | --- | --- | --- |
+| `TC-08-IPC-FACTS-001` | `REQ-08-023` | Positive (FACT Multi-Select Through Real JS Invoke) | `test/experience-picker-ipc.test.jsx` — searches and multi-selects existing FACTs through the actual creation invoke | Duplicate names remain distinct; trimmed case-insensitive search opens choices; multiple selections remain visible outside results and survive type switches; exact UUID array (no search text) reaches `create_experience`, then model reload navigates to visualizer. |
+| `TC-08-IPC-DESIGN-001` | `REQ-08-017` `REQ-08-023` `REQ-04-RULE-017` | Positive (Shared Badge Field and Dropdown Search) | `test/experience-picker-ipc.test.jsx` — FACT Belonging EXPERIENCE, EXPERIENCE Parent EXPERIENCE, and EXPERIENCE Belonging FACT | No separate search field when closed; opening focuses first-row search; selecting two entities creates removable badges in the same field; Escape returns focus without discarding selections; removing a badge while closed does not reopen; exact remaining UUID reaches creation invoke. Existing `TC-04-IPC-PICKER-001` exercises the same dropdown search in detail editing and real save invokes. |
+| `TC-08-IPC-DESIGN-002` | `REQ-08-017` `REQ-08-023` | Negative (No Matches and Outside Dismissal) | `test/experience-picker-ipc.test.jsx` — all three selectors | Search with zero matches shows an explicit notice, retains selected badges, and Enter never submits or discards selections. Clicking outside dismisses search and choices without removing badges. |
+| `TC-08-IPC-FACTS-002` | `REQ-08-023` | Negative (Clear and Backend Failure) | `test/experience-picker-ipc.test.jsx` — clears FACT selections and surfaces creation errors without reloading | UUID search finds unnamed FACTs; toggling and Clear remove memberships; empty array reaches invoke; native failure is displayed without reload. |
+| `TC-08-IPC-FACTS-003` | `REQ-08-023` | Positive (Optional Empty FACT List) | `test/experience-picker-ipc.test.jsx` — creates an EXPERIENCE without FACTs in an empty FACT list | Disabled explicit empty state still permits named EXPERIENCE creation with `factIds: []` and successful navigation. |
+| `TC-08-IPC-FACTS-004` | `REQ-08-023` | Positive (Registered Native Binding Round-Trip) | `src-tauri/tests/model_initialization_ipc.rs` — `experience_creation_binds_existing_facts_through_registered_invokes` | Two selected FACTs persist the new EXPERIENCE membership; existing memberships/person associations survive, duplicate selected IDs do not duplicate bindings; omitted and empty fields leave FACTs unchanged; Markdown and storage verification succeed. |
+| `TC-08-IPC-FACTS-005` | `REQ-08-023` | Negative (Registered Native Atomic Rollback) | `src-tauri/tests/model_initialization_ipc.rs` — `experience_fact_binding_failures_roll_back_through_registered_invokes` | Missing FACT, malformed membership JSON, injected failure on the second FACT update, and deferred commit failure each return explicit errors, roll back FACT updates, preserve original stored arrays, and leave no new EXPERIENCE row or folder (including a completed scaffold on commit failure). |
+| `TC-08-PREVIEW-004` | `REQ-08-023` | Positive & Negative (FACT Choice Preview Lifecycle) | `test/entity-info-preview.test.jsx` — previews existing FACT choices without selecting and dismisses on search changes | Focus requests the exact FACT through the shared detail invoke without selecting; replacing search results dismisses the card and removes the old choice. |
 | **`TC-08-E2E-001`** | `REQ-08-001` `REQ-08-002` | Positive (Workspace Creation Flow) | `test/seq01.test.jsx` — `TC-08-E2E-001 creates a workspace and routes to loading-model` | Native save dialog result feeds `create_hasm_workspace` and the app routes to `/loading-model`. |
 | **`TC-08-REACT-008`** | `REQ-08-001` | Negative (Cancelled Dialog / Scaffolding Failure) | `test/seq08.test.jsx` — `TC-08-REACT-008 cancels or fails the native save dialog without scaffolding a workspace` | Cancelling the OS save dialog performs no scaffolding and no navigation; a scaffolding failure shows `ERR_WORKSPACE_CREATION_FAILED` and stays on `/select`. |
 | **`TC-08-RUST-100`** | `REQ-08-002` `REQ-08-100` | Negative (Rollback within Scaffolding SLA) | `cargo test rolls_back_workspace_on_creation_failure` (`src-tauri/src/hasm/entity_creation_commands.rs`) | Occupied target path fails with `ERR_WORKSPACE_CREATION_FAILED` within the 3,000 ms SLA and leaves no workspace artifacts. |

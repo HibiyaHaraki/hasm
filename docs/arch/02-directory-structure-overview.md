@@ -27,6 +27,17 @@ relationship choices; `src-tauri/src/hasm/entity_deletion_commands.rs` owns
 validated transactional deletion, archives and interrupted-operation recovery.
 The host uses `delete_entity` through `features/hasm/api.js`.
 
+`src/features/entityTicket/EntityConvertDialog.jsx` and its co-located CSS own
+FACT/EXPERIENCE target review and keep/archive confirmation. It reuses
+`ExperienceSelect.jsx` and `DateInput.jsx`; `EntityDetailPage.jsx` owns operation
+lifetime and routes success to `LoadingModelPage.jsx` for verification before
+opening the converted ticket. The `convertEntity` API wrapper invokes the
+production-registered `convert_entity` in `entity_deletion_commands.rs`, sharing
+its transactional archive engine and startup recovery rather than duplicating it.
+Registered native coverage lives in `src-tauri/tests/model_initialization_ipc.rs`;
+ticket-to-IPC and verified-navigation coverage lives in
+`test/navigation-robustness.test.jsx`.
+
 `src/features/entityTicket/EntityInfoPreview.jsx` and its co-located CSS own the
 shared entity hover/focus information card. Mounted once in `App.jsx`, it covers
 typed entity hyperlinks across routes, related-LINK buttons, and host ticket
@@ -41,6 +52,14 @@ endpoint picker. Host EXPERIENCE choices supply typed IDs for the shared preview
 layer; picker lifecycle dismisses previews without changing IPC contracts.
 `App.css` overrides Bootstrap's badge foreground for this picker to match the
 active theme without changing the visualizer submodule.
+
+`CreateExperienceForm.jsx` reuses `ExperienceMultiSelect.jsx` for optional
+existing FACT multi-selection, with FACT-typed preview metadata. FACT and
+EXPERIENCE share one badge field and a dropdown whose first row is search,
+followed by filtered choices. `EntityPicker.jsx` remains specific to LINK
+endpoints. `entity_creation_commands.rs` appends
+the new EXPERIENCE UUID to selected FACT membership arrays in the same creation
+transaction; the picker redesign does not change IPC or database schemas.
 
 `src/components/DateInput.jsx` provides accessible native calendar-only controls
 while preserving existing serialized time/offset suffixes.

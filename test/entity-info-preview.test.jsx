@@ -110,6 +110,26 @@ describe("Shared entity information card", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
+  it("TC-08-PREVIEW-004 previews existing FACT choices without selecting and dismisses on search changes", async () => {
+    render(<MemoryRouter initialEntries={[{ pathname: "/entity-create", state: { path: "C:\\fixture.hasm", model } }]}>
+      <EntityInfoPreview /><EntityCreatePage />
+    </MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "EXPERIENCE" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Belonging FACT" }));
+    const search = screen.getByLabelText("Search belonging FACTs");
+    fireEvent.change(search, { target: { value: "Birth" } });
+    const choice = screen.getByRole("option", { name: `FACT Birth (${factId})` });
+    await open(choice, true);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(`FACT/${factId}`);
+    expect(choice).toHaveAttribute("aria-selected", "false");
+    expect(invoke).toHaveBeenCalledExactlyOnceWith("load_entity_detail", {
+      modelRoot: "C:\\fixture.hasm", entityType: "FACT", entityId: factId,
+    });
+    fireEvent.change(search, { target: { value: "no match" } });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: `FACT Birth (${factId})` })).not.toBeInTheDocument();
+  });
+
   it("TC-04-PREVIEW-POS-002 keeps the preview stable when the pointer moves", async () => {
     vi.stubGlobal("innerWidth", 1200);
     vi.stubGlobal("innerHeight", 800);
