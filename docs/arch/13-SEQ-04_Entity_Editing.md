@@ -289,7 +289,11 @@ content keep the sidebar and toolbar usable on narrow windows. Changes log
 `[SEQ-MD-04][DISPLAY]` without document or asset contents.
 
 EXPERIENCE parent and FACT experience relationships use the shared searchable
-multi-picker; selected titles appear as removable badges. Unresolved existing
+multi-picker; selected titles appear as removable badges inside one field.
+Clicking the field opens a dropdown with focused search in its first row,
+followed by the filtered choices. Search is not mounted outside the dropdown.
+Escape closes it and restores field-trigger focus without canceling the editor.
+Unresolved existing
 relationships remain removable as `Unavailable EXPERIENCE` without revealing
 their UUID or silently discarding them. Other relationship UUID arrays are
 edited as comma-separated UUIDs; all arrays are sent on Save, with `[]` for

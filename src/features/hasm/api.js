@@ -136,7 +136,7 @@ export function createPerson(path, payload) {
 }
 
 // [SEQ-MD-08][REQ-04-RULE-010] Creates an EXPERIENCE with parent tree bindings and the shared external
-// URL array; see REQ-08-011.
+// URL array; optional existing FACT memberships [REQ-08-023]; see REQ-08-011.
 export function createExperience(path, payload) {
   return invoke("create_experience", { path, payload });
 }

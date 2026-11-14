@@ -40,6 +40,10 @@ impl NewModelFixture {
     }
 
     fn invoke(&self, command: &str, body: Value) -> Value {
+        self.try_invoke(command, body).unwrap_or_else(|error| panic!("{command} failed: {error}"))
+    }
+
+    fn try_invoke(&self, command: &str, body: Value) -> Result<Value, String> {
         tauri::test::get_ipc_response(&self.window, tauri::webview::InvokeRequest {
             cmd: command.into(),
             callback: tauri::ipc::CallbackFn(0),
@@ -48,14 +52,104 @@ impl NewModelFixture {
             body: tauri::ipc::InvokeBody::Json(body),
             headers: Default::default(),
             invoke_key: tauri::test::INVOKE_KEY.into(),
-        }).unwrap_or_else(|error| panic!("{command} failed: {error}"))
-            .deserialize::<Value>().unwrap()
+        }).map_err(|error| error.to_string())?
+            .deserialize::<Value>().map_err(|error| error.to_string())
     }
 
     fn load(&self) -> Value {
         self.invoke("load_hasm_model_db", json!({ "path": self.root }))
     }
 }
+
+// TC-08-IPC-FACTS-004: registered creation dispatch preserves existing FACT memberships.
+#[test]
+fn experience_creation_binds_existing_facts_through_registered_invokes() {
+        let fixture = NewModelFixture::create();
+        let initial = fixture.load();
+        let first_fact = &initial["facts"][0]["factId"];
+        let second_fact = fixture.invoke("create_fact", json!({
+            "path": fixture.root, "payload": {
+                "factName": "Second fact", "factDescription": "", "securityLevel": 1,
+                "startTime": null, "endTime": null, "experienceIds": []
+            }
+        }));
+        let created = fixture.invoke("create_experience", json!({
+            "path": fixture.root, "payload": {
+                "experienceName": "Shared context", "experienceDescription": "", "securityLevel": 1,
+                "parentExperienceIds": [initial["experiences"][0]["experienceId"]],
+                "factIds": [first_fact, second_fact["entityId"], first_fact]
+            }
+        }));
+        let loaded = fixture.load();
+        let facts = loaded["facts"].as_array().unwrap();
+        let first = facts.iter().find(|fact| fact["factId"] == *first_fact).unwrap();
+        assert_eq!(first["experienceIds"], json!([initial["experiences"][0]["experienceId"], created["entityId"]]));
+        assert_eq!(first["personIds"], initial["facts"][0]["personIds"]);
+        let second = facts.iter().find(|fact| fact["factId"] == second_fact["entityId"]).unwrap();
+        assert_eq!(second["experienceIds"], json!([created["entityId"]]));
+        assert!(Path::new(created["targetDirPath"].as_str().unwrap()).join("main.md").is_file());
+        fixture.invoke("verify_hasm_storage", json!({ "path": fixture.root, "model": loaded }));
+        for optional in [None, Some(json!([]))] {
+            let before = fixture.load();
+            let mut payload = json!({
+                "experienceName": "Independent", "experienceDescription": "", "securityLevel": 1,
+                "parentExperienceIds": []
+            });
+            if let Some(ids) = optional { payload["factIds"] = ids; }
+            fixture.invoke("create_experience", json!({ "path": fixture.root, "payload": payload }));
+            assert_eq!(fixture.load()["facts"], before["facts"], "Empty and legacy requests leave FACTs unchanged");
+        }
+}
+
+    // TC-08-IPC-FACTS-005: missing/corrupt FACTs, partial updates, and commit failure roll back.
+#[test]
+fn experience_fact_binding_failures_roll_back_through_registered_invokes() {
+        for failure in ["missing", "corrupt", "sql", "commit"] {
+            let fixture = NewModelFixture::create();
+            let initial = fixture.load();
+            let fact_id = initial["facts"][0]["factId"].as_str().unwrap();
+            let connection = rusqlite::Connection::open(fixture.root.join("main.db")).unwrap();
+            let selected = match failure {
+                "missing" => json!([fact_id, uuid::Uuid::new_v4()]),
+                "corrupt" => {
+connection.execute("UPDATE fact SET experience_ids = 'invalid-json' WHERE fact_id = ?1", [fact_id]).unwrap();
+json!([fact_id])
+                },
+                "sql" => {
+let second = fixture.invoke("create_fact", json!({
+    "path": fixture.root, "payload": {
+        "factName": "Reject update", "factDescription": "", "securityLevel": 1,
+        "startTime": null, "endTime": null, "experienceIds": []
+    }
+}));
+connection.execute_batch("CREATE TRIGGER reject_fact_binding BEFORE UPDATE OF experience_ids ON fact WHEN OLD.fact_name = 'Reject update' BEGIN SELECT RAISE(ABORT, 'Injected binding failure'); END;").unwrap();
+json!([fact_id, second["entityId"]])
+            }
+                "commit" => {
+connection.execute_batch(
+    "CREATE TABLE invalid_binding (fact_id TEXT REFERENCES fact(fact_id) DEFERRABLE INITIALLY DEFERRED);
+     CREATE TRIGGER reject_commit AFTER INSERT ON experience BEGIN
+     INSERT INTO invalid_binding VALUES ('00000000-0000-0000-0000-000000000000'); END;"
+).unwrap();
+json!([fact_id])
+                }
+                _ => unreachable!(),
+            };
+            let before: String = connection.query_row("SELECT experience_ids FROM fact WHERE fact_id = ?1", [fact_id], |row| row.get(0)).unwrap();
+            let error = fixture.try_invoke("create_experience", json!({
+                "path": fixture.root, "payload": {
+"experienceName": "Must roll back", "experienceDescription": "", "securityLevel": 1,
+"parentExperienceIds": [], "factIds": selected
+                }
+            })).unwrap_err();
+            assert!(error.contains("ERR_ENTITY_CREATE_FAILED"), "{failure}: {error}");
+            let after: String = connection.query_row("SELECT experience_ids FROM fact WHERE fact_id = ?1", [fact_id], |row| row.get(0)).unwrap();
+            assert_eq!(after, before, "{failure}: FACT membership must roll back");
+            let count: i64 = connection.query_row("SELECT COUNT(*) FROM experience", [], |row| row.get(0)).unwrap();
+            assert_eq!(count, 1, "{failure}: no new EXPERIENCE row");
+            assert_eq!(std::fs::read_dir(fixture.root.join("EXPERIENCE")).unwrap().count(), 1);
+        }
+    }
 
 impl Drop for NewModelFixture {
     fn drop(&mut self) {

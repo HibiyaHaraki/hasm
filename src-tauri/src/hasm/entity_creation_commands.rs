@@ -115,7 +115,7 @@ pub fn create_person(path: String, payload: CreatePersonRequest) -> Result<Entit
 }
 
 /// [REQ-08-011][REQ-08-016][REQ-08-020][REQ-08-101] Creates an EXPERIENCE
-/// entity with optional parent bindings; domain validation (non-empty name,
+/// [REQ-08-023] Entity with optional parent and existing FACT bindings; domain validation (non-empty name,
 /// valid external URLs) must pass before the SQLite insert and file scaffold.
 #[tauri::command]
 pub fn create_experience(path: String, payload: CreateExperienceRequest) -> Result<EntityCreationPayload, String> {
@@ -141,20 +141,44 @@ pub fn create_experience(path: String, payload: CreateExperienceRequest) -> Resu
     let mut created_dirs = Vec::new();
 
     if let Err(error) = (|| -> Result<(), String> {
+        let mut memberships = Vec::new();
+        for fact_id in &payload.fact_ids {
+            let stored = transaction.query_row(
+                "SELECT experience_ids FROM fact WHERE fact_id = ?1",
+                [fact_id.to_string()], |row| row.get::<_, String>(0),
+            ).optional().map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?
+                .ok_or_else(|| format!("ERR_ENTITY_CREATE_FAILED: FACT {fact_id} no longer exists"))?;
+            let mut ids: Vec<Uuid> = serde_json::from_str(&stored)
+                .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: Invalid FACT experience_ids: {error}"))?;
+            if !ids.contains(&experience_id) {
+                ids.push(experience_id);
+            }
+            memberships.push((*fact_id, ids));
+        }
         insert_experience(&transaction, &experience)?;
-        scaffold_entity_files(&root, "EXPERIENCE", &experience_id, &experience.markdown)?;
+        for (fact_id, ids) in memberships {
+            transaction.execute(
+                "UPDATE fact SET experience_ids = ?1 WHERE fact_id = ?2",
+                params![serde_json::to_string(&ids).map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?,
+                    fact_id.to_string()],
+            ).map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
+        }
         created_dirs.push(root.join("EXPERIENCE").join(experience_id.to_string()));
+        scaffold_entity_files(&root, "EXPERIENCE", &experience_id, &experience.markdown)?;
         ensure_within(started, ENTITY_TIMEOUT, "ERR_ENTITY_CREATE_TIMEOUT")?;
         Ok(())
     })() {
         rollback_and_cleanup(transaction, &created_dirs);
+        warn!("[SEQ-MD-08][EXPERIENCE] creation or FACT binding failed: {error}");
         return Err(error);
     }
 
-    transaction
-        .commit()
-        .map_err(|error| format!("ERR_ENTITY_CREATE_FAILED: {error}"))?;
-
+    if let Err(error) = transaction.commit() {
+        cleanup_entity_directories(&created_dirs);
+        warn!("[SEQ-MD-08][EXPERIENCE] creation transaction commit failed: {error}");
+        return Err(format!("ERR_ENTITY_CREATE_FAILED: {error}"));
+    }
+    info!("[SEQ-MD-08][EXPERIENCE] created with requested parent and FACT bindings");
     Ok(EntityCreationPayload {
         entity_type: "EXPERIENCE".to_string(),
         entity_id: experience_id,
@@ -767,6 +791,7 @@ mod tests {
                 experience_description: "Experience description".to_string(),
                 security_level: 2,
                 parent_experience_ids: vec![root_experience_id],
+                fact_ids: Vec::new(),
             },
         )
         .unwrap();

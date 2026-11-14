@@ -264,12 +264,13 @@ describe("SEQ-03 visualizer lifecycle", () => {
     const select = screen.getByLabelText("EXPERIENCE scope");
     fireEvent.focus(select);
     expect(within(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).getAllByRole("option")).toHaveLength(2);
-    fireEvent.change(select, { target: { value: "teac" } });
+    const search = screen.getByRole("searchbox", { name: "Search EXPERIENCE scope" });
+    fireEvent.change(search, { target: { value: "teac" } });
     expect(screen.getByRole("listbox", { name: "EXPERIENCE scope" })).toHaveTextContent("Teaching");
     expect(screen.queryByRole("option", { name: "Research" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: "Teaching" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts.map((fact) => fact.factId)).toEqual(["fact-2"]));
-    fireEvent.change(select, { target: { value: "" } });
+    fireEvent.change(search, { target: { value: "" } });
     fireEvent.click(screen.getByRole("option", { name: "Research" }));
     await vi.waitFor(() => expect(api.computeVisualizerLayout.mock.calls.at(-1)[0].facts).toHaveLength(2));
     fireEvent.click(screen.getByRole("button", { name: "Remove Teaching" }));

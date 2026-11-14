@@ -171,7 +171,7 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     expect(within(select).getAllByRole("option", { name: "Shared name" })).toHaveLength(2);
     expect(within(select).getByRole("option", { name: "Untitled EXPERIENCE" })).toBeInTheDocument();
     expect(select).not.toHaveTextContent(experiences[0].experienceId);
-    const search = screen.getByRole("combobox", { name: label });
+    const search = screen.getByRole("searchbox", { name: `Search ${label}` });
     fireEvent.change(search, { target: { value: "  SHARED  " } });
     expect(within(select).getAllByRole("option")).toHaveLength(2);
     fireEvent.keyDown(search, { key: "Enter" });
@@ -222,7 +222,7 @@ describe("SEQ-08 entity creation navigation and forms", () => {
     render(<MemoryRouter initialEntries={[{ state: { model: { ...model, experiences: [] }, path: "C:/fixture.hasm" } }]}><EntityCreatePage /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: type }));
     expect(screen.getByLabelText(label)).toBeDisabled();
-    expect(screen.getByLabelText(label)).toHaveAttribute("placeholder", "No EXPERIENCE available");
+    expect(screen.getByLabelText(label)).toHaveTextContent("No EXPERIENCE available");
   });
   it("TC-08-REACT-001 shows Create New Entity button on Visualizer and moves to creation page", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});

@@ -100,7 +100,7 @@ not a diagnosis of a particular user's workspace corruption.
 | Test ID | Requirement | Test Type | Expected result |
 | --- | --- | --- | --- |
 | `TC-03-REACT-SCOPE-004` | `REQ-03-FUNC-501` | Negative (Single-PERSON Boundary) | A single-PERSON model hides PERSON selection but keeps EXPERIENCE selection. |
-| `TC-03-REACT-SCOPE-005` | `REQ-03-FUNC-501`, `REQ-03-FUNC-503` | Positive (Search and Compose) | Title search filters eligible EXPERIENCEs; selection and badge removal compose with PERSON scope and update FACTs. |
+| `TC-03-REACT-SCOPE-005` | `REQ-03-FUNC-501`, `REQ-03-FUNC-503` | Positive (Search and Compose) | Opening the single badge field exposes dropdown-first search; title search filters eligible EXPERIENCEs; selection and badge removal compose with PERSON scope and update FACTs. |
 | `TC-03-REACT-SCOPE-006` | `REQ-03-FUNC-502` | Negative (Out-of-set Drop) | Selecting a PERSON drops a previously selected EXPERIENCE outside the new PERSON set from the scope and its badge (`test/seq03.test.jsx`). |
 | `TC-03-SCOPE-006` | `REQ-03-FUNC-503` | Negative (Sibling Exclusion) | Selecting a child retains ancestors and its descendants but excludes siblings. |
 | `TC-03-SCOPE-007` | `REQ-03-FUNC-503` | Negative (FACT Exclusion) | Explicit EXPERIENCE scope excludes unrelated FACTs even if their PERSON is selected; PERSON-only scope still retains PERSON-owned FACTs. |

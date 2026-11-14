@@ -42,6 +42,14 @@ layer; picker lifecycle dismisses previews without changing IPC contracts.
 `App.css` overrides Bootstrap's badge foreground for this picker to match the
 active theme without changing the visualizer submodule.
 
+`CreateExperienceForm.jsx` reuses `ExperienceMultiSelect.jsx` for optional
+existing FACT multi-selection, with FACT-typed preview metadata. FACT and
+EXPERIENCE share one badge field and a dropdown whose first row is search,
+followed by filtered choices. `EntityPicker.jsx` remains specific to LINK
+endpoints. `entity_creation_commands.rs` appends
+the new EXPERIENCE UUID to selected FACT membership arrays in the same creation
+transaction; the picker redesign does not change IPC or database schemas.
+
 `src/components/DateInput.jsx` provides accessible native calendar-only controls
 while preserving existing serialized time/offset suffixes.
 

@@ -57,7 +57,10 @@ on remount, without global browser storage or changes to serialized entities.
 Settings snapshots do not change renderer callback identity when a filter changes;
 failed layout changes must keep the previous scene intact.
 
-The EXPERIENCE scope uses the standalone `ExperienceMultiSelect`: an empty
+The EXPERIENCE scope uses the standalone `ExperienceMultiSelect`: one field
+with removable badges opens a dropdown, focusing its top-row search input
+above the filtered options. The same design is reused by creation and ticket
+relationship selectors. An empty
 search displays every EXPERIENCE allowed by the PERSON scope; a trimmed,
 case-insensitive title query filters the list. Selected titles remain visible
 as removable badges while searches change. Scope IDs and layout IPC remain
