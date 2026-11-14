@@ -81,9 +81,20 @@ prerequisites must already be installed. No new reporting dependency is needed.
 Frontend files and native tests run with one worker/thread to keep resource use
 bounded and native test names unambiguous when application logs interrupt output.
 
-Open `test-results/index.html` after completion. The self-contained HTML includes
-a searchable requirement -> code -> documented test -> executed result table,
-all executed test names, failure diagnostics, and links to complete runner logs.
+Open `test-results/index.html` after completion. The self-contained dashboard
+groups each requirement with its tagged code and documented tests in three
+columns, including matched execution results and failure details. These are
+shared-requirement associations, not direct code-to-test dependency claims.
+Connecting lines are green for passed and red for failed tests; dashed ochre
+indicates skipped or unmapped cases. Individual test branches use their case
+status, while shared lines summarize the visible cases using the same failure,
+unmapped, then skipped precedence as requirement statuses. Lines are redrawn
+after filtering or resizing, including on narrow screens.
+Search matches a whole requirement group or an individual executed test; result
+buttons filter documented cases and executed tests. Requirement badges retain
+their overall status even when a filter hides some cases. Requirements without
+documented tests appear under Unmapped. The dashboard also lists all executed
+test names, diagnostics, and links to complete runner logs.
 Source links open local files; line numbers are displayed beside them.
 Machine-readable Vitest and traceability JSON are saved beside the report.
 The entire `test-results/` directory is Git-ignored and overwritten on each run.
