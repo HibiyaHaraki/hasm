@@ -1,4 +1,4 @@
-use hasm_lib::hasm::{entity_creation_commands, entity_editor_commands, model_commands, visualizer_commands};
+use hasm_lib::hasm::{entity_creation_commands, entity_deletion_commands, entity_editor_commands, model_commands, visualizer_commands};
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -18,6 +18,7 @@ impl NewModelFixture {
                 entity_creation_commands::create_experience,
                 entity_creation_commands::create_fact,
                 entity_creation_commands::create_link,
+                entity_deletion_commands::convert_entity,
                 model_commands::load_hasm_model_db,
                 model_commands::verify_hasm_storage,
                 entity_editor_commands::load_entity_detail,
@@ -155,6 +156,179 @@ impl Drop for NewModelFixture {
     fn drop(&mut self) {
         if let Err(error) = std::fs::remove_dir_all(&self.root) {
             assert!(std::thread::panicking(), "Failed to clean test workspace: {error}");
+        }
+    }
+}
+
+fn conversion_request(fixture: &NewModelFixture, entity_type: &str, id: &Value, keep: bool) -> Value {
+    let ticket = fixture.invoke("load_entity_detail", json!({
+        "modelRoot": fixture.root, "entityType": entity_type, "entityId": id,
+    }));
+    let detail = &ticket["detail"];
+    json!({
+        "entityType": entity_type, "entityId": id, "keepOriginal": keep,
+        "experienceIds": if entity_type == "FACT" { &detail["experienceIds"] } else { &detail["parentExperienceIds"] },
+        "personId": if entity_type == "FACT" { detail["personIds"][0].clone() } else { Value::Null },
+        "occurredAt": if entity_type == "EXPERIENCE" { json!("2026-11-14") } else { Value::Null },
+        "loadedMtimeMs": ticket["loadedMtimeMs"],
+    })
+}
+
+// TC-04-IPC-CONVERT-001: both directions and retention choices through real native dispatch.
+#[test]
+fn conversion_preserves_content_metadata_and_links_through_registered_invokes() {
+    for source_type in ["FACT", "EXPERIENCE"] {
+        for keep in [true, false] {
+            let fixture = NewModelFixture::create();
+            let initial = fixture.load();
+            let parent_id = &initial["experiences"][0]["experienceId"];
+            let source_id = if source_type == "FACT" { initial["facts"][0]["factId"].clone() } else {
+                fixture.invoke("create_experience", json!({
+                    "path": fixture.root, "payload": {
+                        "experienceName": "Research", "experienceDescription": "", "securityLevel": 1,
+                        "parentExperienceIds": [parent_id], "factIds": []
+                    }
+                }))["entityId"].clone()
+            };
+            let link = fixture.invoke("create_link", json!({
+                "path": fixture.root, "payload": {
+                    "linkType": "references", "linkDescription": "", "securityLevel": 1,
+                    "originEntityType": source_type, "originEntityId": source_id,
+                    "targetEntityType": "EXPERIENCE", "targetEntityId": parent_id
+                }
+            }));
+            let connection = rusqlite::Connection::open(fixture.root.join("main.db")).unwrap();
+            let table = source_type.to_lowercase();
+            connection.execute(&format!("UPDATE {table} SET link = ?1, link_ids = ?2 WHERE {table}_id = ?3"),
+                rusqlite::params![json!(["https://example.org/source"]).to_string(), json!([link["entityId"]]).to_string(), source_id.as_str().unwrap()]).unwrap();
+            let source_dir = fixture.root.join(source_type).join(source_id.as_str().unwrap());
+            let body = "\n# Preserved notes\r\n\nContent with an asset reference.\n";
+            let original = format!("---\nentity_type: {source_type}\nentity_id: {}\ncustom: retained\n---\n{body}", source_id.as_str().unwrap());
+            std::fs::write(source_dir.join("main.md"), &original).unwrap();
+            std::fs::write(source_dir.join("assets").join("sample.bin"), [0, 1, 255]).unwrap();
+            let request = conversion_request(&fixture, source_type, &source_id, keep);
+            let result = fixture.invoke("convert_entity", json!({ "path": fixture.root, "request": request }));
+            let target_type = if source_type == "FACT" { "EXPERIENCE" } else { "FACT" };
+            assert_eq!(result["entityType"], target_type);
+            assert_eq!(result["entityId"] == source_id, !keep);
+            let target_dir = fixture.root.join(target_type).join(result["entityId"].as_str().unwrap());
+            let target_markdown = std::fs::read_to_string(target_dir.join("main.md")).unwrap();
+            assert!(target_markdown.contains(&format!("entity_type: {target_type}\n")));
+            assert!(target_markdown.contains(&format!("entity_id: {}\n", result["entityId"].as_str().unwrap())));
+            assert!(target_markdown.contains("custom: retained\n"));
+            assert!(target_markdown.ends_with(body), "Markdown body must not change");
+            assert_eq!(std::fs::read(target_dir.join("assets").join("sample.bin")).unwrap(), [0, 1, 255]);
+            if keep {
+                assert!(result["archivePath"].is_null());
+                assert_eq!(std::fs::read_to_string(source_dir.join("main.md")).unwrap(), original);
+            } else {
+                assert!(!source_dir.exists());
+                let archive = PathBuf::from(result["archivePath"].as_str().unwrap());
+                assert_eq!(std::fs::read_to_string(archive.join(format!("{source_type}-{}", source_id.as_str().unwrap())).join("main.md")).unwrap(), original);
+                let manifest: Value = serde_json::from_slice(&std::fs::read(archive.join("complete.json")).unwrap()).unwrap();
+                assert_eq!(manifest["entries"][0]["metadata"]["link"], json!(["https://example.org/source"]).to_string());
+                if source_type == "FACT" { assert_eq!(manifest["entries"][0]["metadata"]["occurred_at"], "2000-02-29"); }
+            }
+            let detail = fixture.invoke("load_entity_detail", json!({
+                "modelRoot": fixture.root, "entityType": target_type, "entityId": result["entityId"]
+            }));
+            assert_eq!(detail["detail"]["link"], json!(["https://example.org/source"]));
+            assert_eq!(detail["detail"]["linkIds"], json!([link["entityId"]]));
+            if target_type == "EXPERIENCE" {
+                assert_eq!(detail["detail"]["parentExperienceIds"], json!([parent_id]));
+                assert_eq!(detail["detail"]["personId"], initial["people"][0]["personId"]);
+            } else {
+                assert_eq!(detail["detail"]["experienceIds"], json!([parent_id]));
+                assert_eq!(detail["detail"]["occurredAt"], "2026-11-14");
+            }
+            let model = fixture.load();
+            let endpoints = model["links"][0]["relatedIds"].as_array().unwrap();
+            assert!(endpoints.contains(&source_id));
+            assert!(endpoints.contains(&result["entityId"]));
+            assert_eq!(endpoints.len(), if keep { 3 } else { 2 });
+            fixture.invoke("verify_hasm_storage", json!({ "path": fixture.root, "model": model }));
+        }
+    }
+}
+
+// TC-04-IPC-CONVERT-002: dependencies, freshness, locks, and staging faults cannot discard data.
+#[test]
+fn conversion_rejects_unsafe_requests_and_rolls_back_through_registered_invokes() {
+    let fixture = NewModelFixture::create();
+    let initial = fixture.load();
+    let experience_id = &initial["experiences"][0]["experienceId"];
+    let fact_id = &initial["facts"][0]["factId"];
+    let blocked = conversion_request(&fixture, "EXPERIENCE", experience_id, false);
+    let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": blocked })).unwrap_err();
+    assert!(error.contains("Keep the original"), "{error}");
+    let copy = conversion_request(&fixture, "EXPERIENCE", experience_id, true);
+    let mut invalid_date = copy.clone();
+    invalid_date["occurredAt"] = json!("2026-02-30");
+    let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": invalid_date })).unwrap_err();
+    assert!(error.contains("Invalid FACT occurrence"), "{error}");
+    fixture.invoke("convert_entity", json!({ "path": fixture.root, "request": copy }));
+    assert!(fixture.root.join("EXPERIENCE").join(experience_id.as_str().unwrap()).is_dir());
+    let mut stale = conversion_request(&fixture, "FACT", fact_id, false);
+    stale["loadedMtimeMs"] = json!(0);
+    let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": stale })).unwrap_err();
+    assert!(error.contains("refresh"), "{error}");
+    let valid = conversion_request(&fixture, "FACT", fact_id, false);
+    std::fs::write(fixture.root.join(".hasm").join("lock"), "another-process").unwrap();
+    let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": valid })).unwrap_err();
+    assert!(error.contains("read-only"), "{error}");
+    std::fs::write(fixture.root.join(".hasm").join("lock"), std::process::id().to_string()).unwrap();
+    let connection = rusqlite::Connection::open(fixture.root.join("main.db")).unwrap();
+    let mut missing = valid.clone();
+    missing["experienceIds"] = json!([uuid::Uuid::new_v4()]);
+    let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": missing })).unwrap_err();
+    assert!(error.contains("existing EXPERIENCE"), "{error}");
+    connection.execute("UPDATE fact SET experience_ids = 'not-json' WHERE fact_id = ?1", [fact_id.as_str().unwrap()]).unwrap();
+    let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": valid })).unwrap_err();
+    assert!(error.contains("Invalid source experience_ids"), "{error}");
+    connection.execute("UPDATE fact SET experience_ids = ?1 WHERE fact_id = ?2",
+        rusqlite::params![initial["facts"][0]["experienceIds"].to_string(), fact_id.as_str().unwrap()]).unwrap();
+    connection.execute_batch("CREATE TRIGGER fail_conversion BEFORE INSERT ON experience BEGIN SELECT RAISE(ABORT, 'Injected conversion failure'); END;").unwrap();
+    for keep in [true, false] {
+        let before = fixture.load();
+        let request = conversion_request(&fixture, "FACT", fact_id, keep);
+        let error = fixture.try_invoke("convert_entity", json!({ "path": fixture.root, "request": request })).unwrap_err();
+        assert!(error.contains("Injected conversion failure"), "{error}");
+        assert_eq!(fixture.load(), before);
+        assert!(fixture.root.join("FACT").join(fact_id.as_str().unwrap()).join("main.md").is_file());
+        assert_eq!(std::fs::read_dir(fixture.root.join("EXPERIENCE")).unwrap().count(), 1);
+    }
+}
+
+// TC-04-IPC-CONVERT-003: load-time recovery distinguishes uncommitted and committed conversions.
+#[test]
+fn conversion_pending_archives_recover_before_folder_synchronization() {
+    for keep in [true, false] {
+        for committed in [true, false] {
+            let fixture = NewModelFixture::create();
+            let initial = fixture.load();
+            let source_id = &initial["facts"][0]["factId"];
+            let request = conversion_request(&fixture, "FACT", source_id, keep);
+            let result = fixture.invoke("convert_entity", json!({ "path": fixture.root, "request": request }));
+            let archive = std::fs::read_dir(fixture.root.join(".hasm").join("deleted")).unwrap().next().unwrap().unwrap().path();
+            let manifest: Value = serde_json::from_slice(&std::fs::read(archive.join("complete.json")).unwrap()).unwrap();
+            std::fs::rename(archive.join("complete.json"), archive.join("pending.json")).unwrap();
+            if !committed {
+                let connection = rusqlite::Connection::open(fixture.root.join("main.db")).unwrap();
+                connection.execute("DELETE FROM experience WHERE experience_id = ?1", [result["entityId"].as_str().unwrap()]).unwrap();
+                if !keep {
+                    let row = &manifest["entries"][0]["metadata"];
+                    connection.execute("INSERT INTO fact (fact_id, fact_name, occurred_at, fact_description_path, experience_ids, person_ids, link_ids, link) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                        rusqlite::params![row["fact_id"].as_str().unwrap(), row["fact_name"].as_str().unwrap(), row["occurred_at"].as_str().unwrap(), row["fact_description_path"].as_str().unwrap(), row["experience_ids"].as_str().unwrap(), row["person_ids"].as_str().unwrap(), row["link_ids"].as_str().unwrap(), row["link"].as_str().unwrap()]).unwrap();
+                }
+            }
+            let model = fixture.load();
+            assert!(!archive.join("pending.json").exists());
+            assert!(archive.join(if committed { "complete.json" } else { "rolled-back.json" }).is_file());
+            if !committed {
+                assert_eq!(model, initial, "Recovery must prevent phantom folder bootstrap");
+                assert!(!fixture.root.join("EXPERIENCE").join(result["entityId"].as_str().unwrap()).exists());
+            }
+            fixture.invoke("verify_hasm_storage", json!({ "path": fixture.root, "model": model }));
         }
     }
 }

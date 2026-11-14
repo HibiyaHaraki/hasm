@@ -364,7 +364,8 @@ fn create_person_with_id(
     })
 }
 
-fn validate_birth_date(date: &str) -> Result<(), String> {
+/// [REQ-08-015][REQ-04-RULE-030] Shared validation for bootstrap and converted FACT calendar dates.
+pub(super) fn validate_birth_date(date: &str) -> Result<(), String> {
     let invalid = || "ERR_INVALID_BIRTH_DATE: Enter a valid birth date (YYYY-MM-DD)".to_string();
     let bytes = date.as_bytes();
     if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-'

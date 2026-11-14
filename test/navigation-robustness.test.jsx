@@ -38,6 +38,7 @@ function NavigationProbe() {
   return <>
     <output data-testid="route">{location.pathname}</output>
     {location.state?.error ? <output data-testid="route-error">{location.state.error}</output> : null}
+    {location.state?.conversionTarget ? <output data-testid="conversion-target">{location.state.conversionTarget.entityId}</output> : null}
     <Button onClick={() => navigate("/visualizer", { state: { path, model, isVerified: true } })}>Visit graph</Button>
     <Button onClick={() => navigate(`/entity-detail/FACT/${id}`, { state: { path, model, isVerified: true } })}>Visit ticket</Button>
   </>;
@@ -103,6 +104,118 @@ afterEach(() => {
 });
 
 describe("bounded graph-ticket navigation robustness", () => {
+  it.each([
+    ["FACT", true], ["FACT", false], ["EXPERIENCE", true], ["EXPERIENCE", false],
+  ])("TC-NAV-CONVERT-001 converts %s with keepOriginal=%s through IPC and verified destination navigation", async (type, keep) => {
+    const parentId = "22222222-2222-2222-2222-222222222221";
+    const personId = "11111111-1111-1111-1111-111111111111";
+    const source = type === "FACT" ? { ...fact, experienceIds: [parentId], personIds: [personId] }
+      : { experienceId: id, experienceName: "Research", parentExperienceIds: [parentId], personId: "00000000-0000-0000-0000-000000000000", linkIds: [], link: [] };
+    const workspace = { people: [{ personId, personName: "Author" }],
+      experiences: [{ experienceId: parentId, experienceName: "Life", parentExperienceIds: [] }, ...(type === "EXPERIENCE" ? [source] : [])],
+      facts: type === "FACT" ? [source] : [], links: [] };
+    const destinationId = keep ? "55555555-5555-5555-5555-555555555555" : id;
+    const destinationType = type === "FACT" ? "EXPERIENCE" : "FACT";
+    const destination = type === "FACT"
+      ? { experienceId: destinationId, experienceName: "Converted", personId, parentExperienceIds: [parentId], linkIds: [], link: [] }
+      : { ...fact, factId: destinationId, factName: "Converted", experienceIds: [parentId] };
+    const updated = { ...workspace,
+      facts: [...(keep ? workspace.facts : workspace.facts.filter((item) => item.factId !== id)), ...(destinationType === "FACT" ? [destination] : [])],
+      experiences: [...(keep ? workspace.experiences : workspace.experiences.filter((item) => item.experienceId !== id)), ...(destinationType === "EXPERIENCE" ? [destination] : [])] };
+    const conversion = deferred();
+    const verification = deferred();
+    bridge.invoke.mockImplementation(async (name, args) => {
+      if (name === "load_entity_detail") return { name: args.entityType === destinationType ? "Converted" : "Source",
+        detail: args.entityType === destinationType ? destination : source, markdownBody: "# Notes", loadedMtimeMs: 123 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      if (name === "convert_entity") return conversion.promise;
+      if (name === "check_workspace_lock") return { isReadOnly: false };
+      if (name === "load_hasm_model_db") return updated;
+      if (name === "verify_hasm_storage") return verification.promise;
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/${type}/${id}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: `Convert to ${destinationType}` }));
+    const dialog = screen.getByRole("dialog");
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "convert_entity")).toHaveLength(0);
+    expect(within(dialog).getByRole("checkbox", { name: "Keep original entity" })).toBeChecked();
+    expect(within(dialog).getByRole("combobox", { name: type === "FACT" ? "Parent experiences" : "Experiences" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Remove Life" })).toBeInTheDocument();
+    if (!keep) fireEvent.click(within(dialog).getByRole("checkbox", { name: "Keep original entity" }));
+    if (type === "EXPERIENCE") fireEvent.change(within(dialog).getByLabelText("Occurred at"), { target: { value: "2026-11-14" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm conversion" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("convert_entity", { path, request: {
+      entityType: type, entityId: id, keepOriginal: keep, experienceIds: [parentId],
+      personId: type === "FACT" ? personId : null, occurredAt: type === "EXPERIENCE" ? "2026-11-14" : null,
+      loadedMtimeMs: 123,
+    } });
+    expect(within(dialog).getByRole("button", { name: "Converting..." })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Converting..." }));
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "convert_entity")).toHaveLength(1);
+    await act(async () => conversion.resolve({ entityType: destinationType, entityId: destinationId, archivePath: keep ? null : "archive", warning: null }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/loading-model");
+    expect(screen.getByText("Reloading and verifying the workspace after conversion.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `Open converted ${destinationType}` })).not.toBeInTheDocument();
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model: updated });
+    await act(async () => verification.resolve({ missingEntities: [], unreferencedEntities: [] }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: `Open converted ${destinationType}` }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent(`/entity-detail/${destinationType}/${destinationId}`);
+    expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: destinationType, entityId: destinationId });
+    expect(screen.getByRole("heading", { name: "Converted", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByTestId("conversion-target")).not.toBeInTheDocument();
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "load_hasm_model_db")).toHaveLength(1);
+  });
+
+  it("TC-NAV-CONVERT-002 restricts dependent EXPERIENCEs to copying, preserves errors, and cancels without another invoke", async () => {
+    const source = { experienceId: id, experienceName: "Life", personId: "11111111-1111-1111-1111-111111111111", parentExperienceIds: [], linkIds: [], link: [] };
+    const workspace = { ...model, facts: [{ ...fact, experienceIds: [id] }], experiences: [source] };
+    bridge.invoke.mockImplementation(async (name) => {
+      if (name === "load_entity_detail") return { name: "Life", detail: source, markdownBody: "", loadedMtimeMs: 1 };
+      if (name === "compute_visualizer_layout") return { nodes3d: [], lines3d: [], warnings: [] };
+      if (name === "convert_entity") throw new Error("Conversion lock changed");
+      throw new Error(`Unexpected invoke: ${name}`);
+    });
+    renderFlow(`/entity-detail/EXPERIENCE/${id}`, false, workspace);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Convert to FACT" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("checkbox", { name: "Keep original entity" })).toBeDisabled();
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Only keeping the original is allowed.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm conversion" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("convert_entity", { path, request: expect.objectContaining({ keepOriginal: true }) });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Conversion lock changed");
+    expect(within(dialog).getByRole("button", { name: "Confirm conversion" })).toBeEnabled();
+    expect(screen.getByTestId("route")).toHaveTextContent(`/entity-detail/EXPERIENCE/${id}`);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Convert to FACT" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "convert_entity")).toHaveLength(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("TC-NAV-CONVERT-003 ignores conversion completion after abandoning its ticket", async () => {
+    const conversion = deferred();
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((name, args) => name === "convert_entity" ? conversion.promise : originalInvoke(name, args));
+    renderFlow(`/entity-detail/FACT/${id}`);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Convert to EXPERIENCE" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Confirm conversion" }));
+    fireEvent.click(screen.getByRole("button", { name: "Visit graph" }));
+    await flush();
+    await act(async () => conversion.resolve({ entityType: "EXPERIENCE", entityId: id, archivePath: null, warning: null }));
+    await flush();
+    expect(screen.getByTestId("route")).toHaveTextContent("/visualizer");
+    expect(bridge.invoke.mock.calls.filter(([name]) => name === "load_hasm_model_db")).toHaveLength(0);
+  });
+
   it.each(["C:\\workspace", path])("TC-NAV-BROWSE-001 browses %s through the native dialog wrapper and real load invokes", async (selectedPath) => {
     bridge.open.mockResolvedValue(selectedPath);
     renderFlow("/select");
@@ -477,7 +590,7 @@ describe("bounded graph-ticket navigation robustness", () => {
     } });
   });
 
-  it.each([["PERSON", false], ["FACT", true]])("TC-NAV-DELETE-004 restricts %s deletion when unavailable", async (type, readOnly) => {
+  it.each([["PERSON", false], ["FACT", true]])("TC-NAV-DELETE-004 restricts %s deletion and conversion when unavailable", async (type, readOnly) => {
     const entity = type === "PERSON" ? { personId: id, personName: "Ada", linkIds: [], link: [] } : fact;
     const workspace = { people: type === "PERSON" ? [entity] : [], experiences: [], facts: type === "FACT" ? [entity] : [], links: [] };
     bridge.invoke.mockImplementation(async (name) => {
@@ -489,8 +602,13 @@ describe("bounded graph-ticket navigation robustness", () => {
       <Routes><Route path="/entity-detail/:entityType/:entityId" element={<EntityDetailPage />} /></Routes>
     </MemoryRouter>);
     await flush();
-    if (type === "PERSON") expect(screen.queryByRole("button", { name: "Delete PERSON" })).not.toBeInTheDocument();
-    else expect(screen.getByRole("button", { name: "Delete FACT" })).toBeDisabled();
+    if (type === "PERSON") {
+      expect(screen.queryByRole("button", { name: "Delete PERSON" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Convert to / })).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByRole("button", { name: "Delete FACT" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Convert to EXPERIENCE" })).toBeDisabled();
+    }
   });
 
   it("TC-NAV-DELETE-005 explains when no replacement EXPERIENCE is available", async () => {

@@ -42,12 +42,13 @@ function initialSteps() {
 // [REQ-02-RULE-011][REQ-02-RULE-013] Load attempt lifetime ownership plus the four-stage stepper and
 // optional nine-bar loading detail view.
 // [REQ-07-FUNC-105] Shows the redirect reason only while loading and clears it from router state.
+// [REQ-04-RULE-030] Offers the converted ticket only after the workspace has been re-verified.
 function LoadingModelPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.state?.path;
   const redirectReason = location.state?.redirectReason || "";
-  const deletionWarning = location.state?.deletionWarning || "";
+  const deletionWarning = location.state?.deletionWarning || location.state?.conversionWarning || "";
   const [state, setState] = useState(() => ({
     steps: initialSteps(), notice: "", deletionWarning, redirectNotice: "", result: null,
   }));
@@ -58,7 +59,7 @@ function LoadingModelPage() {
       return;
     }
     setState((current) => ({ ...current, redirectNotice: redirectReason, deletionWarning }));
-    navigate("/loading-model", { replace: true, state: { ...location.state, redirectReason: "", deletionWarning: "", path } });
+    navigate("/loading-model", { replace: true, state: { ...location.state, redirectReason: "", deletionWarning: "", conversionWarning: "", path } });
   }, [navigate, path, redirectReason, deletionWarning]);
 
   useEffect(() => {
@@ -196,6 +197,7 @@ function LoadingModelPage() {
           const resultState = { ...location.state };
           delete resultState.redirectReason;
           delete resultState.deletionWarning;
+          delete resultState.conversionWarning;
           setState((current) => ({
             ...current,
             result: { ...resultState, path, model, isVerified: true, isReadOnly: lock.isReadOnly, warnings: verification.unreferencedEntities },
@@ -209,6 +211,10 @@ function LoadingModelPage() {
     load();
     return stop;
   }, [navigate, path]);
+
+  const verifiedWorkspaceState = { ...state.result };
+  delete verifiedWorkspaceState.conversionTarget;
+  delete verifiedWorkspaceState.conversionArchivePath;
 
   return (
     <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
@@ -230,8 +236,14 @@ function LoadingModelPage() {
           {state.result?.path === path ? (
             <Button className="btn-hasm-primary" onClick={() => {
               logger.info("[SEQ-MD-02][LOAD] opening verified workspace visualization");
-              navigate("/visualizer", { replace: true, state: state.result });
+              navigate("/visualizer", { replace: true, state: verifiedWorkspaceState });
             }}>Go to visualization</Button>
+          ) : null}
+          {state.result?.path === path && state.result.conversionTarget ? (
+            <Button className="btn-hasm-outline" variant="outline-secondary" onClick={() => {
+              const { entityType, entityId } = state.result.conversionTarget;
+              navigate(`/entity-detail/${entityType}/${entityId}`, { replace: true, state: verifiedWorkspaceState });
+            }}>Open converted {state.result.conversionTarget.entityType}</Button>
           ) : null}
         </div>
         <div id="model-loading-details" hidden={!showDetail}>

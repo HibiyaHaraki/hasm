@@ -27,6 +27,17 @@ relationship choices; `src-tauri/src/hasm/entity_deletion_commands.rs` owns
 validated transactional deletion, archives and interrupted-operation recovery.
 The host uses `delete_entity` through `features/hasm/api.js`.
 
+`src/features/entityTicket/EntityConvertDialog.jsx` and its co-located CSS own
+FACT/EXPERIENCE target review and keep/archive confirmation. It reuses
+`ExperienceSelect.jsx` and `DateInput.jsx`; `EntityDetailPage.jsx` owns operation
+lifetime and routes success to `LoadingModelPage.jsx` for verification before
+opening the converted ticket. The `convertEntity` API wrapper invokes the
+production-registered `convert_entity` in `entity_deletion_commands.rs`, sharing
+its transactional archive engine and startup recovery rather than duplicating it.
+Registered native coverage lives in `src-tauri/tests/model_initialization_ipc.rs`;
+ticket-to-IPC and verified-navigation coverage lives in
+`test/navigation-robustness.test.jsx`.
+
 `src/features/entityTicket/EntityInfoPreview.jsx` and its co-located CSS own the
 shared entity hover/focus information card. Mounted once in `App.jsx`, it covers
 typed entity hyperlinks across routes, related-LINK buttons, and host ticket

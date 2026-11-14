@@ -1,0 +1,13 @@
+.entity-convert-dialog .modal-content {
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+
+.entity-convert-dialog .modal-header,
+.entity-convert-dialog .modal-footer {
+  border-color: var(--theme-border);
+}
+

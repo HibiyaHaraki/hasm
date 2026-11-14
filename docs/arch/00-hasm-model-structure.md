@@ -52,6 +52,19 @@ assets, and original database rows under a unique `.hasm/deleted/` operation
 directory. This archive is outside the synchronized entity directories and is
 not an automatic restore interface. See [SEQ-04](./13-SEQ-04_Entity_Editing.md#confirmed-deletion-and-archive).
 
+FACT/EXPERIENCE conversion uses the same archive location with an optional
+conversion journal state and unchanged entity schemas. Keeping the source creates
+a new target UUID and extends related LINK endpoints; archiving the source keeps
+its UUID in the other entity folder/table and retains its complete original row
+and files outside synchronized directories. FACT memberships map to EXPERIENCE
+parents and vice versa; incompatible dates or multiple people remain recoverable
+in the original/archive. Dependent or directly owned EXPERIENCEs cannot be
+archived by conversion. The current command implementation prefers `main.db`
+(with the existing `hasm.db` fallback) and persists relationships as JSON UUID
+arrays in rows; conversion does not introduce the conceptual junction tables.
+Recovery runs before folder synchronization. See
+[SEQ-04 conversion](./13-SEQ-04_Entity_Editing.md#fact--experience-conversion).
+
 ---
 
 ## 2. Relational Database Model (`hasm.db`)

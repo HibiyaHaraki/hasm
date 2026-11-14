@@ -8,6 +8,33 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 
 ## Automated Test Inventory
 
+### FACT / EXPERIENCE conversion
+
+| Test ID | Trace Requirement ID | Test Type | Test name / evidence |
+| --- | --- | --- | --- |
+| `TC-NAV-CONVERT-001` | `REQ-04-RULE-030` | Positive (Both Directions) | `test/navigation-robustness.test.jsx`: real ticket, shared membership picker, owner/calendar fields and JS wrapper send exact keep/archive payloads for both types; duplicate confirmation is blocked, and the destination opens through the detail invoke only after reload/verification. |
+| `TC-NAV-CONVERT-002` | `REQ-04-RULE-030` | Negative (Dependencies / IPC Failure / Cancel) | `test/navigation-robustness.test.jsx`: dependent EXPERIENCE permits only copying; conversion failure retains the dialog and ticket, and cancellation makes no additional invoke. |
+| `TC-NAV-CONVERT-003` | `REQ-04-RULE-030` | Negative (Abandoned Ticket) | `test/navigation-robustness.test.jsx`: a late conversion result cannot navigate away from an independently opened graph. |
+| `TC-04-IPC-CONVERT-001` | `REQ-04-RULE-030` | Positive (Native Content / Identity / Links) | `src-tauri/tests/model_initialization_ipc.rs`: registered conversion/detail/load/verification invokes cover both directions and keep/archive modes; assert UUID rules, byte-preserved body and binary assets, custom FrontMatter, relationship/owner/date/URL/LINK mapping and full source archival metadata. |
+| `TC-04-IPC-CONVERT-002` | `REQ-04-RULE-030` | Negative (Validation / Rollback) | `src-tauri/tests/model_initialization_ipc.rs`: dependent EXPERIENCE archival is rejected while copying succeeds; invalid date, missing membership, corrupt source arrays, stale Markdown, foreign lock and injected SQL failure leave source data and model intact. |
+| `TC-04-IPC-CONVERT-003` | `REQ-04-RULE-030` | Negative (Interrupted Recovery) | `src-tauri/tests/model_initialization_ipc.rs`: simulated pre-/post-commit pending conversion journals recover both modes before folder synchronization, without phantom entities. |
+
+Run frontend coverage with `npm run test:robustness -- -t TC-NAV-CONVERT`;
+run native coverage with
+`cargo test --manifest-path src-tauri/Cargo.toml --test model_initialization_ipc conversion_`.
+Run the existing `entity_deletion_ipc` integration target as a recovery regression.
+React tests mock only the native transport; native tests use registered dispatch,
+real SQLite and real filesystem fixtures. These layers do not replace installed
+desktop or actual process-crash testing.
+
+Manual acceptance: use FACT and EXPERIENCE tickets in writable/read-only
+workspaces. Review keep/archive explanations, searchable removable membership
+badges, optional owner/date, dependency restrictions and cancellation. Check
+keyboard focus, dropdown scrolling, narrow-screen bounds and active themes.
+After conversion, verify the new ticket and visualization; inspect source/archive
+files and LINK endpoints. Inject an actual process interruption separately to
+confirm recovery beyond the automated journal simulations.
+
 ### Confirmed entity deletion
 
 | Test ID | Trace Requirement ID | Test Type | Test name / evidence |
@@ -15,7 +42,7 @@ Automated React and IPC coverage runs through `npm run test:eval-04`. Automated 
 | `TC-NAV-DELETE-001` | `REQ-04-RULE-028` `REQ-04-RULE-029` | Positive (Confirmed Deletion) | Actual ticket and JS IPC wrapper: required FACT reassignment, child parent, individual LINK choices, confirmation, pending state and post-delete reload/verification. |
 | `TC-NAV-DELETE-002` | `REQ-04-RULE-028` | Negative (IPC Failure) | FACT and LINK confirmations surface IPC failure and retain the ticket. |
 | `TC-NAV-DELETE-003` | `REQ-04-RULE-028` `REQ-04-RULE-029` | Positive (Optional Reassignment) | FACT reassignment is optional when another EXPERIENCE remains; FACT-related LINK selection reaches the invoke. |
-| `TC-NAV-DELETE-004` | `REQ-04-RULE-028` | Negative (Restricted Deletion) | PERSON deletion is unavailable and read-only FACT deletion is disabled. |
+| `TC-NAV-DELETE-004` | `REQ-04-RULE-028` `REQ-04-RULE-030` | Negative (Restricted Deletion / Conversion) | PERSON deletion and conversion are unavailable, and read-only FACT deletion and conversion are disabled. |
 | `TC-NAV-DELETE-005` | `REQ-04-RULE-028` `REQ-04-RULE-029` | Negative (No Replacement) | An EXPERIENCE with exclusively belonging FACTs cannot be deleted without an available replacement; the dialog explains why. |
 | `TC-04-IPC-DELETE-001` | `REQ-04-RULE-028` `REQ-04-RULE-029` | Positive (Native Archive) | Generated native invoke: required reassignment, parent and LINK choices, archived Markdown/assets/metadata and verified reload. |
 | `TC-04-IPC-DELETE-002` | `REQ-04-RULE-028` `REQ-04-RULE-029` | Positive (Reference Cleanup) | Generated native invokes: FACT and LINK deletion, retained endpoints and reference cleanup. |
