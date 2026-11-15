@@ -9,7 +9,7 @@ Code locations come from `[REQ-...]` comment tags on exported functions,
 classes, Rust `pub` items, and Tauri commands.
 
 - Requirements: **349**
-- Test cases: **519**
+- Test cases: **520**
 - Tagged code items: **175 / 175**
 
 ## docs/req/10-REQ-01_AppLaunch_AppValidation.md
@@ -150,7 +150,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-03-RULE-006` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-RUST-006` | `TC-03-RUST-008` |
 | `REQ-03-RULE-007` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-OWNER-001`<br/>`TC-03-RUST-006`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-RUST-009` |
 | `REQ-03-RULE-008` | — | `TC-03-IPC-005` | `TC-03-IPC-006` |
-| `REQ-03-RULE-009` | — | `TC-03-COLOR-001`<br/>`TC-03-VIEW-003` | `TC-03-COLOR-002` |
+| `REQ-03-RULE-009` | `src/pages/VisualizerPage.jsx:30` VisualizerPage | `TC-03-COLOR-001`<br/>`TC-03-VIEW-003` | `TC-03-COLOR-002` |
 | `REQ-03-RULE-010` | — | `TC-03-IPC-OWNER-001`<br/>`TC-03-OWNER-SCOPE-001`<br/>`TC-03-VIEW-OWNER-001`<br/>`TC-03-VIEW-OWNER-002`<br/>`TC-03-VIEW-OWNER-003`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-RUST-011` |
 | `REQ-03-RULE-011` | — | `TC-03-RUST-006` | `TC-03-VIEW-001` |
 | `REQ-03-RULE-012` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-003`<br/>`TC-03-RUST-006` | `TC-03-RUST-010` |
@@ -227,7 +227,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-04-RULE-017` | `src/components/DateInput.jsx:7` DateInput<br/>`src/features/entityCreation/components/ExperienceSelect.jsx:11` ExperienceSelect<br/>`src/features/entityTicket/TicketForm.jsx:11` DETAIL_FIELDS<br/>`src/features/entityTicket/TicketForm.jsx:36` createDetailsDraft<br/>`src/features/entityTicket/TicketForm.jsx:46` TicketForm<br/>`src-tauri/src/hasm/commands.rs:51` save_person_detail<br/>`src-tauri/src/hasm/commands.rs:58` save_experience_detail<br/>`src-tauri/src/hasm/commands.rs:68` save_fact_detail<br/>`src-tauri/src/hasm/commands.rs:75` save_link_detail | `TC-04-IPC-DATE-001`<br/>`TC-04-REACT-TIME-001`<br/>`TC-04-REACT-INLINE-003`<br/>`TC-04-IPC-PICKER-001`<br/>`TC-04-IPC-INLINE-001`<br/>`TC-08-IPC-DESIGN-001` | `TC-04-IPC-DATE-002`<br/>`TC-04-REACT-DISPLAY-002`<br/>`TC-04-REACT-INLINE-004`<br/>`TC-04-IPC-PICKER-002` |
 | `REQ-04-RULE-018` | `src/features/entityTicket/EntityReferences.js:12` createEntityReferenceIndex<br/>`src/features/entityTicket/EntityReferences.js:32` entityReferenceTitle<br/>`src/features/entityTicket/EntityReferences.js:49` experienceOwnerIds<br/>`src/features/entityTicket/EntityReferences.js:69` detailEntityReferences<br/>`src/features/entityTicket/EntityReferences.js:88` detailDisplayValue<br/>`src-tauri/src/hasm/definitions/experience.rs:35` title<br/>`src-tauri/src/hasm/definitions/experience.rs:44` subtitle<br/>`src-tauri/src/hasm/definitions/fact.rs:36` title<br/>`src-tauri/src/hasm/definitions/fact.rs:45` subtitle<br/>`src-tauri/src/hasm/definitions/link.rs:34` title<br/>`src-tauri/src/hasm/definitions/link.rs:43` subtitle<br/>`src-tauri/src/hasm/definitions/person.rs:35` title<br/>`src-tauri/src/hasm/definitions/person.rs:44` subtitle | `TC-04-REACT-REF-009`<br/>`TC-04-REACT-REF-001`<br/>`TC-04-OWNER-001`<br/>`TC-04-PREVIEW-OWNER-001`<br/>`TC-04-REACT-REF-010`<br/>`TC-NAV-REF-001` | `TC-04-OWNER-002`<br/>`TC-04-REACT-REF-003` |
 | `REQ-04-RULE-019` | `src/features/entityTicket/EntityReferences.js:12` createEntityReferenceIndex<br/>`src/features/entityTicket/EntityReferences.js:97` relatedLinkIds | `TC-04-REACT-REF-002`<br/>`TC-04-REACT-REF-005`<br/>`TC-NAV-REF-001` | `TC-04-REACT-REF-003`<br/>`TC-04-REACT-REF-004`<br/>`TC-04-REACT-REF-006` |
-| `REQ-04-RULE-020` | `src/features/entityTicket/EntityCommitGraph.jsx:25` EntityCommitGraph<br/>`src/features/entityTicket/EntityReferences.js:69` detailEntityReferences<br/>`src/pages/EntityDetailPage.jsx:27` EntityDetailPage | `TC-04-REACT-REF-010`<br/>`TC-04-REACT-REF-007`<br/>`TC-04-GRAPH-SEQUENTIAL-007`<br/>`TC-NAV-REF-002` | `TC-04-REACT-REF-008` |
+| `REQ-04-RULE-020` | `src/features/entityTicket/EntityCommitGraph.jsx:25` EntityCommitGraph<br/>`src/features/entityTicket/EntityReferences.js:69` detailEntityReferences<br/>`src/pages/EntityDetailPage.jsx:27` EntityDetailPage | `TC-04-REACT-REF-010`<br/>`TC-04-REACT-REF-007`<br/>`TC-04-GRAPH-SEQUENTIAL-007`<br/>`TC-04-GRAPH-COLOR-008`<br/>`TC-NAV-REF-002` | `TC-04-REACT-REF-008` |
 | `REQ-04-RULE-021` | `src/features/entityTicket/formatOccurrence.js:2` formatOccurrence<br/>`src/features/entityTicket/ticketLanguage.js:134` translateTicket | `TC-04-REACT-DISPLAY-001`<br/>`TC-04-REACT-DISPLAY-004`<br/>`TC-NAV-DISPLAY-001` | `TC-04-IPC-DATE-002`<br/>`TC-04-REACT-DISPLAY-002` |
 | `REQ-04-RULE-022` | — | `TC-04-REACT-DISPLAY-003`<br/>`TC-NAV-DISPLAY-001` | `TC-04-REACT-DISPLAY-005` |
 | `REQ-04-RULE-026` | — | `TC-04-REACT-DISPLAY-004` | `TC-04-REACT-DISPLAY-005` |
@@ -579,4 +579,4 @@ classes, Rust `pub` items, and Tauri commands.
 | `src/pages/LoadingModelPage.jsx:46` default export **LoadingModelPage** | `REQ-02-FUNC-101` `REQ-02-FUNC-102` `REQ-02-FUNC-104` `REQ-02-FUNC-106` `REQ-02-FUNC-201` `REQ-02-FUNC-203` `REQ-02-FUNC-204` `REQ-02-FUNC-205` `REQ-02-FUNC-302` `REQ-02-FUNC-306` `REQ-02-FUNC-407` `REQ-02-RULE-014` `REQ-02-RULE-011` `REQ-02-RULE-013` `REQ-07-FUNC-105` `REQ-04-RULE-030` |
 | `src/pages/ModelInitializationPage.jsx:17` default export **ModelInitializationPage** | `REQ-08-015` `REQ-02-FUNC-306` |
 | `src/pages/SelectModelPage.jsx:31` default export **SelectModelPage** | `REQ-01-FUNC-503` `REQ-01-FUNC-504` `REQ-01-FUNC-505` `REQ-01-FUNC-506` `REQ-01-FUNC-508` `REQ-01-FUNC-509` `REQ-01-FUNC-510` `REQ-01-FUNC-512` `REQ-01-FUNC-601` `REQ-01-FUNC-602` `REQ-02-RULE-012` `REQ-07-RULE-002` `REQ-08-001` `REQ-08-002` |
-| `src/pages/VisualizerPage.jsx:30` default export **VisualizerPage** | `REQ-03-RULE-014` `REQ-03-FUNC-101` `REQ-03-FUNC-102` `REQ-03-FUNC-103` `REQ-03-FUNC-104` `REQ-03-FUNC-106` `REQ-03-FUNC-107` `REQ-03-RULE-018` `REQ-03-FUNC-201` `REQ-03-FUNC-202` `REQ-03-FUNC-203` `REQ-03-FUNC-302` `REQ-03-FUNC-513` `REQ-08-014` |
+| `src/pages/VisualizerPage.jsx:30` default export **VisualizerPage** | `REQ-03-RULE-014` `REQ-03-RULE-009` `REQ-03-FUNC-101` `REQ-03-FUNC-102` `REQ-03-FUNC-103` `REQ-03-FUNC-104` `REQ-03-FUNC-106` `REQ-03-FUNC-107` `REQ-03-RULE-018` `REQ-03-FUNC-201` `REQ-03-FUNC-202` `REQ-03-FUNC-203` `REQ-03-FUNC-302` `REQ-03-FUNC-513` `REQ-08-014` |

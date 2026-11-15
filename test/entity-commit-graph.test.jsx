@@ -6,7 +6,7 @@ import { extractEntityGraphModel } from "../src/features/entityTicket/entityGrap
 import { computeVisualizerLayoutJS } from "../src/hasm_visualizer/layoutCalculator.js";
 import * as graphRenderer from "../src/hasm_visualizer/twoCommitGraph.js";
 import { DEFAULT_COLOR_PATTERN, getPatternById } from "../src/hasm_color_pattern/src/index.js";
-import { ensureReadableColor } from "../src/hasm_visualizer/threeCommitGraph.js";
+import { buildExperienceColorMaps, ensureReadableColor } from "../src/hasm_visualizer/threeCommitGraph.js";
 
 const bridge = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: bridge.invoke }));
@@ -234,6 +234,41 @@ describe("Entity graph GUI and real IPC wrapper", () => {
     expect(graphBadge).toBeInTheDocument();
     await waitFor(() => {
       expect(reference.style.backgroundColor).toBe(graphBadge.style.backgroundColor);
+      expect(reference.style.color).toBe(graphBadge.style.color);
+    });
+  });
+  it("TC-04-GRAPH-COLOR-008 uses the visible graph palette for matching Details references", async () => {
+    const fullModel = {
+      ...model,
+      experiences: [
+        ...model.experiences,
+        experience("leaf-child-a", ["leaf"], "other"),
+        experience("leaf-child-b", ["leaf"], "other"),
+      ],
+      links: [
+        ...model.links,
+        { linkId: "experience-link", linkName: "Experience link", relatedIds: ["focus", "leaf", "shared"] },
+      ],
+    };
+    const state = { path: "fixture.hasm", model: fullModel, isVerified: true };
+    const rendererSpy = vi.spyOn(graphRenderer, "createCommitGraph2D");
+    renderTicket("FACT", "focus", state);
+    const details = within(await screen.findByRole("region", { name: "Details" }));
+    const reference = details.getByRole("link", { name: "Open EXPERIENCE: leaf" });
+    const table = await screen.findByRole("table", { name: "FACT titles" });
+    const graphBadge = table.querySelector('a[href="/entity-detail/EXPERIENCE/leaf"]');
+    await waitFor(() => expect(rendererSpy).toHaveBeenCalled());
+    const rendererCall = rendererSpy.mock.calls.at(-1);
+    const relationshipModel = rendererCall[8];
+    expect(relationshipModel.experiences.map((item) => item.experienceId)).not.toContain("leaf-child-a");
+    expect(relationshipModel.links.map((item) => item.linkId)).toContain("experience-link");
+    const expectedColor = buildExperienceColorMaps(rendererCall[1], rendererCall[2], relationshipModel)
+      .trunkColorByEntityId.get("leaf");
+    const probe = document.createElement("span");
+    probe.style.backgroundColor = expectedColor;
+    await waitFor(() => {
+      expect(reference.style.backgroundColor).toBe(probe.style.backgroundColor);
+      expect(graphBadge.style.backgroundColor).toBe(probe.style.backgroundColor);
       expect(reference.style.color).toBe(graphBadge.style.color);
     });
   });

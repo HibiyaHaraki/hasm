@@ -46,7 +46,10 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
     : LANE_WIDTH_PX;
   const width = graphWidthForLaneCount(laneCount, laneWidth);
   const theme = getPatternById(activePatternId).colors;
-  const experienceColors = useMemo(() => layout ? buildExperienceColorMaps(layout, theme) : null, [layout, theme]);
+  const experienceColors = useMemo(
+    () => layout ? buildExperienceColorMaps(layout, theme, graphModel) : null,
+    [layout, theme, graphModel],
+  );
   const entityBadgeStyles = useMemo(() => {
     if (!layout) return null;
     const typeColors = buildEntityColors(theme);
@@ -56,8 +59,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
       const key = `${node.entityType}:${node.id}`;
       let backgroundColor = null;
       if (node.entityType === "EXPERIENCE") {
-        const position = positionKey(node.x, node.y);
-        backgroundColor = experienceColors.trunkColorByPositionKey.get(position) || typeColors.EXPERIENCE;
+        backgroundColor = experienceColors.trunkColorByEntityId.get(String(node.id)) || typeColors.EXPERIENCE;
       } else if (node.entityType === "FACT") {
         const position = positionKey(node.x, node.y);
         backgroundColor = experienceColors.factColorByPositionKey.get(position) || typeColors.FACT;
@@ -82,7 +84,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
     return <ExperienceBadge experience={experience} inline={inline}
       href={experience && !disabled ? `/entity-detail/EXPERIENCE/${experience.id}` : undefined}
       onSelect={onSelect}
-      color={experience && experienceColors.trunkColorByPositionKey.get(positionKey(experience.x, experience.y))} theme={theme} />;
+      color={experience && experienceColors.trunkColorByEntityId.get(String(experience.id))} theme={theme} />;
   };
   const syncScroll = (nextScrollTop) => {
     const table = factTableRef.current;
@@ -160,6 +162,7 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
           onScroll: syncScroll,
           experienceLabel: (title) => t("Open {type}: {title}", { type: "EXPERIENCE", title }),
         },
+        graphModel,
       );
       renderer.setHighlight(currentNode);
       rendererRef.current = renderer;

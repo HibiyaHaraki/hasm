@@ -18,7 +18,7 @@ const VISUALIZER_LABELS = {
   clearScope: "Clear scope",
 };
 
-// [SEQ-MD-03][REQ-03-RULE-014] Host page for the shared hasm_visualizer component: supplies the model,
+// [SEQ-MD-03][REQ-03-RULE-014][REQ-03-RULE-009] Host page for the shared hasm_visualizer component: supplies the model,
 // the layout callback, node-click routing, and page chrome only.
 // [REQ-03-FUNC-101][REQ-03-FUNC-102][REQ-03-FUNC-103] Mount-time progress subscription and model/verification guards.
 // [REQ-03-FUNC-104][REQ-03-FUNC-106][REQ-03-FUNC-107][REQ-03-RULE-018] 10,000ms layout watchdog owned by the

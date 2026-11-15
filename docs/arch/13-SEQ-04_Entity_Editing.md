@@ -424,9 +424,14 @@ never starts an editor.
 
 Navigable Details references and related-LINK title actions use the same compact
 Bootstrap badge treatment and per-entity foreground/background colors as the
-Extended Commit Graph. These colors come from the rendered graph layout, so the
-same entity uses identical colors in its Details references and graph badges.
-Disabled and unavailable references remain plain text.
+active Extended Commit Graph. EXPERIENCE badge colors come from the shared
+relationship-weighted color map in `threeCommitGraph.js`, calculated from the
+ticket graph's visible model and rendered relationships. It counts visible
+parent/child edges, EXPERIENCE-to-EXPERIENCE LINK pairs, direct FACT membership,
+and FACT-to-FACT LINK pairs attributed to their visible EXPERIENCEs. Thus each
+entity and all its references share one color within that graph, without
+requiring data for off-scope entities. Disabled and unavailable references
+remain plain text.
 
 Graph LINK references are displayed as a bulleted list rather than a
 comma-separated line. Long LINK titles wrap within the Details panel.

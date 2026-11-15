@@ -37,6 +37,33 @@ it("TC-03-VIEW-001 removes repeated same-lane FACTs while retaining ancestor ref
   container.remove();
 });
 
+it("TC-03-XY-001 places linked same-depth EXPERIENCEs near each other deterministically", () => {
+  const layoutModel = {
+    people: [],
+    experiences: [
+      { experienceId: "root" },
+      { experienceId: "first", parentExperienceIds: ["root"] },
+      { experienceId: "second", parentExperienceIds: ["root"] },
+      { experienceId: "unlinked", parentExperienceIds: ["root"] },
+    ],
+    facts: [],
+    links: [{ linkId: "experience-link", relatedIds: ["first", "second"] }],
+  };
+  const getPositions = () => {
+    const payload = computeVisualizerLayoutJS(layoutModel, { timeScaleMode: "SequentialIndex" });
+    return new Map(payload.nodes3d
+      .filter((node) => node.entityType === "EXPERIENCE")
+      .map((node) => [node.id, [node.x, node.y]]));
+  };
+  const positions = getPositions();
+  const linkedDistance = Math.abs(positions.get("first")[1] - positions.get("second")[1]);
+  const unlinkedDistance = Math.abs(positions.get("first")[1] - positions.get("unlinked")[1]);
+  expect(positions.get("first")[0]).toBe(6);
+  expect(positions.get("second")[0]).toBe(6);
+  expect(linkedDistance).toBeLessThan(unlinkedDistance);
+  expect(getPositions()).toEqual(positions);
+});
+
 function Ticket() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -222,7 +249,7 @@ it("TC-03-VIEW-003 shows exactly the hovered EXPERIENCE badge and its line color
   </MemoryRouter>);
   await screen.findByText("Paper");
   const payload = computeVisualizerLayoutJS(model, { timeScaleMode: "SequentialIndex" });
-  const colors = buildExperienceColorMaps(payload, getPatternById("classic").colors);
+  const colors = buildExperienceColorMaps(payload, getPatternById("classic").colors, model);
   const nodes = payload.nodes3d.filter((node) => node.entityType === "FACT");
   await waitFor(() => expect(container.querySelectorAll("circle")).toHaveLength(2));
   const dots = container.querySelectorAll("circle");
@@ -387,10 +414,93 @@ const colorPayload = (laneCount) => ({
   warnings: [],
 });
 
-it("TC-03-COLOR-001 derives distinguishable, related, AA-readable trunk and FACT colors", () => {
+it("TC-03-COLOR-001 spreads visible EXPERIENCE colors across the full palette", () => {
   const theme = getPatternById("classic").colors;
-  const { trunkColorByPositionKey, factColorByPositionKey } = buildExperienceColorMaps(colorPayload(12), theme);
-  expect(new Set(trunkColorByPositionKey.values()).size).toBe(12);
+  const payload = colorPayload(12);
+  const facts = ["fact-1", "fact-2", "fact-3"].map((id, index) => ({
+    id, entityType: "FACT", x: (index + 1) * 6, y: 0, z: 0,
+  }));
+  payload.nodes3d.push(...facts);
+  const experiences = Array.from({ length: 12 }, (_value, index) => ({
+    experienceId: `exp-${index}`,
+    parentExperienceIds: index === 1
+      ? ["exp-0", "exp-0", "exp-2", "exp-3", "missing"]
+      : index === 8 ? ["exp-7", "exp-9", "exp-10"] : [],
+  }));
+  const relationships = {
+    experiences,
+    facts: [
+      { factId: "fact-1", experienceIds: ["exp-5", "exp-5", "missing"] },
+      { factId: "fact-2", experienceIds: ["exp-6"] },
+      { factId: "fact-3", experienceIds: ["exp-1"] },
+      { factId: "offscreen-fact", experienceIds: ["exp-5"] },
+    ],
+    links: [
+      { linkId: "experience-link", relatedIds: ["exp-5", "exp-6", "exp-5", "missing"] },
+      { linkId: "fact-link", relatedIds: ["fact-1", "fact-2", "fact-1"] },
+      { linkId: "hub-link", relatedIds: ["exp-1", "exp-8"] },
+      { linkId: "offscreen-link", relatedIds: ["fact-1", "offscreen-fact"] },
+    ],
+  };
+  const { trunkColorByPositionKey, trunkColorByEntityId, factColorByPositionKey } =
+    buildExperienceColorMaps(payload, theme, relationships);
+  const colors = [...trunkColorByPositionKey.values()];
+  expect(new Set(colors).size).toBe(12);
+  const rgbDistance = (first, second) => {
+    const channels = (color) => [0, 2, 4].map((offset) => Number.parseInt(color.slice(offset + 1, offset + 3), 16));
+    const [firstRgb, secondRgb] = [channels(first), channels(second)];
+    return Math.hypot(...firstRgb.map((channel, index) => channel - secondRgb[index]));
+  };
+  expect(Math.max(...colors.flatMap((first, index) => (
+    colors.slice(index + 1).map((second) => rgbDistance(first, second))
+  )))).toBeGreaterThan(250);
+  expect(rgbDistance(trunkColorByEntityId.get("exp-1"), trunkColorByEntityId.get("exp-8")))
+    .toBeLessThan(rgbDistance(trunkColorByEntityId.get("exp-0"), trunkColorByEntityId.get("exp-9")));
+  const cleanRelationships = {
+    experiences: experiences.map((experience, index) => ({
+      ...experience,
+      parentExperienceIds: index === 1 ? ["exp-0", "exp-2", "exp-3"]
+        : index === 8 ? ["exp-7", "exp-9", "exp-10"] : [],
+    })),
+    facts: relationships.facts.slice(0, 3).map((fact) => ({
+      ...fact, experienceIds: [...new Set(fact.experienceIds)].filter((id) => !["missing", "offscreen-fact"].includes(id)),
+    })),
+    links: relationships.links.slice(0, 3).map((link) => ({
+      ...link, relatedIds: [...new Set(link.relatedIds)].filter((id) => !id.startsWith("missing")),
+    })),
+  };
+  const cleanColors = buildExperienceColorMaps(payload, theme, cleanRelationships);
+  expect(cleanColors.trunkColorByEntityId).toEqual(trunkColorByEntityId);
+
+  const baseline = {
+    experiences,
+    facts: [{ factId: "fact-1", experienceIds: [] }, { factId: "fact-2", experienceIds: [] }],
+    links: [],
+  };
+  const colorOfExp5 = (model) => buildExperienceColorMaps(payload, theme, model).trunkColorByEntityId.get("exp-5");
+  const baselineColor = colorOfExp5(baseline);
+  expect(colorOfExp5({
+    ...baseline,
+    facts: [{ factId: "fact-1", experienceIds: ["exp-5"] }, baseline.facts[1]],
+  })).not.toBe(baselineColor);
+  expect(colorOfExp5({
+    ...baseline,
+    links: [{ linkId: "experience-link", relatedIds: ["exp-5", "exp-6"] }],
+  })).not.toBe(baselineColor);
+  expect(colorOfExp5({
+    ...baseline,
+    facts: [{ factId: "fact-1", experienceIds: ["exp-5"] }, { factId: "fact-2", experienceIds: ["exp-6"] }],
+    links: [{ linkId: "fact-link", relatedIds: ["fact-1", "fact-2"] }],
+  })).not.toBe(baselineColor);
+
+  const scopedPayload = { ...payload, nodes3d: payload.nodes3d.filter((node) => node.id === "exp-5" || node.id === "fact-1") };
+  const scopedModel = {
+    experiences: experiences.filter((experience) => experience.experienceId === "exp-5"),
+    facts: relationships.facts.filter((fact) => fact.factId === "fact-1"),
+    links: [],
+  };
+  const scopedColors = buildExperienceColorMaps(scopedPayload, theme, scopedModel);
+  expect(scopedColors.trunkColorByEntityId.get("exp-5")).not.toBe(trunkColorByEntityId.get("exp-5"));
   for (const [key, trunkColor] of trunkColorByPositionKey) {
     const factColor = factColorByPositionKey.get(key);
     expect(factColor).not.toBe(trunkColor);

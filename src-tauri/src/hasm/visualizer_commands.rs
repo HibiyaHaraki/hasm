@@ -238,42 +238,57 @@ fn calculate_branch_positions<'a>(
     for experience in &model.experiences {
         experience_depth(experience.experience_id, experience_by_id, &mut depths, &mut HashSet::new());
     }
-
-    // Children grouped by parent once, so sibling resolution below stays linear in the
-    // number of siblings instead of rescanning every experience for every experience.
-    let mut children_by_parent: HashMap<uuid::Uuid, Vec<usize>> = HashMap::new();
-    for (position, experience) in model.experiences.iter().enumerate() {
-        for parent_id in &experience.parent_experience_ids {
-            children_by_parent.entry(*parent_id).or_default().push(position);
-        }
-    }
-
+    let (relationship_count_by_id, adjacency_by_id) = experience_relationship_graph(model);
     let mut ordered_ids = model.experiences.iter().map(|experience| experience.experience_id).collect::<Vec<_>>();
-    ordered_ids.sort_by_key(|id| depths.get(id).copied().unwrap_or(0));
+    ordered_ids.sort_by_key(|id| (depths.get(id).copied().unwrap_or(0), *id));
     let mut positions = HashMap::new();
-    let mut lanes_by_depth: HashMap<usize, Vec<f32>> = HashMap::new();
-
-    for experience_id in ordered_ids {
-        let Some(experience) = experience_by_id.get(&experience_id) else {
-            continue;
-        };
-        let depth = depths.get(&experience_id).copied().unwrap_or(0);
-        let parent_lanes = experience.parent_experience_ids.iter().filter_map(|parent_id| positions.get(parent_id).map(|position: &[f32; 2]| position[1])).collect::<Vec<_>>();
-        let parent_center = if parent_lanes.is_empty() { 0.0 } else { parent_lanes.iter().sum::<f32>() / parent_lanes.len() as f32 };
-        let mut sibling_positions = experience
-            .parent_experience_ids
-            .iter()
-            .filter_map(|parent_id| children_by_parent.get(parent_id))
-            .flatten()
-            .copied()
-            .collect::<Vec<_>>();
-        sibling_positions.sort_unstable();
-        sibling_positions.dedup();
-        let sibling_ids = sibling_positions.iter().map(|position| model.experiences[*position].experience_id).collect::<Vec<_>>();
-        let sibling_index = sibling_ids.iter().position(|id| *id == experience_id).unwrap_or(0);
-        let desired_y = parent_center + (sibling_index as f32 - (sibling_ids.len().saturating_sub(1) as f32 / 2.0)) * SIBLING_GAP;
-        let y = nearest_available_lane(desired_y, lanes_by_depth.entry(depth).or_default(), SIBLING_GAP);
-        positions.insert(experience_id, [depth as f32 * GENERATION_GAP, y]);
+    let mut connection_weight_by_id = model.experiences.iter()
+        .map(|experience| (experience.experience_id, 0usize))
+        .collect::<HashMap<_, _>>();
+    let mut layer_start = 0;
+    while layer_start < ordered_ids.len() {
+        let depth = depths.get(&ordered_ids[layer_start]).copied().unwrap_or(0);
+        let mut layer_end = layer_start + 1;
+        while layer_end < ordered_ids.len()
+            && depths.get(&ordered_ids[layer_end]).copied().unwrap_or(0) == depth
+        {
+            layer_end += 1;
+        }
+        let mut remaining = ordered_ids[layer_start..layer_end].to_vec();
+        let mut layer_order = Vec::with_capacity(remaining.len());
+        while !remaining.is_empty() {
+            let mut selected_index = 0;
+            for candidate_index in 1..remaining.len() {
+                let candidate_id = remaining[candidate_index];
+                let selected_id = remaining[selected_index];
+                let candidate_score = (
+                    connection_weight_by_id.get(&candidate_id).copied().unwrap_or(0),
+                    relationship_count_by_id.get(&candidate_id).copied().unwrap_or(0),
+                );
+                let selected_score = (
+                    connection_weight_by_id.get(&selected_id).copied().unwrap_or(0),
+                    relationship_count_by_id.get(&selected_id).copied().unwrap_or(0),
+                );
+                if candidate_score > selected_score
+                    || (candidate_score == selected_score && candidate_id < selected_id)
+                {
+                    selected_index = candidate_index;
+                }
+            }
+            let selected_id = remaining.remove(selected_index);
+            layer_order.push(selected_id);
+            if let Some(neighbors) = adjacency_by_id.get(&selected_id) {
+                for (neighbor_id, weight) in neighbors {
+                    *connection_weight_by_id.entry(*neighbor_id).or_default() += weight;
+                }
+            }
+        }
+        let layer_size = layer_order.len();
+        for (index, experience_id) in layer_order.into_iter().enumerate() {
+            let centered_index = index as f32 - (layer_size.saturating_sub(1) as f32 / 2.0);
+            positions.insert(experience_id, [depth as f32 * GENERATION_GAP, centered_index * SIBLING_GAP]);
+        }
+        layer_start = layer_end;
     }
 
     positions
@@ -287,24 +302,139 @@ fn experience_depth(experience_id: uuid::Uuid, experience_by_id: &HashMap<uuid::
         return 0;
     }
     let depth = experience_by_id.get(&experience_id)
-        .map(|experience| experience.parent_experience_ids.iter().map(|parent_id| experience_depth(*parent_id, experience_by_id, depths, visiting) + 1).max().unwrap_or(0))
+        .map(|experience| experience.parent_experience_ids.iter()
+            .filter(|parent_id| experience_by_id.contains_key(parent_id))
+            .map(|parent_id| experience_depth(*parent_id, experience_by_id, depths, visiting) + 1)
+            .max().unwrap_or(0))
         .unwrap_or(0);
     visiting.remove(&experience_id);
     depths.insert(experience_id, depth);
     depth
 }
 
-fn nearest_available_lane(desired_y: f32, occupied_lanes: &mut Vec<f32>, gap: f32) -> f32 {
-    for step in 0..=occupied_lanes.len() {
-        let offset = step as f32 * gap;
-        for candidate in [desired_y + offset, desired_y - offset] {
-            if occupied_lanes.iter().all(|lane| (candidate - lane).abs() >= gap) {
-                occupied_lanes.push(candidate);
-                return candidate;
+fn experience_relationship_graph(model: &ModelDatabase) -> (
+    HashMap<uuid::Uuid, usize>,
+    HashMap<uuid::Uuid, HashMap<uuid::Uuid, usize>>,
+) {
+    const PARENT_CHILD_WEIGHT: usize = 4;
+    const EXPERIENCE_LINK_WEIGHT: usize = 3;
+    const FACT_RELATION_WEIGHT: usize = 1;
+    let experience_ids = model.experiences.iter().map(|experience| experience.experience_id).collect::<HashSet<_>>();
+    let fact_ids = model.facts.iter().map(|fact| fact.fact_id).collect::<HashSet<_>>();
+    let mut relationship_counts = experience_ids.iter().map(|id| (*id, 0)).collect::<HashMap<_, _>>();
+    let mut adjacency = experience_ids.iter().map(|id| (*id, HashMap::new())).collect::<HashMap<_, _>>();
+
+    let mut parent_edges = HashSet::new();
+    for experience in &model.experiences {
+        for parent_id in &experience.parent_experience_ids {
+            if *parent_id == experience.experience_id || !experience_ids.contains(parent_id) { continue; }
+            let edge = if experience.experience_id < *parent_id {
+                (experience.experience_id, *parent_id)
+            } else {
+                (*parent_id, experience.experience_id)
+            };
+            if parent_edges.insert(edge) {
+                add_experience_relationship(
+                    &mut relationship_counts, &mut adjacency,
+                    experience.experience_id, *parent_id, PARENT_CHILD_WEIGHT,
+                );
             }
         }
     }
-    unreachable!("a free lane is always available beyond the occupied lanes")
+
+    let mut experiences_by_fact = HashMap::new();
+    for fact in &model.facts {
+        if !fact_ids.contains(&fact.fact_id) { continue; }
+        let owners = fact.experience_ids.iter()
+            .filter(|id| experience_ids.contains(id))
+            .copied()
+            .collect::<HashSet<_>>();
+        experiences_by_fact.insert(fact.fact_id, owners);
+    }
+    for owners in experiences_by_fact.values() {
+        let mut owners = owners.iter().copied().collect::<Vec<_>>();
+        owners.sort_unstable();
+        for owner in &owners {
+            *relationship_counts.entry(*owner).or_default() += 1;
+        }
+        for first in 0..owners.len() {
+            for second in first + 1..owners.len() {
+                add_experience_adjacency(&mut adjacency, owners[first], owners[second], FACT_RELATION_WEIGHT);
+            }
+        }
+    }
+
+    let mut link_edges = HashSet::new();
+    for link in &model.links {
+        let mut endpoints = link.related_ids.iter()
+            .filter(|id| experience_ids.contains(id) || fact_ids.contains(id))
+            .copied()
+            .collect::<Vec<_>>();
+        endpoints.sort_unstable();
+        endpoints.dedup();
+        for first in 0..endpoints.len() {
+            for second in first + 1..endpoints.len() {
+                let from_id = endpoints[first];
+                let to_id = endpoints[second];
+                let from_is_experience = experience_ids.contains(&from_id);
+                let to_is_experience = experience_ids.contains(&to_id);
+                if from_is_experience && to_is_experience {
+                    if link_edges.insert((link.link_id, from_id, to_id)) {
+                        add_experience_relationship(
+                            &mut relationship_counts, &mut adjacency,
+                            from_id, to_id, EXPERIENCE_LINK_WEIGHT,
+                        );
+                    }
+                } else if !from_is_experience && !to_is_experience {
+                    let mut owners = experiences_by_fact.get(&from_id).cloned().unwrap_or_default();
+                    owners.extend(experiences_by_fact.get(&to_id).into_iter().flatten().copied());
+                    if owners.is_empty() || !link_edges.insert((link.link_id, from_id, to_id)) { continue; }
+                    let mut owners = owners.into_iter().collect::<Vec<_>>();
+                    owners.sort_unstable();
+                    for owner in &owners {
+                        *relationship_counts.entry(*owner).or_default() += 1;
+                    }
+                    for first_owner in 0..owners.len() {
+                        for second_owner in first_owner + 1..owners.len() {
+                            add_experience_adjacency(
+                                &mut adjacency, owners[first_owner], owners[second_owner], FACT_RELATION_WEIGHT,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (relationship_counts, adjacency)
+}
+
+fn add_experience_relationship(
+    relationship_counts: &mut HashMap<uuid::Uuid, usize>,
+    adjacency: &mut HashMap<uuid::Uuid, HashMap<uuid::Uuid, usize>>,
+    first_id: uuid::Uuid,
+    second_id: uuid::Uuid,
+    position_weight: usize,
+) {
+    if first_id == second_id { return; }
+    *relationship_counts.entry(first_id).or_default() += 1;
+    *relationship_counts.entry(second_id).or_default() += 1;
+    add_experience_adjacency(adjacency, first_id, second_id, position_weight);
+}
+
+fn add_experience_adjacency(
+    adjacency: &mut HashMap<uuid::Uuid, HashMap<uuid::Uuid, usize>>,
+    first_id: uuid::Uuid,
+    second_id: uuid::Uuid,
+    position_weight: usize,
+) {
+    if first_id == second_id { return; }
+    if let Some(neighbors) = adjacency.get_mut(&first_id) {
+        *neighbors.entry(second_id).or_default() += position_weight;
+    }
+    if let Some(neighbors) = adjacency.get_mut(&second_id) {
+        *neighbors.entry(first_id).or_default() += position_weight;
+    }
 }
 
 fn collect_experience_and_ancestors(experience_id: uuid::Uuid, experience_by_id: &HashMap<uuid::Uuid, &Experience>, collected: &mut HashSet<uuid::Uuid>) {
@@ -424,11 +554,14 @@ mod tests {
     }
 
     #[test]
-    fn places_related_experiences_in_generations_with_separate_sibling_lanes() {
+    fn places_linked_experiences_near_each_other_within_their_generation() {
         let root_id = Uuid::parse_str("22222222-2222-2222-2222-222222222221").unwrap();
         let first_child_id = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
         let second_child_id = Uuid::parse_str("22222222-2222-2222-2222-222222222223").unwrap();
         let grandchild_id = Uuid::parse_str("22222222-2222-2222-2222-222222222224").unwrap();
+        let unrelated_child_id = Uuid::parse_str("22222222-2222-2222-2222-222222222225").unwrap();
+        let mut experience_link = link("Related experiences", vec![first_child_id, second_child_id]);
+        experience_link.link_id = Uuid::from_u128(1);
         let model = ModelDatabase {
             people: vec![],
             experiences: vec![
@@ -436,18 +569,23 @@ mod tests {
                 experience(first_child_id, "First child", vec![root_id]),
                 experience(second_child_id, "Second child", vec![root_id]),
                 experience(grandchild_id, "Grandchild", vec![first_child_id]),
+                experience(unrelated_child_id, "Unrelated child", vec![root_id]),
             ],
             facts: vec![],
-            links: vec![],
+            links: vec![experience_link],
         };
 
         let positions = calculate_branch_positions(&model, &index_experiences(&model));
         assert_eq!(positions[&root_id][0], 0.0);
         assert_eq!(positions[&first_child_id][0], 6.0);
         assert_eq!(positions[&second_child_id][0], 6.0);
+        assert_eq!(positions[&unrelated_child_id][0], 6.0);
         assert_eq!(positions[&grandchild_id][0], 12.0);
         assert_ne!(positions[&first_child_id][1], positions[&second_child_id][1]);
-        assert!((positions[&first_child_id][1] + positions[&second_child_id][1]).abs() < f32::EPSILON);
+        assert!(
+            (positions[&first_child_id][1] - positions[&second_child_id][1]).abs()
+                < (positions[&first_child_id][1] - positions[&unrelated_child_id][1]).abs()
+        );
     }
 
     #[test]
