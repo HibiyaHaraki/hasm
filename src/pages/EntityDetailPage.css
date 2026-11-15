@@ -181,12 +181,24 @@
   min-width: 0;
 }
 
-.ticket-entity-reference,
-.ticket-entity-reference:visited,
+.ticket-page .ticket-entity-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--theme-on-accent, var(--theme-textbackground));
+  background-color: var(--theme-primary);
+  font-size: 0.82em;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ticket-entity-reference:hover {
-  color: var(--theme-text);
   text-decoration: underline;
-  text-underline-offset: 0.2em;
+  text-underline-offset: 0.15em;
 }
 
 .ticket-entity-reference:focus-visible {
@@ -233,10 +245,7 @@
 }
 
 .ticket-relationship-title {
-  display: block;
-  overflow-wrap: anywhere;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+  text-align: left;
 }
 
 .ticket-relationship-disclosure {

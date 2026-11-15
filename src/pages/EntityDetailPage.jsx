@@ -22,6 +22,7 @@ const logger = createLogger("entity-detail");
 // [REQ-04-FUNC-501] Attaches the window focus mtime check for external Markdown changes.
 // [REQ-04-RULE-013] [REQ-04-RULE-015] Keeps abandoned-ticket responses inert and presents
 // reader-first content before any section editor is activated.
+// [REQ-04-RULE-020] Uses the matching graph color for each navigable entity reference.
 // [REQ-04-RULE-030] Confirmed keep/archive conversion with guarded IPC and post-operation verification.
 function EntityDetailPage() {
   const { entityType, entityId } = useParams(); const { state } = useLocation(); const navigate = useNavigate();
@@ -36,6 +37,7 @@ function EntityDetailPage() {
   const [convertError, setConvertError] = useState("");
   const [language, setLanguage] = useState("en");
   const [textSize, setTextSize] = useState("medium");
+  const [referenceBadgeStyles, setReferenceBadgeStyles] = useState(null);
   const t = (text, values) => translateTicket(text, values, language);
   const editTriggerRef = useRef(null);
   const root = state?.path;
@@ -306,7 +308,8 @@ function EntityDetailPage() {
     if (!references.length) return t(field.list ? "None" : "Not set");
     if (field.key === "linkIds" || field.key === "relatedIds") {
       const renderReference = ({ id, type, title }) => type && !navigationDisabled ? (
-        <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+        <Link className="badge ticket-entity-badge ticket-entity-reference" style={referenceBadgeStyles?.get(`${type}:${id}`)}
+          to={`/entity-detail/${type}/${id}`} state={workspaceState}
           aria-label={t("Open {type}: {title}", { type, title })}>{title}</Link>
       ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>;
       if (field.key === "relatedIds") {
@@ -339,7 +342,8 @@ function EntityDetailPage() {
       <span key={`${id}-${index}`}>
         {index > 0 ? ", " : ""}
         {type && !navigationDisabled ? (
-          <Link className="ticket-entity-reference" to={`/entity-detail/${type}/${id}`} state={workspaceState}
+          <Link className="badge ticket-entity-badge ticket-entity-reference" style={referenceBadgeStyles?.get(`${type}:${id}`)}
+            to={`/entity-detail/${type}/${id}`} state={workspaceState}
             aria-label={t("Open {type}: {title}", { type, title })}>{title}</Link>
         ) : <span aria-disabled={type ? "true" : undefined}>{title}</span>}
       </span>
@@ -389,7 +393,6 @@ function EntityDetailPage() {
           </Form.Group>
         </div>
         <p className="ticket-entity-identity">{entityType}/{entityId}</p>
-        <p className="ticket-reading-hint">{t("Select the summary or an external link to edit it, or use Edit details.")}</p>
         {editing === "summary" ? (
           <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
         ) : (
@@ -438,14 +441,18 @@ function EntityDetailPage() {
                     const match = referenceIndex.entities.get(id);
                     const relationship = match?.type === "LINK" ? match.entity : null;
                     const title = entityReferenceTitle(referenceIndex, id, "LINK", currentEntity, t);
+                    const rowNavigationDisabled = Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false;
                     return (
                       <li key={id}>
                         {relationship ? (
-                          <Button className="ticket-content-trigger" disabled={Boolean(editing) || saving || refreshing || workspaceState?.isVerified === false}
+                          <Button className="ticket-content-trigger" disabled={rowNavigationDisabled}
                             data-entity-type="LINK" data-entity-id={id}
                             aria-label={t("Open {type}: {title}", { type: "LINK", title })}
                             onClick={() => navigate(`/entity-detail/LINK/${id}`, { state: workspaceState })}>
-                            <span className="ticket-relationship-title">{title}</span>
+                            <span style={referenceBadgeStyles?.get(`LINK:${id}`)}
+                              className={rowNavigationDisabled
+                              ? "ticket-relationship-title"
+                              : "badge ticket-entity-badge ticket-relationship-title"}>{title}</span>
                           </Button>
                         ) : <p>{t("Referenced LINK information is unavailable.")}</p>}
                         {relationship ? (
@@ -486,7 +493,7 @@ function EntityDetailPage() {
       </div>
       <EntityCommitGraph entityType={entityType} entityId={entityId} detail={ticket.detail}
         workspaceState={workspaceState} disabled={graphNavigationDisabled}
-        onSelect={openGraphEntity} language={language} />
+        onSelect={openGraphEntity} language={language} onBadgeStylesChange={setReferenceBadgeStyles} />
       {showDelete ? <EntityDeleteDialog entityType={entityType} entityId={entityId} ticket={ticket}
         model={workspaceState.model} referenceIndex={referenceIndex} busy={deleting} error={deleteError}
         onCancel={() => setShowDelete(false)} onConfirm={confirmDelete} t={t} /> : null}

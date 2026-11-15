@@ -422,6 +422,17 @@ unverified workspace disable navigation while preserving reference text;
 unverified tickets display re-verification guidance. Selecting a reference
 never starts an editor.
 
+Navigable Details references and related-LINK title actions use the same compact
+Bootstrap badge treatment and per-entity foreground/background colors as the
+active Extended Commit Graph. EXPERIENCE badge colors come from the shared
+relationship-weighted color map in `threeCommitGraph.js`, calculated from the
+ticket graph's visible model and rendered relationships. It counts visible
+parent/child edges, EXPERIENCE-to-EXPERIENCE LINK pairs, direct FACT membership,
+and FACT-to-FACT LINK pairs attributed to their visible EXPERIENCEs. Thus each
+entity and all its references share one color within that graph, without
+requiring data for off-scope entities. Disabled and unavailable references
+remain plain text.
+
 Graph LINK references are displayed as a bulleted list rather than a
 comma-separated line. Long LINK titles wrap within the Details panel.
 On LINK tickets, each related entity is likewise displayed as its own bullet
