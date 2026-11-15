@@ -11,7 +11,7 @@ import { createEntityReferenceIndex, entityReferenceTitle } from "./EntityRefere
 import { translateTicket } from "./ticketLanguage";
 import "./EntityCommitGraph.css";
 import { ExperienceBadge, experienceAtNode } from "../../hasm_visualizer/ExperienceBadge.jsx";
-import { buildExperienceColorMaps, positionKey } from "../../hasm_visualizer/threeCommitGraph.js";
+import { buildEntityColors, buildExperienceColorMaps, ensureReadableColor, positionKey } from "../../hasm_visualizer/threeCommitGraph.js";
 import { previewGraphEntity } from "./EntityInfoPreview";
 import { formatOccurrence } from "./formatOccurrence";
 
@@ -21,7 +21,8 @@ const FILTER = { timeScaleMode: "SequentialIndex", zScaleFactor: 1 };
 // [REQ-04-RULE-023] Compact entity extended commit graph rendered with the shared 2D renderer.
 // [REQ-04-RULE-024] Persistently emphasizes the addressed entity through the highlight API.
 // [REQ-04-RULE-025] SequentialIndex layout with the adjacent newest-first FACT title table.
-export function EntityCommitGraph({ entityType, entityId, detail, workspaceState, disabled, onSelect, language }) {
+// [REQ-04-RULE-020] Shares graph entity colors with ticket reference badges.
+export function EntityCommitGraph({ entityType, entityId, detail, workspaceState, disabled, onSelect, language, onBadgeStylesChange }) {
   const { activePatternId } = useTheme();
   const sceneRef = useRef(null);
   const viewportRef = useRef(null);
@@ -46,6 +47,36 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
   const width = graphWidthForLaneCount(laneCount, laneWidth);
   const theme = getPatternById(activePatternId).colors;
   const experienceColors = useMemo(() => layout ? buildExperienceColorMaps(layout, theme) : null, [layout, theme]);
+  const entityBadgeStyles = useMemo(() => {
+    if (!layout) return null;
+    const typeColors = buildEntityColors(theme);
+    const styles = new Map();
+    const directFacts = new Set();
+    layout.nodes3d.forEach((node) => {
+      const key = `${node.entityType}:${node.id}`;
+      let backgroundColor = null;
+      if (node.entityType === "EXPERIENCE") {
+        const position = positionKey(node.x, node.y);
+        backgroundColor = experienceColors.trunkColorByPositionKey.get(position) || typeColors.EXPERIENCE;
+      } else if (node.entityType === "FACT") {
+        const position = positionKey(node.x, node.y);
+        backgroundColor = experienceColors.factColorByPositionKey.get(position) || typeColors.FACT;
+      } else if (node.entityType === "LINK") {
+        backgroundColor = typeColors.LINK;
+      } else if (node.entityType === "PERSON") {
+        backgroundColor = theme.mainColor;
+      }
+      if (!backgroundColor) return;
+      if (node.entityType !== "FACT" || !styles.has(key) || (node.isDirectFact && !directFacts.has(node.id))) {
+        styles.set(key, {
+          backgroundColor,
+          color: ensureReadableColor(theme.textColor, backgroundColor),
+        });
+      }
+      if (node.entityType === "FACT" && node.isDirectFact) directFacts.add(node.id);
+    });
+    return styles;
+  }, [layout, experienceColors, theme]);
   const badgeFor = (node, inline = false) => {
     const experience = experienceAtNode(layout, node);
     return <ExperienceBadge experience={experience} inline={inline}
@@ -59,6 +90,10 @@ export function EntityCommitGraph({ entityType, entityId, detail, workspaceState
     table.scrollTop = Math.max(0, Math.min(nextScrollTop, table.scrollHeight - table.clientHeight));
     rendererRef.current?.setScrollTop(table.scrollTop);
   };
+
+  useEffect(() => {
+    onBadgeStylesChange?.(entityBadgeStyles);
+  }, [entityBadgeStyles, onBadgeStylesChange]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;

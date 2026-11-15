@@ -196,6 +196,7 @@ describe("SEQ-04 entity ticket", () => {
     const region = within(await screen.findByRole("region", { name: "Details" }));
     const reference = region.getByRole("link", { name: `Open ${target}: ${title}` });
     expect(reference).toHaveAttribute("href", `/entity-detail/${target}/${id}`);
+    expect(reference).toHaveClass("badge", "ticket-entity-badge", "ticket-entity-reference");
     expect(screen.queryByRole("form")).not.toBeInTheDocument();
     fireEvent.click(reference);
     expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
@@ -212,8 +213,10 @@ describe("SEQ-04 entity ticket", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
     expect(region.queryByRole("link")).not.toBeInTheDocument();
     expect(region.getByText("Ada Lovelace")).toHaveAttribute("aria-disabled", "true");
+    expect(region.getByText("Ada Lovelace")).not.toHaveClass("ticket-entity-badge");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(region.getByRole("link", { name: "Open PERSON: Ada Lovelace" })).toBeInTheDocument();
+    expect(region.getByRole("link", { name: "Open PERSON: Ada Lovelace" }))
+      .toHaveClass("badge", "ticket-entity-badge");
     fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await screen.findByText("Metadata saved. Workspace requires re-verification.");
@@ -313,6 +316,7 @@ describe("SEQ-04 entity ticket", () => {
     const relationships = region.querySelector(".ticket-relationships");
     expect(relationships.children).toHaveLength(3);
     const inspired = links.getByRole("button", { name: "Open LINK: Inspired research" }).parentElement;
+    expect(within(inspired).getByText("Inspired research")).toHaveClass("badge", "ticket-entity-badge");
     const inspiredDetails = within(inspired).getByText("Relationship details");
     expect(inspiredDetails.closest("details")).not.toHaveAttribute("open");
     fireEvent.click(inspiredDetails);
@@ -333,6 +337,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(screen.getByRole("region", { name: "External links" })).toHaveTextContent("https://example.org");
     fireEvent.click(screen.getByRole("button", { name: "Edit summary" }));
     expect(links.getByRole("button", { name: "Open LINK: Inspired research" })).toBeDisabled();
+    expect(within(inspired).getByText("Inspired research")).not.toHaveClass("ticket-entity-badge");
   });
   it("TC-04-REACT-REF-003 handles unavailable references without displaying opaque IDs", async () => {
     api.loadEntityDetail.mockResolvedValue({ ...detail, detail: { personIds: ["missing-person"], experienceIds: ["missing-experience"], linkIds: ["missing-link"] } });
@@ -379,6 +384,7 @@ describe("SEQ-04 entity ticket", () => {
     expect(relationship).toHaveTextContent("Updated title");
     expect(within(relationship).getByText("Analytical Engine research")).toBeInTheDocument();
     expect(link).toBeDisabled();
+    expect(within(relationship).getByText("Inspired research")).not.toHaveClass("ticket-entity-badge");
     expect(within(screen.getByRole("region", { name: "Related LINK entities" })).getByText("Return to Visualizer to re-verify before opening related entities.")).toBeInTheDocument();
     expect(api.loadHasmModelDb).not.toHaveBeenCalled();
   });

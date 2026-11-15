@@ -422,6 +422,12 @@ unverified workspace disable navigation while preserving reference text;
 unverified tickets display re-verification guidance. Selecting a reference
 never starts an editor.
 
+Navigable Details references and related-LINK title actions use the same compact
+Bootstrap badge treatment and per-entity foreground/background colors as the
+Extended Commit Graph. These colors come from the rendered graph layout, so the
+same entity uses identical colors in its Details references and graph badges.
+Disabled and unavailable references remain plain text.
+
 Graph LINK references are displayed as a bulleted list rather than a
 comma-separated line. Long LINK titles wrap within the Details panel.
 On LINK tickets, each related entity is likewise displayed as its own bullet

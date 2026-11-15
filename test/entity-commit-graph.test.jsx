@@ -225,6 +225,18 @@ describe("Entity graph GUI and real IPC wrapper", () => {
       modelRoot: "fixture.hasm", entityType: "EXPERIENCE", entityId: "linked",
     }));
   });
+  it("TC-04-GRAPH-SEQUENTIAL-007 matches Details badge colors to the same graph entity", async () => {
+    renderTicket();
+    const details = within(await screen.findByRole("region", { name: "Details" }));
+    const reference = details.getByRole("link", { name: "Open EXPERIENCE: leaf" });
+    const table = await screen.findByRole("table", { name: "FACT titles" });
+    const graphBadge = table.querySelector('a[href="/entity-detail/EXPERIENCE/leaf"]');
+    expect(graphBadge).toBeInTheDocument();
+    await waitFor(() => {
+      expect(reference.style.backgroundColor).toBe(graphBadge.style.backgroundColor);
+      expect(reference.style.color).toBe(graphBadge.style.color);
+    });
+  });
   it.each([["FACT", "focus"], ["EXPERIENCE", "child"], ["LINK", "incoming"], ["PERSON", "p"]])(
     "TC-04-GRAPH-EMPHASIS-001 persistently emphasizes the current %s across hover, redraw and editing",
     async (type, id) => {
