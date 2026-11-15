@@ -393,7 +393,6 @@ function EntityDetailPage() {
           </Form.Group>
         </div>
         <p className="ticket-entity-identity">{entityType}/{entityId}</p>
-        <p className="ticket-reading-hint">{t("Select the summary or an external link to edit it, or use Edit details.")}</p>
         {editing === "summary" ? (
           <TicketForm field="summary" entityType={entityType} value={form} onChange={setForm} onSave={save} onCancel={cancelEdit} saving={saving || refreshing} t={t} />
         ) : (
