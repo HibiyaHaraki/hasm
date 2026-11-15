@@ -416,21 +416,37 @@ fn entity_creation_persists_selected_experiences_and_default_markdown() {
     }));
     let selected_ids = json!([parent_id, second_parent["entityId"]]);
     let cases = [
-        ("PERSON", "create_person", json!({
-            "personName": "New person", "personDescription": "", "securityLevel": 1, "createLifeExperience": false
-        })),
-        ("EXPERIENCE", "create_experience", json!({
-            "experienceName": "New branch", "experienceDescription": "", "securityLevel": 1, "parentExperienceIds": selected_ids
-        })),
-        ("FACT", "create_fact", json!({
-            "factName": "New event", "factDescription": "", "securityLevel": 1,
-            "startTime": "2026-01-01", "endTime": null, "experienceIds": selected_ids
-        })),
-        ("LINK", "create_link", json!({
-            "linkType": "references", "linkDescription": "", "securityLevel": 1,
-            "originEntityType": "PERSON", "originEntityId": initial["people"][0]["personId"],
-            "targetEntityType": "EXPERIENCE", "targetEntityId": parent_id
-        })),
+        (
+            "PERSON",
+            "create_person",
+            json!({
+                "personName": "New | person", "personDescription": "", "securityLevel": 1, "createLifeExperience": false
+            }),
+        ),
+        (
+            "EXPERIENCE",
+            "create_experience",
+            json!({
+                "experienceName": "New branch", "experienceDescription": "", "securityLevel": 1, "parentExperienceIds": selected_ids
+            }),
+        ),
+        (
+            "FACT",
+            "create_fact",
+            json!({
+                "factName": "New event", "factDescription": "", "securityLevel": 1,
+                "startTime": "2026-01-01", "endTime": null, "experienceIds": selected_ids
+            }),
+        ),
+        (
+            "LINK",
+            "create_link",
+            json!({
+                "linkType": "references", "linkDescription": "", "securityLevel": 1,
+                "originEntityType": "PERSON", "originEntityId": initial["people"][0]["personId"],
+                "targetEntityType": "EXPERIENCE", "targetEntityId": parent_id
+            }),
+        ),
     ];
     for (entity_type, command, payload) in cases {
         let created = fixture.invoke(command, json!({ "path": fixture.root, "payload": payload }));
@@ -439,8 +455,73 @@ fn entity_creation_persists_selected_experiences_and_default_markdown() {
         }));
         let directory = fixture.root.join(entity_type).join(created["entityId"].as_str().unwrap());
         let description = std::fs::read_to_string(directory.join("main.md")).unwrap();
-        assert!(description.ends_with("\n\nWrite notes here.\n"), "{entity_type}: default description missing");
+        let title = match entity_type {
+            "PERSON" => "New | person",
+            "EXPERIENCE" => "New branch",
+            "FACT" => "New event",
+            "LINK" => "references",
+            _ => unreachable!(),
+        };
         assert!(description.contains(&format!("entity_type: {entity_type}\n")));
+        assert!(
+            description.contains(&format!("name: {title}\n")),
+            "{entity_type}: FrontMatter name changed"
+        );
+        let heading = title.replace("|", "\\|");
+        assert!(
+            description.contains(&format!("# {heading}\n")),
+            "{entity_type}: title heading missing"
+        );
+        assert!(description.contains("| Field | Value |\n| --- | --- |"));
+        let selected_experiences = selected_ids
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| format!("EXPERIENCE: {}", id.as_str().unwrap()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let expected_rows = match entity_type {
+            "PERSON" => vec![
+                "| Birth date | Not set |".to_string(),
+                "| Life EXPERIENCE | Not created |".to_string(),
+                "| Security level | 1 |".to_string(),
+                "| External URLs | None |".to_string(),
+            ],
+            "EXPERIENCE" => vec![
+                format!("| Parent EXPERIENCES | {selected_experiences} |"),
+                "| Belonging FACTs | None |".to_string(),
+                "| Security level | 1 |".to_string(),
+                "| External URLs | None |".to_string(),
+            ],
+            "FACT" => vec![
+                "| Start time | 2026-01-01 |".to_string(),
+                "| End time | Not set |".to_string(),
+                format!("| Belonging EXPERIENCES | {selected_experiences} |"),
+                "| Security level | 1 |".to_string(),
+                "| External URLs | None |".to_string(),
+            ],
+            "LINK" => vec![
+                "| Relationship type | references |".to_string(),
+                format!(
+                    "| Origin | PERSON: {} |",
+                    initial["people"][0]["personId"].as_str().unwrap()
+                ),
+                format!("| Target | EXPERIENCE: {} |", parent_id.as_str().unwrap()),
+                "| Security level | 1 |".to_string(),
+                "| External URLs | None |".to_string(),
+            ],
+            _ => unreachable!(),
+        };
+        for row in expected_rows {
+            assert!(
+                description.contains(&row),
+                "{entity_type}: missing Markdown row {row}"
+            );
+        }
+        assert!(
+            description.ends_with("\n\n## Notes\n\nWrite notes here.\n"),
+            "{entity_type}: default notes missing"
+        );
         assert!(description.contains(created["entityId"].as_str().unwrap()));
         assert_eq!(detail["markdownBody"], description);
         assert!(directory.join("assets").is_dir());

@@ -131,7 +131,24 @@ pub fn create_experience(path: String, payload: CreateExperienceRequest) -> Resu
         experience_description_path: Experience::default_markdown_path(&experience_id),
         parent_experience_ids: payload.parent_experience_ids.clone(),
         link_ids: Vec::new(),
-        markdown: markdown_template("EXPERIENCE", &experience_id, &payload.experience_name, &payload.experience_description),
+        markdown: markdown_template(
+            "EXPERIENCE",
+            &experience_id,
+            &payload.experience_name,
+            &payload.experience_description,
+            &[
+                (
+                    "Parent EXPERIENCES",
+                    markdown_entity_ids("EXPERIENCE", &payload.parent_experience_ids),
+                ),
+                (
+                    "Belonging FACTs",
+                    markdown_entity_ids("FACT", &payload.fact_ids),
+                ),
+                ("Security level", payload.security_level.to_string()),
+                ("External URLs", markdown_list(&payload.link)),
+            ],
+        ),
         markdown_path: String::new(),
     };
     experience.verify(payload.security_level)?;
@@ -213,7 +230,31 @@ pub fn create_link(path: String, payload: CreateLinkRequest) -> Result<EntityCre
         link_type: payload.link_type.clone(),
         link_description_path: Link::default_markdown_path(&link_id),
         related_ids: vec![payload.origin_entity_id, payload.target_entity_id],
-        markdown: markdown_template("LINK", &link_id, &payload.link_type, &payload.link_description),
+        markdown: markdown_template(
+            "LINK",
+            &link_id,
+            &payload.link_type,
+            &payload.link_description,
+            &[
+                ("Relationship type", payload.link_type.clone()),
+                (
+                    "Origin",
+                    format!(
+                        "{}: {}",
+                        payload.origin_entity_type, payload.origin_entity_id
+                    ),
+                ),
+                (
+                    "Target",
+                    format!(
+                        "{}: {}",
+                        payload.target_entity_type, payload.target_entity_id
+                    ),
+                ),
+                ("Security level", payload.security_level.to_string()),
+                ("External URLs", markdown_list(&payload.link)),
+            ],
+        ),
         markdown_path: String::new(),
     };
     link.verify()?;
@@ -274,7 +315,32 @@ fn create_person_with_id(
         birthday: payload.birth_date.clone().unwrap_or_default(),
         die: String::new(),
         link_ids: Vec::new(),
-        markdown: markdown_template("PERSON", &person_id, &payload.person_name, &payload.person_description),
+        markdown: markdown_template(
+            "PERSON",
+            &person_id,
+            &payload.person_name,
+            &payload.person_description,
+            &[
+                (
+                    "Birth date",
+                    payload
+                        .birth_date
+                        .clone()
+                        .unwrap_or_else(|| "Not set".to_string()),
+                ),
+                (
+                    "Life EXPERIENCE",
+                    if payload.create_life_experience {
+                        "Created"
+                    } else {
+                        "Not created"
+                    }
+                    .to_string(),
+                ),
+                ("Security level", payload.security_level.to_string()),
+                ("External URLs", markdown_list(&payload.link)),
+            ],
+        ),
         markdown_path: String::new(),
     };
     person.verify(payload.security_level)?;
@@ -308,8 +374,14 @@ fn create_person_with_id(
                 markdown: markdown_template(
                     "EXPERIENCE",
                     &root_experience_id,
-                    if payload.birth_date.is_some() { &experience_name } else { "Root Experience" },
+                    &experience_name,
                     "Auto-generated root stream.",
+                    &[
+                        ("Owner PERSON", format!("PERSON: {person_id}")),
+                        ("Parent EXPERIENCES", "None".to_string()),
+                        ("Security level", payload.security_level.to_string()),
+                        ("External URLs", "None".to_string()),
+                    ],
                 ),
                 markdown_path: String::new(),
             };
@@ -330,7 +402,23 @@ fn create_person_with_id(
                     experience_ids: vec![root_experience_id],
                     person_ids: vec![person_id],
                     link_ids: Vec::new(),
-                    markdown: markdown_template("FACT", &fact_id, &fact_name, date),
+                    markdown: markdown_template(
+                        "FACT",
+                        &fact_id,
+                        &fact_name,
+                        date,
+                        &[
+                            ("Start time", date.to_string()),
+                            ("End time", "Not set".to_string()),
+                            (
+                                "Belonging EXPERIENCES",
+                                format!("EXPERIENCE: {root_experience_id}"),
+                            ),
+                            ("PERSONs", format!("PERSON: {person_id}")),
+                            ("Security level", payload.security_level.to_string()),
+                            ("External URLs", "None".to_string()),
+                        ],
+                    ),
                     markdown_path: String::new(),
                 };
                 fact.verify(Some(date), None, payload.security_level)?;
@@ -405,7 +493,32 @@ fn create_fact_with_id(
         experience_ids: payload.experience_ids.clone(),
         person_ids: Vec::new(),
         link_ids: Vec::new(),
-        markdown: markdown_template("FACT", &fact_id, &payload.fact_name, &payload.fact_description),
+        markdown: markdown_template(
+            "FACT",
+            &fact_id,
+            &payload.fact_name,
+            &payload.fact_description,
+            &[
+                (
+                    "Start time",
+                    payload
+                        .start_time
+                        .as_deref()
+                        .unwrap_or("Not set")
+                        .to_string(),
+                ),
+                (
+                    "End time",
+                    payload.end_time.as_deref().unwrap_or("Not set").to_string(),
+                ),
+                (
+                    "Belonging EXPERIENCES",
+                    markdown_entity_ids("EXPERIENCE", &payload.experience_ids),
+                ),
+                ("Security level", payload.security_level.to_string()),
+                ("External URLs", markdown_list(&payload.link)),
+            ],
+        ),
         markdown_path: String::new(),
     };
     fact.verify(
@@ -589,16 +702,71 @@ fn scaffold_entity_files(root: &Path, entity_type: &str, entity_id: &Uuid, markd
     Ok(())
 }
 
-fn markdown_template(entity_type: &str, entity_id: &Uuid, name: &str, description: &str) -> String {
+fn markdown_template(
+    entity_type: &str,
+    entity_id: &Uuid,
+    name: &str,
+    description: &str,
+    fields: &[(&str, String)],
+) -> String {
+    let title = if name.trim().is_empty() {
+        "Untitled"
+    } else {
+        name.trim()
+    };
+    let markdown_title = markdown_table_cell(title);
+    let rows = fields
+        .iter()
+        .map(|(label, value)| {
+            format!(
+                "| {} | {} |",
+                markdown_table_cell(label),
+                markdown_table_cell(value)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     format!(
-        "---\nentity_type: {entity_type}\nentity_id: {entity_id}\nname: {name}\n---\n\n{description}\n",
-        name = if name.trim().is_empty() { "Untitled" } else { name.trim() },
+        "---\nentity_type: {entity_type}\nentity_id: {entity_id}\nname: {title}\n---\n\n# {markdown_title}\n\n| Field | Value |\n| --- | --- |\n{rows}\n\n## Notes\n\n{description}\n",
         description = if description.trim().is_empty() {
             "Write notes here."
         } else {
             description.trim()
         }
     )
+}
+
+fn markdown_entity_ids(entity_type: &str, ids: &[Uuid]) -> String {
+    if ids.is_empty() {
+        return "None".to_string();
+    }
+    ids.iter()
+        .map(|id| format!("{entity_type}: {id}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn markdown_list(values: &[String]) -> String {
+    if values.is_empty() {
+        return "None".to_string();
+    }
+    values.join(", ")
+}
+
+fn markdown_table_cell(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\r' => {}
+            '\n' => escaped.push(' '),
+            '\\' | '`' | '*' | '_' | '{' | '}' | '[' | ']' | '<' | '>' | '#' | '|' => {
+                escaped.push('\\');
+                escaped.push(character);
+            }
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 fn ensure_within(started: Instant, limit: Duration, timeout_error: &str) -> Result<(), String> {

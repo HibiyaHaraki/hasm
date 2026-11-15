@@ -301,10 +301,16 @@ initialization already uses a native birth-date calendar.
 
 PERSON, EXPERIENCE, FACT, and LINK creation forms do not accept descriptions.
 They send the existing description request field as an empty string, using the
-backend's shared Markdown template to generate YAML FrontMatter (`entity_type`,
-`entity_id`, `name`) and the default body `Write notes here.` plus an `assets/`
-directory. Content is edited later through HASM Markdown, not creation forms.
-Existing non-UI callers retain their description request contracts.
+backend's shared Markdown template to generate identity YAML FrontMatter
+(`entity_type`, `entity_id`, `name`), an H1 containing the entity title, and a
+Field/Value table summarizing the relevant creation inputs. The table includes
+relationship selections, security level, and external URLs; unset values and
+empty lists appear as `Not set` and `None`. A `## Notes` section follows with
+`Write notes here.` for an empty description. Markdown-special characters in
+displayed values are escaped without changing the FrontMatter name. The entity
+folder also contains an `assets/` directory. Content is edited later through
+HASM Markdown, not creation forms. Existing non-UI callers retain their
+description request contracts.
 
 ```mermaid
 sequenceDiagram
@@ -349,7 +355,7 @@ sequenceDiagram
         
         Rust->>FS: Create directory: {workspace}/{ENTITY_TYPE}/{UUID}/
         Rust->>FS: Create assets/ subdirectory
-        Rust->>FS: Write template main.md with YAML FrontMatter
+        Rust->>FS: Write main.md with identity FrontMatter, title, input table, and Notes
 
         break On Transaction / File Write Failure or Timeout (> 5,000ms)
             Rust->>DB: ROLLBACK SQLite Transaction
