@@ -9,7 +9,7 @@ Code locations come from `[REQ-...]` comment tags on exported functions,
 classes, Rust `pub` items, and Tauri commands.
 
 - Requirements: **349**
-- Test cases: **520**
+- Test cases: **526**
 - Tagged code items: **175 / 175**
 
 ## docs/req/10-REQ-01_AppLaunch_AppValidation.md
@@ -148,19 +148,19 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-03-RULE-004` | — | `TC-03-REACT-001`<br/>`TC-03-REACT-009` | `TC-03-REACT-002` |
 | `REQ-03-RULE-005` | — | `TC-03-REACT-005` | `TC-03-REACT-2D-003`<br/>`TC-03-REACT-003`<br/>`TC-03-REACT-010` |
 | `REQ-03-RULE-006` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-RUST-006` | `TC-03-RUST-008` |
-| `REQ-03-RULE-007` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-OWNER-001`<br/>`TC-03-RUST-006`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-RUST-009` |
+| `REQ-03-RULE-007` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-OWNER-001`<br/>`TC-03-XY-001`<br/>`TC-03-IPC-007`<br/>`TC-03-RUST-006`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-XY-002`<br/>`TC-03-RUST-009` |
 | `REQ-03-RULE-008` | — | `TC-03-IPC-005` | `TC-03-IPC-006` |
-| `REQ-03-RULE-009` | `src/pages/VisualizerPage.jsx:30` VisualizerPage | `TC-03-COLOR-001`<br/>`TC-03-VIEW-003` | `TC-03-COLOR-002` |
+| `REQ-03-RULE-009` | `src/pages/VisualizerPage.jsx:30` VisualizerPage | `TC-03-COLOR-001`<br/>`TC-03-COLOR-003`<br/>`TC-03-VIEW-003` | `TC-03-COLOR-002` |
 | `REQ-03-RULE-010` | — | `TC-03-IPC-OWNER-001`<br/>`TC-03-OWNER-SCOPE-001`<br/>`TC-03-VIEW-OWNER-001`<br/>`TC-03-VIEW-OWNER-002`<br/>`TC-03-VIEW-OWNER-003`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-RUST-011` |
 | `REQ-03-RULE-011` | — | `TC-03-RUST-006` | `TC-03-VIEW-001` |
 | `REQ-03-RULE-012` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-003`<br/>`TC-03-RUST-006` | `TC-03-RUST-010` |
 | `REQ-03-RULE-013` | — | `TC-03-HOVER-001`<br/>`TC-03-IPC-003` | `TC-03-HOVER-002` |
 | `REQ-03-RULE-014` | `src/pages/VisualizerPage.jsx:30` VisualizerPage | `TC-03-REACT-SCOPE-001`<br/>`TC-03-VIEW-004` | `TC-03-VIEW-001` |
-| `REQ-03-RULE-015` | — | `TC-03-OWNER-SCOPE-001`<br/>`TC-03-REACT-SCOPE-003` | `TC-03-REACT-008` |
-| `REQ-03-RULE-016` | — | `TC-03-VIEW-OWNER-003`<br/>`TC-03-BUDGET-001` | `TC-03-BUDGET-002` |
+| `REQ-03-RULE-015` | — | `TC-03-OWNER-SCOPE-001`<br/>`TC-03-REACT-SCOPE-003`<br/>`TC-03-BUDGET-003` | `TC-03-REACT-008`<br/>`TC-03-BUDGET-004` |
+| `REQ-03-RULE-016` | — | `TC-03-VIEW-OWNER-003`<br/>`TC-03-BUDGET-001`<br/>`TC-03-BUDGET-003` | `TC-03-BUDGET-002`<br/>`TC-03-BUDGET-004` |
 | `REQ-03-RULE-017` | — | `TC-03-IPC-002` | `TC-03-RUST-012` |
 | `REQ-03-RULE-018` | `src/pages/VisualizerPage.jsx:30` VisualizerPage | `TC-NAV-002` | `TC-NAV-001`<br/>`TC-NAV-003`<br/>`TC-NAV-005`<br/>`TC-NAV-009`<br/>`TC-NAV-011`<br/>`TC-03-REACT-007` |
-| `REQ-03-RULE-019` | `src-tauri/src/hasm/visualizer_commands.rs:726` create_test_workspace_fixture | `TC-NAV-002` | `TC-NAV-IPC-001` |
+| `REQ-03-RULE-019` | `src-tauri/src/hasm/visualizer_commands.rs:980` create_test_workspace_fixture | `TC-NAV-002` | `TC-NAV-IPC-001` |
 | `REQ-03-DATA-001` | `src-tauri/src/hasm/types.rs:63` LayoutFilterRequest | `TC-03-RUST-001`<br/>`TC-03-RUST-013` | `TC-03-RUST-012` |
 | `REQ-03-DATA-002` | — | `TC-03-RUST-001`<br/>`TC-03-RUST-IPC-002` | `TC-03-RUST-IPC-001` |
 | `REQ-03-DATA-003` | `src-tauri/src/hasm/types.rs:71` Node3dGeometry<br/>`src-tauri/src/hasm/types.rs:92` Line3dGeometry<br/>`src-tauri/src/hasm/types.rs:108` RenderPayload | `TC-03-RUST-001`<br/>`TC-03-RUST-013`<br/>`TC-03-RUST-IPC-002` | `TC-03-RUST-012` |
@@ -375,7 +375,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-07-FUNC-401` | `src/features/navigation/GlobalNavbar.jsx:15` GlobalNavbar | `TC-07-REACT-005`<br/>`TC-07-REACT-011` | `TC-07-REACT-009` |
 | `REQ-07-FUNC-402` | — | `TC-07-REACT-011` | `TC-07-REACT-012` |
 | `REQ-07-FUNC-403` | — | `TC-07-REACT-011` | `TC-07-REACT-012` |
-| `REQ-07-FUNC-501` | `src-tauri/src/hasm/types.rs:119` TestWorkspaceFixture<br/>`src-tauri/src/hasm/visualizer_commands.rs:726` create_test_workspace_fixture | `TC-07-RUST-006` | `TC-07-RUST-007` |
+| `REQ-07-FUNC-501` | `src-tauri/src/hasm/types.rs:119` TestWorkspaceFixture<br/>`src-tauri/src/hasm/visualizer_commands.rs:980` create_test_workspace_fixture | `TC-07-RUST-006` | `TC-07-RUST-007` |
 
 ## docs/req/17-REQ-08_EntityCreation.md
 
@@ -503,7 +503,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `src-tauri/src/hasm/types.rs:55` pub struct **VerificationResult** | `REQ-02-FUNC-301` `REQ-02-RULE-006` |
 | `src-tauri/src/hasm/types.rs:201` pub struct **WorkspacePathPayload** | `REQ-08-002` |
 | `src-tauri/src/hasm/visualizer_commands.rs:19` tauri command **compute_visualizer_layout** | `REQ-03-RULE-001` `REQ-03-RULE-002` `REQ-03-RULE-006` `REQ-03-RULE-007` `REQ-03-RULE-012` `REQ-03-FUNC-105` `REQ-03-FUNC-303` `REQ-03-FUNC-306` |
-| `src-tauri/src/hasm/visualizer_commands.rs:726` pub fn **create_test_workspace_fixture** | `REQ-07-FUNC-501` `REQ-03-RULE-019` |
+| `src-tauri/src/hasm/visualizer_commands.rs:980` pub fn **create_test_workspace_fixture** | `REQ-07-FUNC-501` `REQ-03-RULE-019` |
 | `src-tauri/src/lib.rs:19` pub fn **run** | `REQ-01-FUNC-001` `REQ-01-RULE-009` |
 | `src/App.jsx:54` default export **App** | `REQ-07-RULE-001` `REQ-07-FUNC-301` `REQ-02-RULE-003` `REQ-02-FUNC-108` `REQ-02-FUNC-109` |
 | `src/components/DateInput.jsx:7` function **DateInput** | `REQ-04-RULE-017` `REQ-08-022` |

@@ -136,3 +136,65 @@ fn eval03_inherits_all_experience_owners_through_registered_invoke() {
     assert_eq!(node(cycle_a)["personName"], "Grace");
     assert!(node(orphan)["personName"].is_null());
 }
+
+// TC-03-IPC-007: [REQ-03-RULE-007]
+// Positive: hierarchical parent bias and accumulated LINK intimacy survive the real invoke.
+#[test]
+fn eval03_applies_parent_centroid_and_link_weight_through_registered_invoke() {
+    let (_app, window) = build_app();
+    let mut demo = visualizer_commands::create_test_workspace_fixture().unwrap();
+    let root_a_id = demo.model.experiences[0].experience_id;
+    let root_b_id = demo.model.experiences[1].experience_id;
+    let child_a_id = demo.model.experiences[2].experience_id;
+    let mut child_b = demo.model.experiences[2].clone();
+    child_b.experience_id = uuid::Uuid::new_v4();
+
+    demo.model.experiences[0].parent_experience_ids.clear();
+    demo.model.experiences[1].parent_experience_ids.clear();
+    demo.model.experiences[2].parent_experience_ids = vec![root_a_id];
+    child_b.parent_experience_ids = vec![root_a_id];
+    let child_b_id = child_b.experience_id;
+    demo.model.experiences.push(child_b);
+    demo.model.facts.clear();
+
+    let mut first_link = demo.model.links[0].clone();
+    first_link.link_id = uuid::Uuid::from_u128(101);
+    first_link.related_ids = vec![child_a_id, child_b_id];
+    demo.model.links = vec![first_link.clone()];
+    let filter = json!({ "timeScaleMode": "SequentialIndex", "zScaleFactor": 1.0 });
+    let single_link_response = invoke_layout(&window, json!({
+        "model": demo.model.clone(),
+        "filter": filter.clone(),
+    })).unwrap();
+    let mut second_link = first_link;
+    second_link.link_id = uuid::Uuid::from_u128(102);
+    demo.model.links.push(second_link);
+    let repeated_link_response = invoke_layout(&window, json!({
+        "model": demo.model.clone(),
+        "filter": filter,
+    })).unwrap();
+    std::fs::remove_dir_all(demo.path).unwrap();
+
+    let coordinates_are_finite = |response: &Value| {
+        response["nodes3d"].as_array().unwrap().iter().all(|node| {
+            node["x"].as_f64().unwrap().is_finite() && node["y"].as_f64().unwrap().is_finite()
+        })
+    };
+    let read_y = |response: &Value, id: uuid::Uuid| {
+        let id = id.to_string();
+        response["nodes3d"].as_array().unwrap().iter()
+            .find(|node| node["id"].as_str() == Some(id.as_str()))
+            .unwrap()["y"].as_f64().unwrap()
+    };
+    let first_child_y = read_y(&repeated_link_response, child_a_id);
+    let second_child_y = read_y(&repeated_link_response, child_b_id);
+    let parent_centroid = read_y(&repeated_link_response, root_a_id);
+    assert!(((first_child_y + second_child_y) / 2.0 - parent_centroid).abs() < 1e-4);
+    assert_eq!(read_y(&repeated_link_response, root_b_id), read_y(&single_link_response, root_b_id));
+    let single_link_distance = (read_y(&single_link_response, child_a_id)
+        - read_y(&single_link_response, child_b_id)).abs();
+    let repeated_link_distance = (first_child_y - second_child_y).abs();
+    assert!(repeated_link_distance < single_link_distance);
+    assert!(coordinates_are_finite(&single_link_response));
+    assert!(coordinates_are_finite(&repeated_link_response));
+}

@@ -19,10 +19,12 @@ Entity-ticket graph ownership: `src/features/entityTicket/entityGraphModel.js`
 extracts related in-memory metadata, and `EntityCommitGraph.jsx` /
 `EntityCommitGraph.css` host the compact page-bottom graph. They reuse the existing
 `features/hasm/api.js` layout invoke and `hasm_visualizer/twoCommitGraph.js` renderer.
-The shared `hasm_visualizer/threeCommitGraph.js` color map derives EXPERIENCE hues
-from the active rendered model's visible parent/child, EXPERIENCE/FACT membership,
-and supported LINK relationships. Every graph renderer and ticket badge reuses
-that map, so matching entities and references share colors within each graph. See
+The shared `hasm_visualizer/threeCommitGraph.js` color map derives distinct,
+full-wheel EXPERIENCE hues from the visible, scoped/budgeted graph. Parent-connected
+lineages are ordered deterministically, with weighted relationship neighbors
+receiving nearby palette positions; visible relationship density and depth adjust
+tone. Every graph renderer and ticket badge reuses that map, so matching entities
+and references share colors within each graph. See
 [SEQ-04](./13-SEQ-04_Entity_Editing.md#compact-entity-extended-commit-graph).
 
 `src/features/entityTicket/EntityDeleteDialog.jsx` owns confirmation and
