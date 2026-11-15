@@ -42,6 +42,29 @@ ancestor EXPERIENCEs and their owner PERSON context for the retained FACTs.
 
 The Three.js canvas uses `OrbitControls`: mouse wheel zooms, left-drag orbits the camera, right-drag pans, and touch input supports orbit/pinch navigation. Node raycasting remains active for stationary hover and click selection.
 
+For a new 3D view, the renderer fits a perspective camera to the rendered nodes,
+line endpoints and curve controls, with space for labels and the timeline. It
+looks horizontally across the XY plane with positive Z (later time) upward.
+The fit uses the viewport aspect ratio and projected bounds rather than a
+bounding sphere, so the timeline uses the available graph height. Its
+clipping and orbit distance limits adapt to the graph size. In 3D the toolbar's
+XY top view button fits the same graph from positive Z, with positive Y upward,
+to reveal EXPERIENCE distribution. Automatic views refit on resize until the
+user starts camera navigation; restored camera states are not overridden.
+The button is unavailable while the 3D renderer is not ready. Existing render
+budgets and scope limits still determine which graph elements are displayed.
+
+The separate XY EXPERIENCE distribution mode uses the layout's EXPERIENCE
+XY coordinates, including EXPERIENCEs without FACTs. It draws parent/child
+relationships as solid lines and LINKs as selectable dashed curves. For each
+pair of distinct LINK endpoints, EXPERIENCE endpoints remain themselves and
+FACT endpoints project to every directly associated scoped EXPERIENCE; pairs
+on the same EXPERIENCE form loops. Duplicate projected pairs within one LINK
+are collapsed, while separate LINKs remain separately selectable. PERSON,
+missing and unassociated FACT endpoints do not produce projected segments.
+No FACT markers or table are displayed. The view and ticket navigation retain
+the existing scope, layout and workspace state.
+
 ---
 
 ## 2. Sequence Architecture Chapters

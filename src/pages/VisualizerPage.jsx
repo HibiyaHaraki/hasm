@@ -25,7 +25,7 @@ const VISUALIZER_LABELS = {
 // active request only; stalls route to /error-model, abandoned requests are ignored.
 // [REQ-03-FUNC-201][REQ-03-FUNC-202][REQ-03-FUNC-203] Filter updates recompute layout with a progress overlay
 // and revert the view with a notice on timeout.
-// [REQ-03-FUNC-302] Clicking a node opens /entity-detail/:entityType/:entityId with workspace and view context.
+// [REQ-03-FUNC-302][REQ-03-FUNC-513] Graph selection opens the typed ticket with workspace and view context.
 // Create New Entity routes to /entity-create (REQ-08-014).
 function VisualizerPage() {
   const { state } = useLocation();
