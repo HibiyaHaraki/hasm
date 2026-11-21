@@ -11,6 +11,13 @@ vi.mock("@tauri-apps/plugin-dialog", () => dialog);
 const api = await import("../src/features/hasm/api.js");
 
 describe("EVAL-02 Tauri IPC bridge contracts", () => {
+  it("TC-02-IPC-TUTORIAL-003 invokes the registered tutorial commands without arbitrary paths", () => {
+    invoke.mockClear();
+    api.createTutorialWorkspace();
+    api.cleanupTutorialWorkspace();
+    expect(invoke).toHaveBeenNthCalledWith(1, "create_tutorial_workspace");
+    expect(invoke).toHaveBeenNthCalledWith(2, "cleanup_tutorial_workspace");
+  });
   it("TC-02-DIALOG-001 opens a single-folder picker, including .hasm workspace folders", async () => {
     dialog.open.mockResolvedValueOnce("C:\\Life.hasm").mockResolvedValueOnce(null)
       .mockRejectedValueOnce(new Error("Native dialog unavailable"));

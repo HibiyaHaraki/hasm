@@ -1,13 +1,69 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, ProgressBar } from "react-bootstrap";
+import { EVENTS, Joyride } from "react-joyride";
 import { computeVisualizerLayout, subscribeToTauriEvent } from "../features/hasm/api";
 import { useTheme } from "../features/theme/ThemeContext";
 import HasmVisualizerComponent from "../hasm_visualizer/HasmVisualizerComponent.jsx";
 import { createLogger } from "../hasm_logger/src/react/logger.js";
+import "./VisualizerPage.css";
 
 const WATCHDOG_MS = 10000;
 const logger = createLogger("visualizer");
+
+const TOUR_STEPS = [
+  {
+    title: "Create a workspace",
+    target: "body",
+    placement: "center",
+    instructions: [
+      "Open the navigation menu and choose Switch Model. This deletes the temporary demo and its edits.",
+      "On Open a workspace, choose Create New HASM and select a new folder.",
+      "After loading, enter a PERSON name and birth date, choose Review model, and confirm to create the life timeline.",
+    ],
+  },
+  {
+    title: "Create an entity",
+    target: "[data-tour='create-entity']",
+    instructions: [
+      "On the commit graph, choose Create New Entity.",
+      "Choose PERSON, EXPERIENCE, FACT, or LINK, then fill in its fields and relationships.",
+      "Choose the Create button for that type. The model reloads and returns to the graph.",
+    ],
+  },
+  {
+    title: "Open an entity detail page",
+    target: ".graph-stage",
+    instructions: [
+      "In the 2D graph, select a FACT title, FACT marker, EXPERIENCE lane label, or dashed LINK. In 3D, select an item in the graph.",
+      "The detail page shows its metadata and Markdown. Use Back to Visualizer to return to the graph.",
+    ],
+  },
+  {
+    title: "Explore the extended commit graph",
+    target: ".graph-stage",
+    instructions: [
+      "Open an entity detail page from the commit graph, then scroll to Extended commit graph near the bottom.",
+      "The current entity is highlighted. Select a related FACT title, EXPERIENCE label, or LINK in the graph to open its detail page.",
+      "Expand Graph entities for another list of related entities.",
+    ],
+  },
+];
+
+function TourTooltip({ step, index, size, isLastStep, tooltipProps, backProps, primaryProps, skipProps }) {
+  return (
+    <div {...tooltipProps} role="dialog" aria-labelledby="tutorial-tour-title" aria-describedby="tutorial-tour-content" className="tutorial-tour">
+      <h2 id="tutorial-tour-title">{step.title}</h2>
+      <p className="tutorial-tour-progress" aria-live="polite">Step {index + 1} of {size}</p>
+      <div id="tutorial-tour-content">{step.content}</div>
+      <div className="tutorial-tour-actions">
+        <Button {...skipProps} variant="outline-secondary" className="btn-hasm-outline">Skip tour</Button>
+        <Button {...backProps} variant="outline-secondary" className="btn-hasm-outline" disabled={index === 0}>Back</Button>
+        <Button {...primaryProps} className="btn-hasm-primary">{isLastStep ? "Finish" : "Next"}</Button>
+      </div>
+    </div>
+  );
+}
 
 // The shared visualizer defaults to English sentence-case labels; SEQ-03 uses its own wording.
 const VISUALIZER_LABELS = {
@@ -26,6 +82,7 @@ const VISUALIZER_LABELS = {
 // [REQ-03-FUNC-201][REQ-03-FUNC-202][REQ-03-FUNC-203] Filter updates recompute layout with a progress overlay
 // and revert the view with a notice on timeout.
 // [REQ-03-FUNC-302][REQ-03-FUNC-513] Graph selection opens the typed ticket with workspace and view context.
+// [REQ-03-RULE-021] Demo-only product tour after successful graph layout.
 // Create New Entity routes to /entity-create (REQ-08-014).
 function VisualizerPage() {
   const { state } = useLocation();
@@ -37,6 +94,25 @@ function VisualizerPage() {
   const activeRef = useRef(false);
   const requestRef = useRef(null);
   const [renderState, setRenderState] = useState({ loading: true, progress: 0, message: "Initializing 3D engine...", warning: "", notice: "" });
+  const [tourOpen, setTourOpen] = useState(false);
+  const isTutorial = Boolean(state?.path && state.path === window.sessionStorage.getItem("hasm-tutorial-workspace"));
+
+  useEffect(() => {
+    if (!isTutorial || !model || state?.isVerified === false || renderState.loading
+      || window.sessionStorage.getItem("hasm-tutorial-tour-seen") === state.path) return;
+    window.sessionStorage.setItem("hasm-tutorial-tour-seen", state.path);
+    setTourOpen(true);
+    logger.info("[SEQ-MD-03][TUTORIAL] opening product tour");
+  }, [isTutorial, model, renderState.loading, state?.isVerified, state?.path]);
+
+  useEffect(() => {
+    if (!tourOpen) return undefined;
+    const dismiss = (event) => {
+      if (event.key === "Escape") setTourOpen(false);
+    };
+    document.addEventListener("keydown", dismiss);
+    return () => document.removeEventListener("keydown", dismiss);
+  }, [tourOpen]);
 
   const fail = useCallback((error, isFilterUpdate) => {
     if (!activeRef.current) return;
@@ -141,6 +217,7 @@ function VisualizerPage() {
   if (!model || state?.isVerified === false) return null;
 
   return (
+    <>
     <HasmVisualizerComponent
       colorPattern={activePatternId}
       labels={VISUALIZER_LABELS}
@@ -151,12 +228,15 @@ function VisualizerPage() {
       getNodeHref={(node) => `/entity-detail/${node.entityType}/${node.id}`}
       factDatesById={factDatesById}
       headerSlot={(
-        <div className="d-flex align-items-center justify-content-between mb-2">
+        <div className="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
           <h1 className="mb-0">Commit graph</h1>
+          {isTutorial ? <Button variant="outline-secondary" className="btn-hasm-outline"
+            disabled={renderState.loading}
+            onClick={() => setTourOpen(true)}>Replay tour</Button> : null}
         </div>
       )}
       toolbarSlot={(
-        <Button className="btn-hasm-primary" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>
+        <Button data-tour="create-entity" className="btn-hasm-primary" onClick={() => navigate("/entity-create", { state: { path: state.path, model, isVerified: true } })}>
           Create New Entity
         </Button>
       )}
@@ -173,6 +253,27 @@ function VisualizerPage() {
         </>
       )}
     />
+    {tourOpen && isTutorial && <Joyride
+      run
+      continuous
+      steps={TOUR_STEPS.map(({ instructions, ...step }) => ({
+        ...step,
+        content: <ol>{instructions.map((instruction) => <li key={instruction}>{instruction}</li>)}</ol>,
+      }))}
+      tooltipComponent={TourTooltip}
+      floatingOptions={{ strategy: "fixed", shiftOptions: { crossAxis: true } }}
+      locale={{ back: "Back", next: "Next", last: "Finish", skip: "Skip tour" }}
+      options={{ skipBeacon: true, blockTargetInteraction: true, overlayClickAction: false, dismissKeyAction: false, arrowColor: "var(--theme-surface)", zIndex: 1200 }}
+      onEvent={(event) => {
+        if (event.type === EVENTS.TOUR_END) setTourOpen(false);
+        if (event.type === EVENTS.TARGET_NOT_FOUND || event.type === EVENTS.ERROR) {
+          logger.error("[SEQ-MD-03][TUTORIAL] product tour failed", event.error || event.type);
+          setRenderState((current) => ({ ...current, notice: "The tour could not be displayed. Please replay it." }));
+          setTourOpen(false);
+        }
+      }}
+    />}
+    </>
   );
 }
 

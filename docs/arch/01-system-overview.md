@@ -86,6 +86,8 @@ flowchart TB
         
         SelectMode -->|Open Existing| OpenModelAction(["Enter path or Browse workspace folder (.hasm included)"]):::action
         SelectMode -->|Create New HASM| CreateModelAction(["Click Create New HASM"]):::action
+        SelectMode -->|Tutorial| TutorialAction(["Read guide and create temporary example"]):::action
+        TutorialAction --> LoadingHASMModelPage
         
         CreateModelAction --> OSDialog["OS Native Save Directory Dialog"]:::modal
         OSDialog --> ScaffoldWorkspace[["Tauri: create_hasm_workspace (SEQ-08)"]]:::tauri

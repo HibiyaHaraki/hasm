@@ -15,6 +15,13 @@ The overall application architecture, lifecycle, and sequence flows referenced b
 
 ## Chapter 1: Directory Structure Overview
 
+`src/pages/SelectModelPage.jsx` provides the example tutorial guide.
+`src/pages/VisualizerPage.jsx` and its co-located CSS own the demo-only
+product tour after graph layout.
+`src-tauri/src/hasm/tutorial_commands.rs` owns the temporary workspace and
+reuses the ordinary entity creation commands. `lib.rs` removes the tracked
+workspace on main-window close; switching removes it before navigation.
+
 Entity-ticket graph ownership: `src/features/entityTicket/entityGraphModel.js`
 extracts related in-memory metadata, and `EntityCommitGraph.jsx` /
 `EntityCommitGraph.css` host the compact page-bottom graph. They reuse the existing

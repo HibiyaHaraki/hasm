@@ -9,3 +9,11 @@
   width: 100%;
   margin-top: 8px;
 }
+
+#tutorial-guide {
+  margin-top: 1.25rem;
+}
+
+#tutorial-guide h2 {
+  font-size: 1.2rem;
+}

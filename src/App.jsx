@@ -31,19 +31,26 @@ import "./App.css";
 const logger = createLogger("app-lifecycle");
 
 function CloseLockListener() {
+  const [cleanupError, setCleanupError] = useState("");
   useEffect(() => {
     let unlisten = () => {};
+    let unlistenCleanup = () => {};
+    const showCleanupError = (event) => setCleanupError(String(event.detail));
+    window.addEventListener("hasm-tutorial-error", showCleanupError);
     subscribeToTauriEvent("tauri://close-requested", async () => {
       const path = window.sessionStorage.getItem("hasm-active-workspace");
       const readOnly = window.sessionStorage.getItem("hasm-workspace-read-only") === "true";
-      if (path && !readOnly) {
+      if (path && !readOnly && !window.sessionStorage.getItem("hasm-tutorial-workspace")) {
         try { await withTimeout(releaseWorkspaceLock(path), 1000, "Workspace lock release timed out"); }
         catch (error) { logger.error("[SEQ-MD-02][LOCK] workspace lock release failed", error); }
       }
     }).then((listener) => { unlisten = listener; }).catch((error) => logger.warn("[SEQ-MD-02][LOCK] close listener unavailable", error));
-    return () => unlisten();
+    subscribeToTauriEvent("tutorial-cleanup-error", (event) => {
+      setCleanupError(String(event.payload));
+    }).then((listener) => { unlistenCleanup = listener; }).catch((error) => logger.warn("[SEQ-MD-02][TUTORIAL] cleanup listener unavailable", error));
+    return () => { unlisten(); unlistenCleanup(); window.removeEventListener("hasm-tutorial-error", showCleanupError); };
   }, []);
-  return null;
+  return cleanupError ? <p role="alert">Could not remove the tutorial workspace: {cleanupError}</p> : null;
 }
 
 // [SEQ-MD-07][REQ-07-RULE-001][REQ-07-FUNC-301] Root router shell: wires ProtectedRoute guards,
