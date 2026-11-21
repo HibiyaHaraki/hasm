@@ -142,7 +142,7 @@ classes, Rust `pub` items, and Tauri commands.
 
 | Requirement | Code references | Positive tests | Negative tests |
 | --- | --- | --- | --- |
-| `REQ-03-RULE-021` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-TOUR-001`<br/>`TC-NAV-TOUR-001` | `TC-03-TOUR-002` |
+| `REQ-03-RULE-021` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-TOUR-001`<br/>`TC-NAV-TOUR-001` | `TC-03-TOUR-002` |
 | `REQ-03-RULE-020` | — | `TC-03-VIEW-007` | `TC-03-VIEW-001` |
 | `REQ-03-RULE-001` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-E2E-001`<br/>`TC-03-REACT-006`<br/>`TC-03-VIEW-005` | `TC-03-E2E-002`<br/>`TC-03-E2E-003`<br/>`TC-03-RUST-003`<br/>`TC-03-RUST-004`<br/>`TC-03-RUST-IPC-001` |
 | `REQ-03-RULE-002` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-E2E-001`<br/>`TC-03-RUST-005` | `TC-03-RUST-008` |
@@ -152,36 +152,36 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-03-RULE-006` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-RUST-006` | `TC-03-RUST-008` |
 | `REQ-03-RULE-007` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-OWNER-001`<br/>`TC-03-XY-001`<br/>`TC-03-IPC-007`<br/>`TC-03-RUST-006`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-XY-002`<br/>`TC-03-RUST-009` |
 | `REQ-03-RULE-008` | — | `TC-03-IPC-005` | `TC-03-IPC-006` |
-| `REQ-03-RULE-009` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-COLOR-001`<br/>`TC-03-COLOR-003`<br/>`TC-03-VIEW-003` | `TC-03-COLOR-002` |
+| `REQ-03-RULE-009` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-COLOR-001`<br/>`TC-03-COLOR-003`<br/>`TC-03-VIEW-003` | `TC-03-COLOR-002` |
 | `REQ-03-RULE-010` | — | `TC-03-IPC-OWNER-001`<br/>`TC-03-OWNER-SCOPE-001`<br/>`TC-03-VIEW-OWNER-001`<br/>`TC-03-VIEW-OWNER-002`<br/>`TC-03-VIEW-OWNER-003`<br/>`TC-03-RUST-014` | `TC-03-IPC-OWNER-002`<br/>`TC-03-RUST-011` |
 | `REQ-03-RULE-011` | — | `TC-03-RUST-006` | `TC-03-VIEW-001` |
 | `REQ-03-RULE-012` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-IPC-003`<br/>`TC-03-RUST-006` | `TC-03-RUST-010` |
 | `REQ-03-RULE-013` | — | `TC-03-HOVER-001`<br/>`TC-03-IPC-003` | `TC-03-HOVER-002` |
-| `REQ-03-RULE-014` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-SCOPE-001`<br/>`TC-03-VIEW-004` | `TC-03-VIEW-001` |
+| `REQ-03-RULE-014` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-SCOPE-001`<br/>`TC-03-VIEW-004` | `TC-03-VIEW-001` |
 | `REQ-03-RULE-015` | — | `TC-03-OWNER-SCOPE-001`<br/>`TC-03-REACT-SCOPE-003`<br/>`TC-03-BUDGET-003` | `TC-03-REACT-008`<br/>`TC-03-BUDGET-004` |
 | `REQ-03-RULE-016` | — | `TC-03-VIEW-OWNER-003`<br/>`TC-03-BUDGET-001`<br/>`TC-03-BUDGET-003` | `TC-03-BUDGET-002`<br/>`TC-03-BUDGET-004` |
 | `REQ-03-RULE-017` | — | `TC-03-IPC-002` | `TC-03-RUST-012` |
-| `REQ-03-RULE-018` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-NAV-002` | `TC-NAV-001`<br/>`TC-NAV-003`<br/>`TC-NAV-005`<br/>`TC-NAV-009`<br/>`TC-NAV-011`<br/>`TC-03-REACT-007` |
+| `REQ-03-RULE-018` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-NAV-002` | `TC-NAV-001`<br/>`TC-NAV-003`<br/>`TC-NAV-005`<br/>`TC-NAV-009`<br/>`TC-NAV-011`<br/>`TC-03-REACT-007` |
 | `REQ-03-RULE-019` | `src-tauri/src/hasm/visualizer_commands.rs:980` create_test_workspace_fixture | `TC-NAV-002` | `TC-NAV-IPC-001` |
 | `REQ-03-DATA-001` | `src-tauri/src/hasm/types.rs:63` LayoutFilterRequest | `TC-03-RUST-001`<br/>`TC-03-RUST-013` | `TC-03-RUST-012` |
 | `REQ-03-DATA-002` | — | `TC-03-RUST-001`<br/>`TC-03-RUST-IPC-002` | `TC-03-RUST-IPC-001` |
 | `REQ-03-DATA-003` | `src-tauri/src/hasm/types.rs:71` Node3dGeometry<br/>`src-tauri/src/hasm/types.rs:92` Line3dGeometry<br/>`src-tauri/src/hasm/types.rs:108` RenderPayload | `TC-03-RUST-001`<br/>`TC-03-RUST-013`<br/>`TC-03-RUST-IPC-002` | `TC-03-RUST-012` |
 | `REQ-03-DATA-004` | — | `TC-03-REACT-006` | `TC-03-RUST-IPC-001` |
-| `REQ-03-FUNC-101` | `src/features/hasm/api.js:105` subscribeToTauriEvent<br/>`src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-E2E-001` | `TC-03-REACT-007` |
-| `REQ-03-FUNC-102` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-006` | `TC-03-E2E-002`<br/>`TC-03-RUST-003` |
-| `REQ-03-FUNC-103` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-006`<br/>`TC-03-VIEW-005` | `TC-03-E2E-003`<br/>`TC-03-RUST-004` |
-| `REQ-03-FUNC-104` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-001` | `TC-03-REACT-002` |
+| `REQ-03-FUNC-101` | `src/features/hasm/api.js:105` subscribeToTauriEvent<br/>`src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-E2E-001` | `TC-03-REACT-007` |
+| `REQ-03-FUNC-102` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-006` | `TC-03-E2E-002`<br/>`TC-03-RUST-003` |
+| `REQ-03-FUNC-103` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-006`<br/>`TC-03-VIEW-005` | `TC-03-E2E-003`<br/>`TC-03-RUST-004` |
+| `REQ-03-FUNC-104` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-001` | `TC-03-REACT-002` |
 | `REQ-03-FUNC-105` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-RUST-002`<br/>`TC-03-RUST-IPC-002` | `TC-03-RUST-IPC-001` |
-| `REQ-03-FUNC-106` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-001`<br/>`TC-03-REACT-009` | `TC-03-REACT-002`<br/>`TC-03-REACT-007` |
-| `REQ-03-FUNC-107` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-009` | `TC-03-REACT-002` |
+| `REQ-03-FUNC-106` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-001`<br/>`TC-03-REACT-009` | `TC-03-REACT-002`<br/>`TC-03-REACT-007` |
+| `REQ-03-FUNC-107` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-009` | `TC-03-REACT-002` |
 | `REQ-03-FUNC-108` | — | `TC-03-E2E-001`<br/>`TC-03-REACT-001` | `TC-03-REACT-003`<br/>`TC-03-REACT-010` |
 | `REQ-03-FUNC-109` | — | `TC-03-REACT-004` | `TC-03-REACT-011` |
-| `REQ-03-FUNC-201` | `src/features/hasm/api.js:138` computeVisualizerLayout<br/>`src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-E2E-004`<br/>`TC-03-REACT-005`<br/>`TC-03-VIEW-002` | `TC-03-REACT-003` |
-| `REQ-03-FUNC-202` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-E2E-004`<br/>`TC-03-REACT-005` | `TC-03-IPC-006` |
-| `REQ-03-FUNC-203` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-REACT-005` | `TC-03-REACT-003` |
+| `REQ-03-FUNC-201` | `src/features/hasm/api.js:138` computeVisualizerLayout<br/>`src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-E2E-004`<br/>`TC-03-REACT-005`<br/>`TC-03-VIEW-002` | `TC-03-REACT-003` |
+| `REQ-03-FUNC-202` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-E2E-004`<br/>`TC-03-REACT-005` | `TC-03-IPC-006` |
+| `REQ-03-FUNC-203` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-REACT-005` | `TC-03-REACT-003` |
 | `REQ-03-FUNC-204` | — | `TC-03-IPC-005` | `TC-03-IPC-006`<br/>`TC-03-RUST-008` |
 | `REQ-03-FUNC-301` | — | `TC-03-E2E-005`<br/>`TC-03-IPC-005` | `TC-03-HOVER-002` |
-| `REQ-03-FUNC-302` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-E2E-005`<br/>`TC-03-VIEW-006` | `TC-03-VIEW-001` |
+| `REQ-03-FUNC-302` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-E2E-005`<br/>`TC-03-VIEW-006` | `TC-03-VIEW-001` |
 | `REQ-03-FUNC-303` | `src-tauri/src/hasm/visualizer_commands.rs:19` compute_visualizer_layout | `TC-03-RUST-006` | `TC-03-RUST-009` |
 | `REQ-03-FUNC-304` | — | `TC-03-CAMERA-001`<br/>`TC-03-CAMERA-003`<br/>`TC-03-E2E-007`<br/>`TC-03-VIEW-004` | `TC-03-CAMERA-002`<br/>`TC-03-REACT-010` |
 | `REQ-03-FUNC-305` | — | `TC-03-IPC-005` | `TC-03-IPC-006` |
@@ -198,7 +198,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-03-FUNC-510` | — | `TC-03-ZSCALE-001`<br/>`TC-03-IPC-002` | `TC-03-REACT-2D-002` |
 | `REQ-03-FUNC-511` | — | `TC-03-REACT-TOOLBAR-001` | `TC-03-REACT-TOOLBAR-002` |
 | `REQ-03-FUNC-512` | — | `TC-03-IPC-005` | `TC-03-IPC-006` |
-| `REQ-03-FUNC-513` | `src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-03-DISTRIBUTION-001` | `TC-03-DISTRIBUTION-002` |
+| `REQ-03-FUNC-513` | `src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-03-DISTRIBUTION-001` | `TC-03-DISTRIBUTION-002` |
 
 ## docs/req/13-REQ-04_Entity_Editing.md
 
@@ -389,7 +389,7 @@ classes, Rust `pub` items, and Tauri commands.
 | `REQ-08-011` | `src/features/entityCreation/components/CreateExperienceForm.jsx:10` CreateExperienceForm<br/>`src/features/hasm/api.js:150` createExperience<br/>`src-tauri/src/hasm/definitions/experience.rs:51` verify<br/>`src-tauri/src/hasm/entity_creation_commands.rs:121` create_experience<br/>`src-tauri/src/hasm/types.rs:225` CreateExperienceRequest | `TC-08-RUST-102`<br/>`TC-08-REACT-REL-001` | `TC-EVL-08-COMP-001`<br/>`TC-08-RUST-103` |
 | `REQ-08-012` | `src/features/entityCreation/components/CreateFactForm.jsx:8` CreateFactForm<br/>`src/features/hasm/api.js:156` createFact<br/>`src-tauri/src/hasm/definitions/fact.rs:52` verify<br/>`src-tauri/src/hasm/entity_creation_commands.rs:211` create_fact<br/>`src-tauri/src/hasm/types.rs:240` CreateFactRequest | `TC-08-RUST-102`<br/>`TC-08-IPC-DATE-001` | `TC-EVL-08-COMP-002`<br/>`TC-08-RUST-103` |
 | `REQ-08-013` | `src/features/entityCreation/components/CreateLinkForm.jsx:7` CreateLinkForm<br/>`src/features/hasm/api.js:162` createLink<br/>`src-tauri/src/hasm/definitions/link.rs:54` verify<br/>`src-tauri/src/hasm/entity_creation_commands.rs:221` create_link<br/>`src-tauri/src/hasm/types.rs:255` CreateLinkRequest | `TC-EVL-08-E2E-003`<br/>`TC-EVL-08-RUST-001`<br/>`TC-08-RUST-102`<br/>`TC-08-RUST-104` | `TC-EVL-08-E2E-004`<br/>`TC-EVL-08-COMP-003`<br/>`TC-08-RUST-103` |
-| `REQ-08-014` | `src/features/entityCreation/components/CreateExperienceForm.jsx:10` CreateExperienceForm<br/>`src/features/entityCreation/components/CreateFactForm.jsx:8` CreateFactForm<br/>`src/features/entityCreation/components/CreateLinkForm.jsx:7` CreateLinkForm<br/>`src/features/entityCreation/components/CreatePersonForm.jsx:6` CreatePersonForm<br/>`src/features/entityCreation/components/SecurityLevelField.jsx:4` SecurityLevelField<br/>`src/pages/VisualizerPage.jsx:66` VisualizerPage | `TC-08-REACT-001`<br/>`TC-08-REACT-002`<br/>`TC-08-IPC-SEC-002`<br/>`TC-08-IPC-SEC-003` | `TC-08-REACT-003`<br/>`TC-08-IPC-SEC-001` |
+| `REQ-08-014` | `src/features/entityCreation/components/CreateExperienceForm.jsx:10` CreateExperienceForm<br/>`src/features/entityCreation/components/CreateFactForm.jsx:8` CreateFactForm<br/>`src/features/entityCreation/components/CreateLinkForm.jsx:7` CreateLinkForm<br/>`src/features/entityCreation/components/CreatePersonForm.jsx:6` CreatePersonForm<br/>`src/features/entityCreation/components/SecurityLevelField.jsx:4` SecurityLevelField<br/>`src/pages/VisualizerPage.jsx:87` VisualizerPage | `TC-08-REACT-001`<br/>`TC-08-REACT-002`<br/>`TC-08-IPC-SEC-002`<br/>`TC-08-IPC-SEC-003` | `TC-08-REACT-003`<br/>`TC-08-IPC-SEC-001` |
 | `REQ-08-015` | `src/features/hasm/api.js:144` createPerson<br/>`src/pages/ModelInitializationPage.jsx:17` ModelInitializationPage<br/>`src-tauri/src/hasm/entity_creation_commands.rs:105` create_person<br/>`src-tauri/src/hasm/types.rs:210` CreatePersonRequest | `TC-EVL-08-E2E-005` | `TC-08-REACT-006` |
 | `REQ-08-022` | `src/components/DateInput.jsx:7` DateInput<br/>`src/features/entityCreation/components/CreateFactForm.jsx:8` CreateFactForm | `TC-08-IPC-DATE-001` | `TC-08-REACT-009` |
 | `REQ-08-023` | `src/features/entityCreation/components/CreateExperienceForm.jsx:10` CreateExperienceForm<br/>`src/features/hasm/api.js:150` createExperience<br/>`src/pages/EntityCreatePage.jsx:26` EntityCreatePage<br/>`src-tauri/src/hasm/entity_creation_commands.rs:121` create_experience<br/>`src-tauri/src/hasm/types.rs:225` CreateExperienceRequest | `TC-08-IPC-FACTS-001`<br/>`TC-08-IPC-DESIGN-001`<br/>`TC-08-IPC-FACTS-003`<br/>`TC-08-IPC-FACTS-004`<br/>`TC-08-PREVIEW-004` | `TC-08-IPC-DESIGN-002`<br/>`TC-08-IPC-FACTS-002`<br/>`TC-08-IPC-FACTS-005` |
@@ -587,4 +587,4 @@ classes, Rust `pub` items, and Tauri commands.
 | `src/pages/LoadingModelPage.jsx:46` default export **LoadingModelPage** | `REQ-02-FUNC-101` `REQ-02-FUNC-102` `REQ-02-FUNC-104` `REQ-02-FUNC-106` `REQ-02-FUNC-201` `REQ-02-FUNC-203` `REQ-02-FUNC-204` `REQ-02-FUNC-205` `REQ-02-FUNC-302` `REQ-02-FUNC-306` `REQ-02-FUNC-407` `REQ-02-RULE-014` `REQ-02-RULE-011` `REQ-02-RULE-013` `REQ-07-FUNC-105` `REQ-04-RULE-030` |
 | `src/pages/ModelInitializationPage.jsx:17` default export **ModelInitializationPage** | `REQ-08-015` `REQ-02-FUNC-306` |
 | `src/pages/SelectModelPage.jsx:33` default export **SelectModelPage** | `REQ-01-FUNC-503` `REQ-01-FUNC-504` `REQ-01-FUNC-505` `REQ-01-FUNC-506` `REQ-01-FUNC-508` `REQ-01-FUNC-509` `REQ-01-FUNC-510` `REQ-01-FUNC-512` `REQ-01-FUNC-601` `REQ-01-FUNC-602` `REQ-02-RULE-012` `REQ-02-RULE-016` `REQ-07-RULE-002` `REQ-08-001` `REQ-08-002` |
-| `src/pages/VisualizerPage.jsx:66` default export **VisualizerPage** | `REQ-03-RULE-014` `REQ-03-RULE-009` `REQ-03-FUNC-101` `REQ-03-FUNC-102` `REQ-03-FUNC-103` `REQ-03-FUNC-104` `REQ-03-FUNC-106` `REQ-03-FUNC-107` `REQ-03-RULE-018` `REQ-03-FUNC-201` `REQ-03-FUNC-202` `REQ-03-FUNC-203` `REQ-03-FUNC-302` `REQ-03-FUNC-513` `REQ-03-RULE-021` `REQ-08-014` |
+| `src/pages/VisualizerPage.jsx:87` default export **VisualizerPage** | `REQ-03-RULE-014` `REQ-03-RULE-009` `REQ-03-FUNC-101` `REQ-03-FUNC-102` `REQ-03-FUNC-103` `REQ-03-FUNC-104` `REQ-03-FUNC-106` `REQ-03-FUNC-107` `REQ-03-RULE-018` `REQ-03-FUNC-201` `REQ-03-FUNC-202` `REQ-03-FUNC-203` `REQ-03-FUNC-302` `REQ-03-FUNC-513` `REQ-03-RULE-021` `REQ-08-014` |

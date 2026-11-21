@@ -1,14 +1,24 @@
-.tutorial-tour .modal-content {
+.tutorial-tour {
   color: var(--theme-text);
   background-color: var(--theme-surface);
   border: 1px solid var(--theme-border);
   border-radius: 0;
+  padding: 1.25rem;
+  width: min(460px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
   overflow-wrap: anywhere;
 }
 
-.tutorial-tour .modal-header,
-.tutorial-tour .modal-footer {
-  border-color: var(--theme-border);
+.tutorial-tour h2 {
+  font-size: 1.25rem;
+}
+
+.tutorial-tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .tutorial-tour-progress {

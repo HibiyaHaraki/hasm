@@ -39,7 +39,7 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 | Test ID | Requirement | Test Type | Automated target and expected result |
 | --- | --- | --- | --- |
-| `TC-03-TOUR-001` | `REQ-03-RULE-021` | Positive (Tour) | `test/seq03.test.jsx`, test `TC-03-TOUR-001 presents the demo tour after layout and supports back, finish, and replay`: the tour waits for layout, explains all four topics, supports navigation and replay, and does not reopen on return. |
+| `TC-03-TOUR-001` | `REQ-03-RULE-021` | Positive (Joyride tour) | `test/seq03.test.jsx`, test `TC-03-TOUR-001 presents the demo tour after layout and supports back, finish, and replay`: the tour waits for layout, explains all four topics, supports navigation and replay, and does not reopen on return. |
 | `TC-03-TOUR-002` | `REQ-03-RULE-021` | Negative (Other workspace or layout failure) | `test/seq03.test.jsx`, test `TC-03-TOUR-002 never opens the tour for a different workspace or a failed layout`: neither scenario automatically opens a tour. |
 | `TC-NAV-TOUR-001` | `REQ-03-RULE-021` | Positive (GUI and IPC bridge) | `test/navigation-robustness.test.jsx`, test `TC-NAV-TOUR-001 opens the demo tour after real create, load, verify and layout wrappers`: the real frontend routes and wrappers reach the tour, open a FACT ticket and its graph, then return without reopening the tour. Native transport is mocked. |
 | `TC-03-CAMERA-001` | `REQ-03-FUNC-304` | Positive (Camera Framing) | `test/visualizer-camera.test.jsx` checks that increasing Z projects upward and a tall timeline occupies at least 75% of a wide viewport; it also checks geometry visibility, resize refitting, manual zoom and camera restoration. |
