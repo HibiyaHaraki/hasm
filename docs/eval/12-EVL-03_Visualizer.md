@@ -10,6 +10,8 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 | Test IDs covered | Executable test file / command | CI job |
 | --- | --- | --- |
+| `TC-03-TOUR-001` and `002` | `test/seq03.test.jsx` via `npm run test:eval-03` | Demo tour steps, replay, normal workspace and failed layout |
+| `TC-NAV-TOUR-001` | `test/navigation-robustness.test.jsx` via `npm run test:robustness` | Demo create/load/verify/layout wrappers, tour and detail navigation |
 | `TC-03-REACT-001` to `TC-03-REACT-004`, `TC-03-REACT-SCOPE-001` to `TC-03-REACT-SCOPE-003`, visualizer guards, node-to-ticket route handoff | `test/seq03.test.jsx` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | SEQ-03 IPC contract | `test/eval-03-ipc.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
 | `TC-03-SCOPE-001` to `TC-03-SCOPE-005`, `TC-03-BUDGET-001`, `TC-03-BUDGET-002` | `test/visualizer-scope.test.js` via `npm run test:eval-03` | Frontend: EVAL-03 React and IPC tests |
@@ -37,6 +39,9 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 | Test ID | Requirement | Test Type | Automated target and expected result |
 | --- | --- | --- | --- |
+| `TC-03-TOUR-001` | `REQ-03-RULE-021` | Positive (Tour) | `test/seq03.test.jsx`, test `TC-03-TOUR-001 presents the demo tour after layout and supports back, finish, and replay`: the tour waits for layout, explains all four topics, supports navigation and replay, and does not reopen on return. |
+| `TC-03-TOUR-002` | `REQ-03-RULE-021` | Negative (Other workspace or layout failure) | `test/seq03.test.jsx`, test `TC-03-TOUR-002 never opens the tour for a different workspace or a failed layout`: neither scenario automatically opens a tour. |
+| `TC-NAV-TOUR-001` | `REQ-03-RULE-021` | Positive (GUI and IPC bridge) | `test/navigation-robustness.test.jsx`, test `TC-NAV-TOUR-001 opens the demo tour after real create, load, verify and layout wrappers`: the real frontend routes and wrappers reach the tour, open a FACT ticket and its graph, then return without reopening the tour. Native transport is mocked. |
 | `TC-03-CAMERA-001` | `REQ-03-FUNC-304` | Positive (Camera Framing) | `test/visualizer-camera.test.jsx` checks that increasing Z projects upward and a tall timeline occupies at least 75% of a wide viewport; it also checks geometry visibility, resize refitting, manual zoom and camera restoration. |
 | `TC-03-CAMERA-002` | `REQ-03-FUNC-304` | Negative (Empty Graph) | `test/visualizer-camera.test.jsx` fits an empty graph and its top view without invalid camera coordinates or clipping the origin. |
 | `TC-03-CAMERA-003` | `REQ-03-FUNC-304` | Positive (GUI and IPC) | `test/visualizer-camera.test.jsx` supplies a layout through the host's real JS invoke wrapper, activates the enabled 3D top-view button, and checks camera direction and fitted geometry; the control is absent in 2D. WebGL rasterization and native dispatch are mocked. |

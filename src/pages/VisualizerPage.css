@@ -1,0 +1,21 @@
+.tutorial-tour .modal-content {
+  color: var(--theme-text);
+  background-color: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: 0;
+  overflow-wrap: anywhere;
+}
+
+.tutorial-tour .modal-header,
+.tutorial-tour .modal-footer {
+  border-color: var(--theme-border);
+}
+
+.tutorial-tour-progress {
+  color: var(--theme-muted);
+}
+
+.tutorial-tour li {
+  line-height: 1.7;
+  margin-bottom: 0.6rem;
+}

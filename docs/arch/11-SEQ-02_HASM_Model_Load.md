@@ -13,6 +13,9 @@ and an explicit **Start tutorial** action. Rust creates a uniquely named
 temporary Marie Curie example using normal workspace and entity commands, then
 the frontend opens it through the ordinary SEQ-02 lock/load/verify flow. It
 contains a person, a life and research branch, three facts and a relationship.
+Once the verified demo graph has been laid out, a replayable product tour
+explains workspace creation, entity creation, entity details, and the
+detail-page Extended commit graph (see [SEQ-03](./12-SEQ-03_Visualizer.md)).
 The app tracks the created directory in native state; switching models or
 closing the main window removes that directory and its edits. The guide warns
 about this before creation. Failures are shown and prevent leaving; abrupt
