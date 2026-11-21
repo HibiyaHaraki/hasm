@@ -8,6 +8,17 @@ This document details the complete sequence for checking and managing workspace 
 
 ### Workspace selection
 
+The selection page offers **Tutorial: explore an example**, with a short guide
+and an explicit **Start tutorial** action. Rust creates a uniquely named
+temporary Marie Curie example using normal workspace and entity commands, then
+the frontend opens it through the ordinary SEQ-02 lock/load/verify flow. It
+contains a person, a life and research branch, three facts and a relationship.
+The app tracks the created directory in native state; switching models or
+closing the main window removes that directory and its edits. The guide warns
+about this before creation. Failures are shown and prevent leaving; abrupt
+termination can leave the temporary directory behind. The test-only fixture
+remains unregistered.
+
 The **Open a workspace** page offers manual path entry and a **Browse** button.
 Browse uses `browseWorkspaceDirectory` and the Tauri dialog plugin's native
 `open({ directory: true, multiple: false })` picker, not the Save dialog used

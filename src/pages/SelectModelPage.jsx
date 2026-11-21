@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   browseWorkspaceDirectory,
+  cleanupTutorialWorkspace,
   createHasmWorkspace,
+  createTutorialWorkspace,
   pickWorkspaceDirectory,
   validateHasmFolderPath,
   withTimeout,
@@ -25,7 +27,7 @@ function normalizeWorkspacePath(value) {
 // 300ms-debounced real-time validation under a 2,000ms IPC timeout.
 // [REQ-01-FUNC-506][REQ-01-FUNC-508][REQ-01-FUNC-509] Enables/disables Open and shows inline warnings by validation state.
 // [REQ-01-FUNC-510][REQ-01-FUNC-512][REQ-01-FUNC-601][REQ-01-FUNC-602] Captures the quote-normalized path and transfers it to /loading-model.
-// [REQ-02-RULE-012] Native single-folder Browse action feeding the same debounced validation.
+// [REQ-02-RULE-012][REQ-02-RULE-016] Browse and temporary tutorial workspace actions.
 // [REQ-07-RULE-002] Displays redirectReason from router state and clears it to prevent duplicate notices.
 // Create New HASM uses the native save dialog and workspace scaffolding (REQ-08-001 / REQ-08-002).
 function SelectModelPage() {
@@ -36,8 +38,17 @@ function SelectModelPage() {
   const [validation, setValidation] = useState({ status: "idle", message: location.state?.validationError || "" });
   const [workspaceCreateLoading, setWorkspaceCreateLoading] = useState(false);
   const [browsing, setBrowsing] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [tutorialLoading, setTutorialLoading] = useState(false);
+  const tutorialRef = useRef(false);
+  const mountedRef = useRef(false);
   const browsingRef = useRef(false);
   const submittingRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!redirectReason) {
@@ -136,6 +147,32 @@ function SelectModelPage() {
     }
   }
 
+  async function startTutorial() {
+    if (tutorialRef.current) return;
+    tutorialRef.current = true;
+    setTutorialLoading(true);
+    try {
+      const created = await createTutorialWorkspace();
+      window.sessionStorage.setItem("hasm-tutorial-workspace", created.path);
+      if (!mountedRef.current) {
+        await cleanupTutorialWorkspace();
+        window.sessionStorage.removeItem("hasm-tutorial-workspace");
+        return;
+      }
+      logger.info("[SEQ-MD-02][TUTORIAL] opening example workspace");
+      navigate("/loading-model", { state: { path: created.path } });
+    } catch (error) {
+      logger.error("[SEQ-MD-02][TUTORIAL] workspace creation failed", error);
+      if (mountedRef.current) {
+        setValidation({ status: "invalid", message: error?.message || String(error) });
+      } else {
+        window.dispatchEvent(new CustomEvent("hasm-tutorial-error", { detail: error?.message || String(error) }));
+      }
+      tutorialRef.current = false;
+      setTutorialLoading(false);
+    }
+  }
+
   return (
     <Container as="main" fluid className="panel-layout d-flex align-items-center justify-content-center">
       <section className="panel-card">
@@ -156,10 +193,10 @@ function SelectModelPage() {
                 autoComplete="off"
               />
               <Button type="button" className="btn-hasm-outline" variant="outline-secondary"
-                onClick={browseWorkspace} disabled={browsing}>
+                onClick={browseWorkspace} disabled={browsing || tutorialLoading}>
                 {browsing ? "Browsing..." : "Browse"}
               </Button>
-              <Button type="submit" className="btn-hasm-primary" disabled={validation.status !== "valid" || submittingRef.current}>Open</Button>
+              <Button type="submit" className="btn-hasm-primary" disabled={validation.status !== "valid" || submittingRef.current || tutorialLoading}>Open</Button>
             </InputGroup>
           </Form.Group>
           <p className="validation-message" role="status" data-status={validation.status}>{validation.message}</p>
@@ -168,10 +205,30 @@ function SelectModelPage() {
           variant="outline-secondary"
           className="btn-hasm-outline workspace-action-button"
           onClick={createNewWorkspace}
-          disabled={workspaceCreateLoading}
+          disabled={workspaceCreateLoading || tutorialLoading}
         >
           {workspaceCreateLoading ? "Creating workspace..." : "Create New HASM"}
         </Button>
+        <Button type="button" variant="outline-secondary" className="btn-hasm-outline workspace-action-button"
+          onClick={() => setShowTutorial(!showTutorial)} aria-expanded={showTutorial} aria-controls="tutorial-guide"
+          disabled={tutorialLoading}>
+          Tutorial: explore an example
+        </Button>
+        {showTutorial ? (
+          <section id="tutorial-guide" aria-label="Tutorial guide">
+            <h2>Explore the example</h2>
+            <p>This temporary Marie Curie example contains a PERSON, EXPERIENCES, FACTS and a LINK.</p>
+            <ol>
+              <li>Start the example and wait for workspace verification, then choose Go to visualization.</li>
+              <li>Explore the timeline and select an entity to inspect its details and Markdown.</li>
+              <li>Try editing or creating an entity, then return to the visualization.</li>
+            </ol>
+            <p>The temporary workspace and any edits are deleted when you switch models or close the app.</p>
+            <Button className="btn-hasm-primary" onClick={startTutorial} disabled={tutorialLoading}>
+              {tutorialLoading ? "Creating example..." : "Start tutorial"}
+            </Button>
+          </section>
+        ) : null}
       </section>
     </Container>
   );

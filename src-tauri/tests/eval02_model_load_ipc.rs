@@ -2,7 +2,7 @@
 //! commands: fresh model replacement, streamed progress payload contracts, and
 //! structured error propagation through the actual Tauri IPC dispatch.
 
-use hasm_lib::hasm::model_commands;
+use hasm_lib::hasm::{entity_editor_commands, model_commands, tutorial_commands, visualizer_commands};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -19,7 +19,12 @@ struct IpcHarness {
 impl IpcHarness {
     fn create() -> Self {
         let app = tauri::test::mock_builder()
+            .manage(tutorial_commands::TutorialWorkspace::default())
             .invoke_handler(tauri::generate_handler![
+                tutorial_commands::create_tutorial_workspace,
+                tutorial_commands::cleanup_tutorial_workspace,
+                entity_editor_commands::load_entity_detail,
+                visualizer_commands::compute_visualizer_layout,
                 model_commands::check_workspace_lock,
                 model_commands::release_workspace_lock,
                 model_commands::load_hasm_model_db,
@@ -54,6 +59,47 @@ impl IpcHarness {
         })
         .map(|body| body.deserialize::<Value>().unwrap())
     }
+}
+
+// TC-02-IPC-TUTORIAL-001/002: actual dispatch, verification, duplicate rejection and scoped cleanup.
+#[test]
+fn tutorial_workspace_dispatch_and_cleanup() {
+    let registration = include_str!("../src/lib.rs");
+    assert!(registration.contains("tutorial_commands::create_tutorial_workspace"));
+    assert!(registration.contains("tutorial_commands::cleanup_tutorial_workspace"));
+    let harness = IpcHarness::create();
+    let created = harness.invoke("create_tutorial_workspace", json!({})).unwrap();
+    let path = created["path"].as_str().unwrap();
+    assert!(PathBuf::from(path).starts_with(std::env::temp_dir()));
+    assert!(harness.invoke("create_tutorial_workspace", json!({})).is_err());
+    harness.invoke("check_workspace_lock", json!({ "path": path })).unwrap();
+    let model = harness.invoke("load_hasm_model_db", json!({ "path": path })).unwrap();
+    assert_eq!(model["people"].as_array().unwrap().len(), 1);
+    assert_eq!(model["experiences"].as_array().unwrap().len(), 2);
+    assert_eq!(model["facts"].as_array().unwrap().len(), 3);
+    assert_eq!(model["links"].as_array().unwrap().len(), 1);
+    let result = harness.invoke("verify_hasm_storage", json!({ "path": path, "model": model })).unwrap();
+    assert_eq!(result["missingEntities"], json!([]));
+    let layout = harness.invoke("compute_visualizer_layout", json!({
+        "model": model, "filter": { "timeScaleMode": "SequentialIndex", "zScaleFactor": 1.0 }
+    })).unwrap();
+    assert!(!layout["nodes3d"].as_array().unwrap().is_empty());
+    assert!(layout["lines3d"].as_array().unwrap().iter().any(|line| line["lineType"] == "LINK"));
+    for (collection, entity_type, id_key) in [
+        ("people", "PERSON", "personId"),
+        ("experiences", "EXPERIENCE", "experienceId"),
+        ("facts", "FACT", "factId"),
+        ("links", "LINK", "linkId"),
+    ] {
+        let detail = harness.invoke("load_entity_detail", json!({
+            "modelRoot": path, "entityType": entity_type, "entityId": model[collection][0][id_key]
+        })).unwrap();
+        assert!(!detail["markdownBody"].as_str().unwrap().is_empty());
+    }
+    harness.invoke("release_workspace_lock", json!({ "path": path })).unwrap();
+    harness.invoke("cleanup_tutorial_workspace", json!({})).unwrap();
+    assert!(!PathBuf::from(path).exists());
+    harness.invoke("cleanup_tutorial_workspace", json!({})).unwrap();
 }
 
 /// Builds a database-less workspace holding `per_type` folder-only entities per type,

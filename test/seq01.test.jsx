@@ -9,6 +9,7 @@ vi.mock("../src/features/hasm/api", () => ({
   browseWorkspaceDirectory: vi.fn(),
   completeAppLaunch: vi.fn(),
   createHasmWorkspace: vi.fn(),
+  createTutorialWorkspace: vi.fn(),
   createPerson: vi.fn(),
   createExperience: vi.fn(),
   createFact: vi.fn(),
@@ -64,6 +65,25 @@ afterEach(() => {
 });
 
 describe("SEQ-01 app launch validation", () => {
+  it("TC-02-REACT-TUTORIAL-001 shows instructions and opens a created example through loading", async () => {
+    api.createTutorialWorkspace.mockResolvedValue({ path: "C:\\Temp\\hasm-tutorial" });
+    renderSelect();
+    fireEvent.click(screen.getByRole("button", { name: "Tutorial: explore an example" }));
+    expect(screen.getByText(/any edits are deleted/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start tutorial" }));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/loading-model");
+    expect(JSON.parse(screen.getByTestId("location-state").textContent)).toEqual({ path: "C:\\Temp\\hasm-tutorial" });
+    expect(api.createTutorialWorkspace).toHaveBeenCalledTimes(1);
+    window.sessionStorage.removeItem("hasm-tutorial-workspace");
+  });
+  it("TC-02-REACT-TUTORIAL-002 keeps the user on selection when creation fails", async () => {
+    api.createTutorialWorkspace.mockRejectedValue(new Error("Temporary storage unavailable"));
+    renderSelect();
+    fireEvent.click(screen.getByRole("button", { name: "Tutorial: explore an example" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start tutorial" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Temporary storage unavailable");
+    expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+  });
   it.each(["C:\\workspace", "C:\\Life.hasm"])("TC-02-REACT-BROWSE-001 validates a browsed workspace %s before Open", async (path) => {
     api.browseWorkspaceDirectory.mockResolvedValue(path);
     api.validateHasmFolderPath.mockResolvedValue();

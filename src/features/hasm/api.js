@@ -49,6 +49,16 @@ export function createHasmWorkspace(targetDirectoryPath) {
   return invoke("create_hasm_workspace", { targetDirectoryPath });
 }
 
+// [SEQ-MD-02][REQ-02-RULE-016] Create or remove the app-owned temporary tutorial workspace.
+export function createTutorialWorkspace() {
+  return invoke("create_tutorial_workspace");
+}
+
+// [SEQ-MD-02][REQ-02-RULE-016] Remove the app-owned tutorial workspace when switching models.
+export function cleanupTutorialWorkspace() {
+  return invoke("cleanup_tutorial_workspace");
+}
+
 // [REQ-01-RULE-005] Shared frontend hard-timeout wrapper preventing UI lockup on IPC calls.
 export function withTimeout(promise, timeoutMs, message) {
   let timeoutId;

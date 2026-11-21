@@ -22,6 +22,7 @@ const appCss = readFileSync(resolve("src", "App.css"), "utf8");
 
 const api = vi.hoisted(() => ({
   switchWorkspaceCleanly: vi.fn(),
+  cleanupTutorialWorkspace: vi.fn(),
   subscribeToTauriEvent: vi.fn(),
   computeVisualizerLayout: vi.fn(),
 }));
@@ -77,6 +78,32 @@ afterEach(() => {
 });
 
 describe("SEQ-07 global navigation and status", () => {
+  it.each([false, true])("TC-02-REACT-TUTORIAL-003 removes the example on switch and reports cleanup failures (%s)", async (fail) => {
+    window.sessionStorage.setItem("hasm-active-workspace", "C:\\Temp\\tutorial");
+    window.sessionStorage.setItem("hasm-tutorial-workspace", "C:\\Temp\\tutorial");
+    api.switchWorkspaceCleanly.mockResolvedValue();
+    if (fail) api.cleanupTutorialWorkspace.mockRejectedValue(new Error("Cannot remove example"));
+    else api.cleanupTutorialWorkspace.mockResolvedValue();
+    render(
+      <MemoryRouter initialEntries={["/visualizer"]}>
+        <ThemeProvider value={{ activePatternId: "classic", setActivePatternId: vi.fn() }}>
+          <GlobalNavbar />
+          <Routes><Route path="/select" element={<LocationProbe />} /></Routes>
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Switch Model" }));
+    await vi.waitFor(() => expect(api.cleanupTutorialWorkspace).toHaveBeenCalledTimes(1));
+    expect(api.switchWorkspaceCleanly).not.toHaveBeenCalled();
+    if (fail) {
+      expect(await screen.findByRole("alert")).toHaveTextContent("Cannot remove example");
+      expect(window.sessionStorage.getItem("hasm-tutorial-workspace")).not.toBeNull();
+      expect(screen.queryByTestId("location")).not.toBeInTheDocument();
+    } else {
+      expect(await screen.findByTestId("location")).toHaveTextContent("/select");
+      expect(window.sessionStorage.getItem("hasm-tutorial-workspace")).toBeNull();
+    }
+  });
   it("TC-07-REACT-001 redirects protected route to /select when no workspace is active", async () => {
     render(
       <MemoryRouter initialEntries={["/visualizer"]}>

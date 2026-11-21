@@ -10,6 +10,10 @@ Automated React and IPC coverage for this specification runs through `npm run te
 
 | Test IDs covered | Executable test file / command | CI job |
 | --- | --- | --- |
+| `TC-02-REACT-TUTORIAL-001` and `002` | `test/seq01.test.jsx` via `npm run test:eval-01` | Tutorial instructions, creation, and error |
+| `TC-02-REACT-TUTORIAL-003` | `test/seq07.test.jsx` via `npm run test:eval-07` | Switch cleanup success and failure |
+| `TC-02-IPC-TUTORIAL-001` and `002` | `src-tauri/tests/eval02_model_load_ipc.rs`, test `tutorial_workspace_dispatch_and_cleanup` | Native create, load, verify, duplicate rejection and cleanup |
+| `TC-02-IPC-TUTORIAL-003` | `test/eval-02-ipc.test.js` via `npm run test:eval-02` | Tutorial IPC bridge |
 | `TC-02-REACT-001` to `TC-02-REACT-005`, `TC-02-REACT-PERF-001`, active-lock and missing-storage route cases | `test/seq02.test.jsx` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
 | SEQ-02 IPC contracts | `test/eval-02-ipc.test.js` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
 | `TC-02-DIALOG-001`: native single-folder options, selection, cancel and errors | `test/eval-02-ipc.test.js` via `npm run test:eval-02` | Frontend: EVAL-02 React and IPC tests |
@@ -89,6 +93,12 @@ These unit and component tests focus on `LoadingModelPage.tsx`, Watchdog Timer p
 
 | Test ID | Trace Requirement ID | Test Type | Component / Target | Test Steps | Expected Result |
 | --- | --- | --- | --- | --- | --- |
+| **TC-02-REACT-TUTORIAL-001** | `REQ-02-RULE-016` | Positive (Tutorial) | `test/seq01.test.jsx`, test `TC-02-REACT-TUTORIAL-001 shows instructions and opens a created example through loading` | Open the guide and start the example. | Instructions warn about deletion and the created path enters normal loading. |
+| **TC-02-REACT-TUTORIAL-002** | `REQ-02-RULE-016` | Negative (Creation failure) | `test/seq01.test.jsx`, test `TC-02-REACT-TUTORIAL-002 keeps the user on selection when creation fails` | Reject the native create command. | The error is visible and no navigation occurs. |
+| **TC-02-REACT-TUTORIAL-003** | `REQ-02-RULE-016` | Negative (Cleanup failure) | `test/seq07.test.jsx`, test `TC-02-REACT-TUTORIAL-003 removes the example on switch and reports cleanup failures` | Switch with successful and failed cleanup. | Cleanup succeeds before navigation, or its error is shown and navigation is blocked. |
+| **TC-02-IPC-TUTORIAL-001** | `REQ-02-RULE-016` | Positive (Registered dispatch) | `src-tauri/tests/eval02_model_load_ipc.rs`, `tutorial_workspace_dispatch_and_cleanup` | Create, lock, load, verify, lay out, inspect entity details and clean up the example through registered invokes. | A populated model produces graph nodes and a LINK, its tickets contain Markdown, and its temporary directory is removed. |
+| **TC-02-IPC-TUTORIAL-002** | `REQ-02-RULE-016` | Negative (Duplicate) | `src-tauri/tests/eval02_model_load_ipc.rs`, `tutorial_workspace_dispatch_and_cleanup` | Attempt creation twice without cleanup. | The second request is rejected. |
+| **TC-02-IPC-TUTORIAL-003** | `REQ-02-RULE-016` | Positive (Bridge) | `test/eval-02-ipc.test.js`, test `TC-02-IPC-TUTORIAL-003 invokes the registered tutorial commands without arbitrary paths` | Call both bridge functions. | The exact command names are invoked without caller-supplied paths. |
 | **TC-02-REACT-001** | `REQ-02-FUNC-106` | Positive (Toast UI) | `LoadingModelPage.tsx` | 1. Render page.2. Mock IPC `check_workspace_lock` resolve with `is_stale_recovered = true`. | 1. Sets `isReadOnly = false`.2. Displays info toast: "Recovered stale lock file from previous process crash." |
 | **TC-02-REACT-002** | `REQ-02-FUNC-108``REQ-02-FUNC-109` | Positive (Close Event) | `App.tsx` (Global Listener) | 1. Trigger `tauri://close-requested` event on window.2. Mock `isReadOnly = false`. | 1. Invokes IPC `release_workspace_lock` passing `activeModelPath`. |
 | **TC-02-REACT-003** | `REQ-02-FUNC-101``REQ-02-FUNC-102``REQ-02-DATA-005` | Negative (Timeout) | `LoadingModelPage.tsx` | 1. Mock the mount-time `check_workspace_lock` invocation to stall exceeding 3,000ms. | 1. React cancels operation.2. The `LockCheckTimeout` message is surfaced and React Router navigates to `/error-model`. |
