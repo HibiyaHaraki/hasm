@@ -78,9 +78,69 @@ function switchTo3D() {
   fireEvent.click(screen.getByRole("button", { name: "3D" }));
 }
 
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.resetAllMocks(); window.sessionStorage.clear(); });
 
 describe("SEQ-03 visualizer lifecycle", () => {
+  it("TC-03-TOUR-001 presents the demo tour after layout and supports back, finish, and replay", async () => {
+    let resolveLayout;
+    window.sessionStorage.setItem("hasm-tutorial-workspace", "C:/fixture.hasm");
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockReturnValue(new Promise((resolve) => { resolveLayout = resolve; }));
+    renderVisualizer();
+    await vi.waitFor(() => expect(resolveLayout).toBeTypeOf("function"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await act(async () => resolveLayout(payload));
+    let dialog = await screen.findByRole("dialog", { name: "Create a workspace" });
+    expect(within(dialog).getByText(/deletes the temporary demo/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Back" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    dialog = await screen.findByRole("dialog", { name: "Create an entity" });
+    expect(within(dialog).getByText("Step 2 of 4")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Create New Entity/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Back" }));
+    dialog = await screen.findByRole("dialog", { name: "Create a workspace" });
+    expect(within(dialog).getByText("Step 1 of 4")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    dialog = await screen.findByRole("dialog", { name: "Create an entity" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    dialog = await screen.findByRole("dialog", { name: "Open an entity detail page" });
+    expect(within(dialog).getByText(/detail page shows its metadata/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    dialog = await screen.findByRole("dialog", { name: "Explore the extended commit graph" });
+    expect(within(dialog).getByText(/scroll to Extended commit graph/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Finish" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Replay tour" }));
+    expect(await screen.findByRole("dialog", { name: "Create a workspace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Replay tour" }));
+    await screen.findByRole("dialog", { name: "Create a workspace" });
+    fireEvent.keyDown(document, { key: "Escape" });
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    cleanup();
+    renderVisualizer();
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("TC-03-TOUR-002 never opens the tour for a different workspace or a failed layout", async () => {
+    window.sessionStorage.setItem("hasm-tutorial-workspace", "C:/other-demo.hasm");
+    api.subscribeToTauriEvent.mockResolvedValue(() => {});
+    api.computeVisualizerLayout.mockResolvedValue(payload);
+    renderVisualizer();
+    await vi.waitFor(() => expect(api.computeVisualizerLayout).toHaveBeenCalled());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Replay tour" })).not.toBeInTheDocument();
+    cleanup();
+    window.sessionStorage.setItem("hasm-tutorial-workspace", "C:/fixture.hasm");
+    api.computeVisualizerLayout.mockRejectedValue(new Error("Layout failed"));
+    renderVisualizer();
+    expect(await screen.findByTestId("location")).toHaveTextContent("/error-model");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem("hasm-tutorial-tour-seen")).toBeNull();
+  });
+
   it("TC-03-REACT-TOOLBAR-001 keeps scope lists collapsed and preserves selection across dismissal", async () => {
     api.subscribeToTauriEvent.mockResolvedValue(() => {});
     api.computeVisualizerLayout.mockResolvedValue(payload);

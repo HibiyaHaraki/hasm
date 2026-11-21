@@ -6,6 +6,8 @@ This specification defines the functional, data, time constraint, progress strea
 
 ## 1. System Invariants & Core Rules
 
+* **[REQ-03-RULE-021] Demo Product Tour:** After a temporary tutorial workspace has passed verification and its initial graph layout succeeds, the visualizer MUST show a four-step, dismissible, theme-aware Joyride product tour. It MUST explain creating a workspace, creating an entity, opening an entity detail page, and finding the detail page's Extended commit graph, spotlighting the relevant visible controls and graph. It MUST warn that switching deletes the demo and its edits. Back, Next, Finish and Skip MUST be keyboard-accessible, Escape MUST dismiss the tour, and the tour MUST be replayable from the demo visualizer. The tour MUST NOT appear for other workspaces or unsuccessful layouts, and MUST NOT automatically reopen on returning to the same demo graph.
+
 * **[REQ-03-RULE-020] Accessible 2D EXPERIENCE Navigation:** Each 2D EXPERIENCE lane label, including an empty timeline without a trunk, MUST be keyboard- and pointer-activatable and select that EXPERIENCE through the existing renderer callback. The host MUST open its typed detail ticket with workspace and view context intact. Detail graphs MUST disable these controls whenever graph navigation is disabled. A standalone renderer without a selection callback MUST render a noninteractive label.
 
 * **[REQ-03-RULE-001] State Guard Interception:** Access to `/visualizer` MUST be guarded by the Rust in-memory state. If no model is loaded (`ERR_NO_ACTIVE_MODEL`), the system MUST navigate to `/select`. If the loaded model is unverified (`is_verified == false`), the system MUST navigate to `/loading-model`.

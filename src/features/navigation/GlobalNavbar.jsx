@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Badge, Button, Container, Form, Nav, Navbar } from "react-bootstrap";
 import { COLOR_PATTERNS } from "../../hasm_color_pattern/src/index.js";
-import { switchWorkspaceCleanly } from "../hasm/api";
+import { cleanupTutorialWorkspace, switchWorkspaceCleanly } from "../hasm/api";
+import { createLogger } from "../../hasm_logger/src/react/logger.js";
 import { useTheme } from "../theme/ThemeContext";
 import "./GlobalNavbar.css";
 
+const logger = createLogger("global-navigation");
 // [SEQ-MD-07][REQ-07-RULE-004][REQ-07-FUNC-201][REQ-07-FUNC-401] Persistent global navigation bar rendering
 // workspace path, lock/verification status, and warning badges synchronously without IPC.
-// [REQ-07-RULE-003][REQ-07-FUNC-203][REQ-07-FUNC-204] Switch Model invokes switch_workspace_cleanly, clears
+// [REQ-07-RULE-003][REQ-07-FUNC-203][REQ-07-FUNC-204][REQ-02-RULE-016] Switch Model invokes switch_workspace_cleanly, clears
 // frontend workspace state, and navigates to /select.
 // [REQ-07-RULE-005][REQ-07-RULE-006][REQ-07-FUNC-301] Theme selector updates the active
 // hasm_color_pattern palette and the navigation text remains readable.
@@ -17,6 +19,7 @@ function GlobalNavbar() {
   const navigate = useNavigate();
   const { activePatternId, setActivePatternId } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [switchError, setSwitchError] = useState("");
 
   const workspacePath =
     location.state?.path ||
@@ -40,11 +43,21 @@ function GlobalNavbar() {
 
   async function switchModel() {
     const path = window.sessionStorage.getItem("hasm-active-workspace");
-    if (path) {
-      await switchWorkspaceCleanly(path, readOnly);
+    try {
+      if (window.sessionStorage.getItem("hasm-tutorial-workspace")) {
+        await cleanupTutorialWorkspace();
+      } else if (path) {
+        await switchWorkspaceCleanly(path, readOnly);
+      }
+    } catch (error) {
+      logger.error("[SEQ-MD-07][SWITCH] workspace switch failed", error);
+      setSwitchError(error?.message || String(error));
+      return;
     }
+    setSwitchError("");
     window.sessionStorage.removeItem("hasm-active-workspace");
     window.sessionStorage.removeItem("hasm-workspace-read-only");
+    window.sessionStorage.removeItem("hasm-tutorial-workspace");
     navigate("/select", { replace: true });
   }
 
@@ -84,6 +97,7 @@ function GlobalNavbar() {
               ))}
             </Form.Select>
             <Button size="sm" className="btn-hasm-outline" onClick={switchModel}>Switch Model</Button>
+            {switchError ? <span role="alert">{switchError}</span> : null}
           </Nav>
         </Navbar.Collapse>
       </Container>

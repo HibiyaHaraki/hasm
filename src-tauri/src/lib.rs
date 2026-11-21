@@ -10,6 +10,7 @@ mod logger;
 
 use crate::hasm::splash_commands::{start_splash_fallback, SplashState};
 use crate::logger::init_logger;
+use tauri::{Emitter, Manager};
 use std::time::Instant;
 
 /// [REQ-01-FUNC-001][REQ-01-RULE-009] Builds and runs the Tauri app: initializes the
@@ -26,9 +27,23 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(SplashState::new(launched_at))
+        .manage(hasm::tutorial_commands::TutorialWorkspace::default())
         .setup(|app| {
             start_splash_fallback(app.handle());
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+              if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if let Err(error) = hasm::tutorial_commands::cleanup(&window.state::<hasm::tutorial_commands::TutorialWorkspace>()) {
+                    log::error!("[SEQ-MD-02][TUTORIAL] cleanup on close failed: {error}");
+                    api.prevent_close();
+                    if let Err(emit_error) = window.emit("tutorial-cleanup-error", error) {
+                        log::error!("[SEQ-MD-02][TUTORIAL] could not report cleanup failure: {emit_error}");
+                    }
+                }
+              }
+            }
         })
         // Step 3. Register frontend-invokable command handlers.
         .invoke_handler(tauri::generate_handler![
@@ -41,6 +56,8 @@ pub fn run() {
             hasm::model_commands::switch_workspace_cleanly,
             hasm::model_commands::load_hasm_model_db,
             hasm::model_commands::verify_hasm_storage,
+            hasm::tutorial_commands::create_tutorial_workspace,
+            hasm::tutorial_commands::cleanup_tutorial_workspace,
             hasm::entity_creation_commands::create_hasm_workspace,
             hasm::entity_creation_commands::create_person,
             hasm::entity_creation_commands::create_experience,

@@ -104,6 +104,34 @@ afterEach(() => {
 });
 
 describe("bounded graph-ticket navigation robustness", () => {
+  it("TC-NAV-TOUR-001 opens the demo tour after real create, load, verify and layout wrappers", async () => {
+    const originalInvoke = bridge.invoke.getMockImplementation();
+    bridge.invoke.mockImplementation((name, args) => name === "create_tutorial_workspace"
+      ? Promise.resolve({ path }) : originalInvoke(name, args));
+    renderFlow("/select");
+    fireEvent.click(screen.getByRole("button", { name: "Tutorial: explore an example" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start tutorial" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("create_tutorial_workspace");
+    expect(bridge.invoke).toHaveBeenCalledWith("load_hasm_model_db", { path });
+    expect(bridge.invoke).toHaveBeenCalledWith("verify_hasm_storage", { path, model });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Go to visualization" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("compute_visualizer_layout", expect.objectContaining({ model }));
+    expect(screen.getByRole("dialog", { name: "Create a workspace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Skip tour" }));
+    await flush();
+    fireEvent.click(screen.getByText("Publication", { selector: ".HasmVisualizer_FactTitle" }));
+    await flush();
+    expect(bridge.invoke).toHaveBeenCalledWith("load_entity_detail", { modelRoot: path, entityType: "FACT", entityId: id });
+    expect(screen.getByRole("heading", { name: "Extended commit graph" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to Visualizer" }));
+    await flush();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Replay tour" })).toBeInTheDocument();
+  });
+
   it.each([
     ["FACT", true], ["FACT", false], ["EXPERIENCE", true], ["EXPERIENCE", false],
   ])("TC-NAV-CONVERT-001 converts %s with keepOriginal=%s through IPC and verified destination navigation", async (type, keep) => {

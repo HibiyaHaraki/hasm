@@ -7,6 +7,7 @@ pub mod commands;
 pub mod app_commands;
 pub mod splash_commands;
 pub mod model_commands;
+pub mod tutorial_commands;
 pub mod visualizer_commands;
 pub mod entity_editor_commands;
 pub mod entity_creation_commands;

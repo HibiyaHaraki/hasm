@@ -71,6 +71,18 @@ the existing scope, layout and workspace state.
 
 ### Navigation and Watchdog Ownership
 
+After the temporary demo is verified and its first layout succeeds,
+`VisualizerPage` opens a four-step Joyride tour covering workspace and
+entity creation, entity detail navigation, and the ticket's Extended commit
+graph. The workspace step warns that switching deletes the demo and its edits;
+the other steps spotlight the entity creation control or graph. Back, Next,
+Finish, Skip and Escape do not navigate or mutate the model. The frontend
+records the demo path in session storage when the tour first opens, so returning
+from a ticket does not restart it; **Replay tour** is available on that demo's
+graph. The tour is not shown for other workspaces or a failed layout. All
+tour colors use the active theme; no visualizer submodule changes or IPC
+contracts are required.
+
 `HasmVisualizerComponent` accepts an optional `initialViewState` and returns a
 snapshot as the second node-selection callback argument. `VisualizerPage` carries
 it as `visualizerView` in full workspace route state. Detail navigation and return,
