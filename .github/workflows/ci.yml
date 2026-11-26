@@ -135,24 +135,28 @@ jobs:
 
       - name: EVAL-01 Rust command tests
         working-directory: src-tauri
-        run: cargo test app_commands
+        run: cargo test --lib --features windows-test-manifest app_commands
+
+      - name: EVAL-01 Rust command invoke test
+        working-directory: src-tauri
+        run: cargo test --test app_commands_ipc
 
       - name: EVAL-01 Rust splash handoff tests
         working-directory: src-tauri
-        run: cargo test splash_commands
+        run: cargo test --lib --features windows-test-manifest splash_commands
 
       - name: EVAL-02 Rust model loading tests
         working-directory: src-tauri
-        run: cargo test model_commands
+        run: cargo test --lib --features windows-test-manifest model_commands
 
       - name: EVAL-03 Rust visualizer tests
         working-directory: src-tauri
-        run: cargo test visualizer_commands
+        run: cargo test --lib --features windows-test-manifest visualizer_commands
 
       - name: EVAL-04 Rust entity editor tests
         timeout-minutes: 3
         working-directory: src-tauri
-        run: cargo test entity_editor_commands
+        run: cargo test --lib --features windows-test-manifest entity_editor_commands
 
       - name: EVAL-04 Rust entity deletion IPC tests
         timeout-minutes: 3
@@ -161,17 +165,30 @@ jobs:
 
       - name: EVAL-05 Rust external editor tests
         working-directory: src-tauri
-        run: cargo test external_editor_commands
+        run: cargo test --lib --features windows-test-manifest external_editor_commands
 
       - name: EVAL-07 Rust route protection and switch tests
         working-directory: src-tauri
-        run: cargo test switches_workspace_cleanly_with_and_without_lock_release
+        run: cargo test --lib --features windows-test-manifest switches_workspace_cleanly_with_and_without_lock_release
 
       - name: EVAL-08 Rust entity creation tests
         working-directory: src-tauri
-        run: cargo test entity_creation_commands
+        run: cargo test --lib --features windows-test-manifest entity_creation_commands
 
       - name: Full Rust test suite (traceability coverage, incl. eval0x integration tests)
         timeout-minutes: 20
         working-directory: src-tauri
-        run: cargo test
+        shell: pwsh
+        run: |
+          cargo test --lib --features windows-test-manifest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          cargo test --doc --features windows-test-manifest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Get-ChildItem tests -Filter *.rs | ForEach-Object {
+            $testTarget = $_.BaseName
+            Write-Host "Running Rust integration test target: $testTarget"
+            cargo test --test $testTarget
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
