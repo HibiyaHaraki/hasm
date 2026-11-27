@@ -189,6 +189,10 @@ jobs:
           Get-ChildItem tests -Filter *.rs | ForEach-Object {
             $testTarget = $_.BaseName
             Write-Host "Running Rust integration test target: $testTarget"
-            cargo test --test $testTarget
+            if ($testTarget -eq "model_initialization_ipc") {
+              cargo test --test $testTarget -- --test-threads=1
+            } else {
+              cargo test --test $testTarget
+            }
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
