@@ -297,7 +297,6 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
     use serde_json::json;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     const PERSON_ID: &str = "11111111-1111-1111-1111-111111111111";
     const EXPERIENCE_ID: &str = "22222222-2222-2222-2222-222222222222";
@@ -305,7 +304,7 @@ mod tests {
     const LINK_ID: &str = "44444444-4444-4444-4444-444444444444";
 
     fn fixture_workspace() -> PathBuf {
-        let root = std::env::temp_dir().join(format!("hasm-seq-02-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        let root = std::env::temp_dir().join(format!("hasm-seq-02-{}", uuid::Uuid::new_v4()));
         for (entity_type, id, title) in [("PERSON", PERSON_ID, "Ada"), ("EXPERIENCE", EXPERIENCE_ID, "Research"), ("FACT", FACT_ID, "Publication"), ("LINK", LINK_ID, "Mentors")] {
             let folder = root.join(entity_type).join(id);
             fs::create_dir_all(folder.join("assets")).unwrap();
@@ -442,7 +441,7 @@ mod tests {
     fn scale_fixture_workspace(per_type: usize) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
             "hasm-seq-02-scale-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            uuid::Uuid::new_v4()
         ));
         for (type_index, entity_type) in ENTITY_TYPES.iter().enumerate() {
             for index in 0..per_type {
@@ -528,7 +527,7 @@ mod tests {
     fn surfaces_descriptive_errors_for_invalid_roots_and_malformed_payloads() {
         let missing = std::env::temp_dir().join(format!(
             "hasm-seq-02-missing-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+            uuid::Uuid::new_v4()
         ));
         let missing_string = missing.to_string_lossy().to_string();
         let error = check_workspace_lock_blocking(missing_string.clone()).unwrap_err();
